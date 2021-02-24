@@ -1,21 +1,29 @@
-DROP TABLE IF EXISTS person,employees;
+DROP TABLE IF EXISTS person,employees,positions;
 
 CREATE TABLE person (
-    id serial PRIMARY KEY,
+    id integer PRIMARY KEY,
     age integer,
     gender text,
 	passport integer
 );
 
 CREATE TABLE employees (
-	id integer REFERENCES person (id), -- Person ID
+	cid integer NOT NULL, -- company ID
+	id integer REFERENCES person (id),
 	position text
 );
 
-INSERT INTO person (age, gender, passport)
-	(SELECT q1.age,
-	 		CASE WHEN random()<0.25 THEN 'Female' ELSE 'Male' END,
-	 		CASE WHEN (q1.age>18) THEN 1e5+random()*(1e6-1e5)::integer ELSE NULL END
-	 FROM (SELECT prandom(10)+14 AS age FROM generate_series(1,1000)) AS q1
-	);
+CREATE TABLE positions (
+	id int PRIMARY KEY,
+	name text
+);
 
+CREATE UNIQUE INDEX ON employees (id);
+CREATE INDEX ON person (id, age);
+
+INSERT INTO positions (id,name) VALUES
+	(1, 'Truck driver'),
+	(2, 'Manager'),
+	(3, 'Helper'),
+	(4, 'Dispatcher'),
+	(5, 'Tractor driver');

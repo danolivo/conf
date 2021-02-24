@@ -1,9 +1,14 @@
--- ANALYZE person;
+EXPLAIN (ANALYZE, SUMMARY OFF)
+	SELECT id FROM person WHERE age<18;
+EXPLAIN (ANALYZE, SUMMARY OFF)
+	SELECT id FROM person WHERE age<18 AND passport IS NOT NULL;
 
-EXPLAIN ANALYZE SELECT id FROM person WHERE age<14;
-EXPLAIN ANALYZE SELECT id FROM person WHERE age<18;
-EXPLAIN ANALYZE SELECT id FROM person WHERE age<18 AND passport IS NOT NULL;
-
--- Use extended statistics to take this dependency in account.
-CREATE STATISTICS corr (dependencies) ON age, passport FROM person;
-EXPLAIN ANALYZE SELECT id FROM person WHERE age<18 AND passport IS NOT NULL;
+-- Use AQO 
+SET aqo.mode='learn';
+SET aqo.show_details = 'on';
+SET aqo.show_hash = 'on';
+TRUNCATE aqo_data;
+EXPLAIN (ANALYZE, SUMMARY OFF)
+	SELECT id FROM person WHERE age<18 AND passport IS NOT NULL;
+EXPLAIN (ANALYZE, SUMMARY OFF)
+	SELECT id FROM person WHERE age<18 AND passport IS NOT NULL;
