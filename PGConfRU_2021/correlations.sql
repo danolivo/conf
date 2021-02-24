@@ -14,6 +14,7 @@ INSERT INTO person (id,age,gender,passport)
 	 FROM (SELECT *, prandom(20)+14 AS age FROM generate_series(1, :citizens) id) AS q1
 	);
 
+-- Actualize statistics
 ANALYZE person;
 
 -- See the query plan without AQO knowledge

@@ -1,4 +1,4 @@
-DROP TABLE IF EXISTS person,employees,positions;
+DROP TABLE IF EXISTS person,employees,disabled;
 
 CREATE TABLE person (
     id integer PRIMARY KEY,
@@ -13,11 +13,6 @@ CREATE TABLE employees (
 	position text
 );
 
-CREATE TABLE positions (
-	id int PRIMARY KEY,
-	name text
-);
-
 CREATE UNIQUE INDEX ON employees (id);
 CREATE INDEX ON person (id, age);
 
@@ -25,10 +20,3 @@ CREATE TABLE disabled (
 	person_id integer REFERENCES person (id)
 	-- private medical data can go here
 );
-
-INSERT INTO positions (id,name) VALUES
-	(1, 'Truck driver'),
-	(2, 'Manager'),
-	(3, 'Helper'),
-	(4, 'Dispatcher'),
-	(5, 'Tractor driver');
