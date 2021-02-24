@@ -21,6 +21,11 @@ CREATE TABLE positions (
 CREATE UNIQUE INDEX ON employees (id);
 CREATE INDEX ON person (id, age);
 
+CREATE TABLE disabled (
+	person_id integer REFERENCES person (id)
+	-- private medical data can go here
+);
+
 INSERT INTO positions (id,name) VALUES
 	(1, 'Truck driver'),
 	(2, 'Manager'),
