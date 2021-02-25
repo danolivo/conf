@@ -14,7 +14,7 @@ INSERT INTO person (id,age,gender,passport)
 	 FROM (SELECT *, prandom(20)+14 AS age FROM generate_series(1, :citizens) id) AS q1
 	);
 
--- Add first company
+-- Add companies
 INSERT INTO employees (cid,id,position)
 	(SELECT random()*300::integer, *,
 	 		CASE WHEN ceil(random()*5)=1 THEN 'Manager'
@@ -25,12 +25,12 @@ INSERT INTO employees (cid,id,position)
 	 		END
 	 FROM generate_series(1,:citizens/10));
 
-
+-- %5 of community are disabled
 INSERT INTO disabled (person_id)
-	(SELECT random() * :citizens FROM generate_series(1, :citizens * 0.01));
+	(SELECT random() * :citizens FROM generate_series(1, :citizens * 0.05));
 
 -- Refresh statistics
-ANALYZE person,employees;
+ANALYZE person,employees,disabled;
 
 -- Try to see a number of unemployed
 EXPLAIN (ANALYZE,TIMING OFF,BUFFERS OFF)
@@ -65,6 +65,8 @@ SELECT count(*) FROM disabled JOIN (SELECT id,age FROM (SELECT id,age,cid FROM p
 -- See query execution plan with the AQO kbowledge
 -- 
 SET aqo.mode = 'frozen';
+SET aqo.show_details = 'on';
+SET aqo.show_hash = 'off';
 EXPLAIN (ANALYZE,TIMING OFF,BUFFERS OFF)
 SELECT count(*) FROM disabled JOIN (
 SELECT id,age FROM (
