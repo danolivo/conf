@@ -1,0 +1,108 @@
+% Cтилевой файл на основе par2004.sty 
+% 
+% Cтилевой файл par2004.sty вынесены требования по оформлению
+% Сборника по параллельным вычислениям выпуска 2004 года. 
+% Обратите внимание! 
+% Статьи оформляются строго в LaTeX2e в пакете MiKTeX.
+% 
+% Инструкция http://tom.imm.uran.ru/new/teximm.html/parallel -
+% - "Оформляем сборник по параллельным вычислениям".
+% 
+%
+% В стилевой файл вынесены исторически сложившиеся требования,
+% которых придерживались, начиная с 1995 года.  
+% 
+%
+\ProvidesPackage{parall2006}
+
+%Формат страницы
+%
+\hoffset=0mm       % горизонтальное смещение текста целиком
+\voffset=0mm       % вертикальное смещение текста целиком
+\oddsidemargin=0pt % размер левого поля == 1in+oddsidemargin
+\textwidth=11.2cm  % ширина собственно текста == textwidth-oddsidemargin
+\textheight=16cm   % высота без колонтитулов и номеров
+\flushbottom       % страницы равные по высоте
+%
+
+\newcommand{\mvc}{\mbox{МВС-100}}
+\newenvironment{ltrtr}{\par\bigskip\medskip\noindent
+{\sc\footnotesize{СПИСОК \ ЛИТЕРАТУРЫ}
+\nopagebreak\par\nopagebreak\medskip}
+\begin{enumerate}
+\partopsep=0pt\topsep=0pt\itemsep=3pt\parsep=0pt\parskip=0pt}{\end{enumerate}}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage{ifthen} % Стандартный стиль пакета MiKTeX20e - условный переход
+\RequirePackage{indentfirst}
+% Делаем точки после номеров в |\section|
+% (Взято из |ltsect.dtx|)
+\def\@sect#1#2#3#4#5#6[#7]#8{\ifnum #2>\c@secnumdepth
+     \let\@svsec\@empty\else
+     \refstepcounter{#1}\edef\@svsec{\csname the#1\endcsname.\hskip .6em}\fi
+     \@tempskipa #5\relax
+      \ifdim \@tempskipa>\z@
+        \begingroup #6\relax
+          \@hangfrom{\hskip #3\relax\@svsec}{\interlinepenalty \@M #8\par}%
+        \endgroup
+       \csname #1mark\endcsname{#7}\addcontentsline
+         {toc}{#1}{\ifnum #2>\c@secnumdepth \else
+                      \protect\numberline{\csname the#1\endcsname}\fi
+                    #7}\else
+        \def\@svsechd{#6\hskip #3\relax  %% \relax added 2 May 90
+                   \@svsec #8\csname #1mark\endcsname
+                      {#7}\addcontentsline
+                           {toc}{#1}{\ifnum #2>\c@secnumdepth \else
+                             \protect\numberline{\csname the#1\endcsname}\fi
+                       #7}}\fi
+     \@xsect{#5}}
+
+
+% |\section| в центре, абзац перед
+% |\subsection| и |\subsubsection|
+% взято из |classes.dtx|
+
+\def\section{\@startsection {section}{1}{\z@}%
+                                   {-3.5ex \@plus -1ex \@minus -.2ex}%
+                                   {2.3ex \@plus.2ex}%
+                                   {\protect\large\bfseries\centering}}
+
+                                    
+\def\subsection{\@startsection{subsection}{2}{\parindent}%
+                                     {-3.25ex\@plus -1ex \@minus -.2ex}%
+                                     {1.5ex \@plus .2ex}%
+                                     {\normalfont\normalsize\bfseries\centering}}
+
+\def\subsubsection{\@startsection{subsubsection}{3}{0.1ex}%
+                                     {-3.25ex\@plus -1ex \@minus -.2ex}%
+                                     {1.5ex \@plus .2ex}%
+                                     {\normalfont\normalsize\bfseries}}
+
+
+
+%%%%%%% Двойная нумерация формул
+\renewcommand{\theequation}{\arabic{section}.\arabic{equation}}
+
+%%%%%%% Колонтитул
+\def\ttl#1#2{{
+\begin{center}
+\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+\par{ Уральское отделение  Российской академии наук}
+\par{ Институт  математики  и  механики }
+\vspace{1ex}
+\par\hrule
+\vspace{1ex}
+\par{ Алгоритмы  и  программные  средства  параллельных вычислений ---
+2006.\ Вып.\,9}
+\vspace{6ex}
+\par{\large \bf #1}\par\bigskip{\sc #2}
+\renewcommand{\thefootnote}{\arabic{footnote}}
+\addtocounter{footnote}{-1}
+\end{center}
+}}
+
+
+
