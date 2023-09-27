@@ -44,3 +44,17 @@ EXPLAIN (ANALYZE,TIMING OFF,BUFFERS OFF)
 EXPLAIN (ANALYZE,TIMING OFF,BUFFERS OFF)
 	SELECT count(*) FROM person JOIN employees USING (id)
 	WHERE age<18 AND position='Helper';
+
+-- Try to use AQO ...
+SET aqo.mode = 'learn';
+SET aqo.show_details = 'on';
+
+-- Learn
+EXPLAIN (ANALYZE,TIMING OFF,BUFFERS OFF)
+	SELECT count(*) FROM person JOIN employees USING (id)
+	WHERE age<18 AND position='Helper';
+
+-- Use the knowledge ...
+EXPLAIN (ANALYZE,TIMING OFF,BUFFERS OFF)
+	SELECT count(*) FROM person JOIN employees USING (id)
+	WHERE age<18 AND position='Helper';
