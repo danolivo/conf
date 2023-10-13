@@ -1,0 +1,5 @@
+# The sr_plan extension
+comment = 'Force to use specific query plan'
+module_pathname = '$libdir/sr_plan'
+relocatable = true
+default_version = '0.2'

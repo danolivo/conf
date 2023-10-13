@@ -1,0 +1,15 @@
+Build & Run docker image
+========================
+docker build -t test .
+docker run --rm -it -p 5432:5432 -e POSTGRES_USER=postgres -e POSTGRES_HOST_AUTH_METHOD=trust test
+
+How to connect
+==============
+psql -p 5432 -U postgres postgres
+
+Extra info
+==========
+version of sr_plan.so: Debian GNU/Linux 11 (bullseye)
+
+As an example of sr_plan usage see the script which freezes pgbench queries in
+the ../Materials/freeze_pgbench.sql
