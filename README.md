@@ -69,14 +69,15 @@ Additional docs &amp; codes from my public appearances
 * Цымблер М.Л., Соколинский Л.Б., Лепихов А.В. Прототипирование параллельной СУБД как основа учебного курса по параллельным системам баз данных // Международная научная конференция «Суперкомпьютерные системы и их применение» (SSA'2004): Доклады конференции (26–28 октября 2004 г., Минск). Мн.: ОИПИ НАН Беларуси, 2004. C. 212–217. [paper]
 
 # Grants
-* The Russian Foundation for Basic Research, project no. [09-07-00241-a](https://www.rfbr.ru/rffi/ru/project_search/o_51908)
-* Работа выполнена при финансовой поддержке Российского фонда фундаментальных исследований (проект 03-07-90031) и компании Intel.
-* Работа выполнена при финансовой поддержке Российского фонда фундаментальных исследований (проект 09-07-00241-а)
-* Работа выполнена при финансовой поддержке Российского фонда фундаментальных исследо- ваний (проект 06-07-89148) и Южно-Уральского государственного университета (грант 2006-112)
-* Работа выполнена при финансовой поддержке Российского фонда фундаментальных исследований (проект 06-07-89148).
-* Работа выполнена при финансовой поддержке Российского фонда фундаментальных исследований (проект 09-07-00241-а) и Совета по грантам Президента Российской Федерации (грант МК-3535.2009.9).
-* Работа выполнена при поддержке Российского фонда фундаментальных исследований
-(проект 06-07-89148)
+* Award of the President of the Russian Federation "for outstanding achievements to scientists, designers, technologists and other engineering and technical workers of state defence procurement organizations", 2017.
+* Grant of the President of the Russian Federation for Young Scientists МК-3535.2009.9 [RU](https://grants.extech.ru/grants/res/winners.php?OZ=9&TZ=K&year=2009)
+* The Russian Foundation for Basic Research, project no. 09-07-00241-a, 2009 [RU](https://www.rfbr.ru/rffi/ru/project_search/o_51908)
+* The Russian Foundation for Basic Research, project no. 06-07-89148, 2006 [RU](https://www.rfbr.ru/rffi/ru/project_search/o_281873)
+* The Russian Foundation for Basic Research, project no. 03-07-90031, 2003 [RU](https://www.rfbr.ru/rffi/ru/project_search/o_229784)
+
+
+и Совета по грантам Президента Российской Федерации (грант МК-3535.2009.9).
+
 
 # Patents
 * Лепихов А.В., Соколинский Л.Б., Цымблер М.Л. Свидетельство Роспатента о государственной регистрации программы для ЭВМ «Параллельная СУБД «Омега» для кластерных систем» № 2008614996 от 03.10.2008.
