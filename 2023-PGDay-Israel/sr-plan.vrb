@@ -1,0 +1,10 @@
+\frametitle{The future}
+\begin{itemize}
+  \item Detect bad plan and try something different
+  \item Plan transfer procedure
+  \item Global prepared statements
+% Let me tell a bit about the future of this extension.
+% It is made as an enterprise solution occasionally. We have been looking at this extension as a playground for much more interesting Core and EE features.
+% GPS - it looks like we can move stored plan from shmem to the system catalog, to make it happens. Here is, of course, a lot of work with plan invalidation issues. But still, it is a good tool.
+% The method of plan usage proof can be used for safe transfer to another instance with the BKI. Using subtransactions we can imagine such external tool for dump/restore of plans.
+\end{itemize}
