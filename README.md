@@ -10,16 +10,17 @@ Additional docs &amp; codes from my public appearances
 # Conference Papers
 
 ## 2017
+* Lepikhov A.V. Ismagilov D.R., Kostin G.F. Extension of ANSYS Fluent Built-in Computational Models for Modelling of High-Enthalpy Hypersonic Flows // Proceedings of the XX Anniversary International Conference on Computational Mechanics and Modern Applied Software Systems (CMMASS'2017), 24-31 May, 2017.
 * Лепихов А.В. Упрощенная кинетическая схема горения керосин-кислородной смеси в камере ЖРД // XLI Академические чтения по космонавтике: сборник тезисов. 24-27 января 2017 г, Москва.
-* Лепихов А.В., Меркулов Е.С. Численное моделирование ударно-волновых нагрузок на ракету космического назначения при запуске двигателя первой ступени // // XLI Академические чтения по космонавтике: сборник тезисов. 24-27 января 2017 г, Москва.
+* Лепихов А.В., Меркулов Е.С. Численное моделирование ударно-волновых нагрузок на ракету космического назначения при запуске двигателя первой ступени // // XLI Академические чтения по космонавтике: [сборник тезисов](http://korolevspace.ru/sites/default/files/uploads/Abstracts_all_2017.pdf). 24-27 января 2017 г, Москва.
 * Lepikhov A.V. Effect of the enthalpy of hypersonic flow on separation and heat transfer near a three-dimensional compression corner // XXXII International Conference on Equations of State for Matter, March 1-6, 2017, Elbrus, Russia.
 
 ## 2016
 * Лепихов А.В. Упрощенная кинетическая схема горения смеси RP-1/O2 для CFD-расчетов ракетных двигателей // Физико-химическая кинетика в газовой динамике. 2016. Т. 17, вып. 1.
 * Голиков А.Ю., Лепихов А.В., Меркулов Е.С. Численное моделирование взаимодействия струй блочного жидкостного ракетного двигателя истекающих с большими степенями нерасчетности // XXII Научно-техническая конференция "Макеевские чтения", 25-26 октября 2016 г., Украина, Крым, г. Феодосия.
 * Merkulov E.S., Lepikhov A.V. Influence of a dispersed phase presented in external flow on heat exchange and erosion damage of surface of a hypersonic flight vehicle // XXXI International Conference on Equations of State for Matter, March 1-6, 2016, Elbrus, Russia.
-* Lepikhov A.V., Khlybov V.I., Degtiar V.G., Grakhov Yu. V., Kalashnikov S.T. Numerical simulation of aerogasdynamics of a flight vehicle with a hypersonic liquid-fuel ramjet // XXX International Conference on Equations of State for Matter: Book of Abstracts. March 1-6, 2016, Elbrus, Kabardino-balkaria, Russia.
-* Lepikhov A.V., Merkulov E.S., Pridannikov A.V. Numerical simulation of the high-altitude hypersonic flow of a body under shock-wave interaction // XXX International Conference on Equations of State for Matter: Book of Abstracts. March 1-6, 2016, Elbrus, Kabardino-balkaria, Russia.
+* Lepikhov A.V., Khlybov V.I., Degtiar V.G., Grakhov Yu. V., Kalashnikov S.T. Numerical simulation of aerogasdynamics of a flight vehicle with a hypersonic liquid-fuel ramjet // XXX International Conference on Equations of State for Matter: Book of Abstracts. March 1-6, 2015, Elbrus, Kabardino-balkaria, Russia.
+* Lepikhov A.V., Merkulov E.S., Pridannikov A.V. Numerical simulation of the high-altitude hypersonic flow of a body under shock-wave interaction // XXX International Conference on Equations of State for Matter: Book of Abstracts. March 1-6, 2015, Elbrus, Kabardino-balkaria, Russia.
 
 ## 2015
 * Лепихов А.В., Костин Г.Ф. Моделирование абляции тепловой защиты в высокоэнтальпийном газовом потоке // 14-я Международная конференция «Авиация и космонавтика-2015». 16-20 ноября 2015 г. Москва. Тезисы. 520 с.
