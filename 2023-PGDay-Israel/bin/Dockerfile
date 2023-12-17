@@ -1,4 +1,3 @@
-# FROM postgres:15.0-alpine
 FROM postgres:15.0-bullseye
 COPY ./sr_plan/sr_plan.so /usr/lib/postgresql/15/lib/
 COPY ./sr_plan/sr_plan.control /usr/share/postgresql/15/extension/
