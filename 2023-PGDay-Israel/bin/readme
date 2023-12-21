@@ -13,3 +13,26 @@ version of sr_plan.so: Debian GNU/Linux 11 (bullseye)
 
 As an example of sr_plan usage see the script which freezes pgbench queries in
 the ../Materials/freeze_pgbench.sql
+
+
+
+Simple experiment:
+==================
+
+EXPLAIN verbose SELECT oid,relname,reltuples FROM pg_class WHERE oid = 2601;
+SELECT * FROM sr_register_query('SELECT oid,relname,reltuples FROM pg_class WHERE oid = 2601');
+SET enable_indexscan = 'off';
+SET enable_bitmapscan = 'off';
+SELECT * FROM sr_plan_freeze(9);
+
+RESET enable_indexscan; RESET enable_bitmapscan;
+
+\d sr_plan_storage
+SELECT srid,queryid,query_string FROM sr_plan_storage;
+
+Parameterization
+----------------
+EXPLAIN verbose SELECT oid,relname,reltuples FROM pg_class WHERE relname = 'pg_am';
+SELECT * FROM sr_register_query('SELECT oid,relname,reltuples FROM pg_class WHERE relname = $1::name');
+SET enable_indexscan = 'off';
+SET enable_bitmapscan = 'off';
