@@ -1,0 +1,64 @@
+% Use xelatex to generate pdf file of this presentation
+
+\documentclass{beamer}
+\usepackage{roboto}
+\usepackage[russian]{babel}
+\usetheme{Copenhagen}
+
+% Simple way to put a code listing to the slide
+\usepackage{listings}
+
+\usepackage{tikz}
+\usepackage{graphicx}
+  \logo{\includegraphics[scale=0.1]{pics/PostgresPro_logo}}
+%Information to be included in the title page:
+\title{pg\_index\_stats}
+\subtitle{manage\ extended\ statistics\ automatically}
+\author{\underline{Lepikhov A.}, Rybakina A.}
+\institute{Postgres Professional}
+%\titlegraphic{\includegraphics[scale=0.05]{project_url}}
+\date{2024}
+
+% Add page numbers in footnote
+\expandafter\def\expandafter\insertshorttitle\expandafter{%
+  \insertshorttitle\hfill%
+  \insertframenumber\,/\,\inserttotalframenumber}
+
+\definecolor{lightlightgray}{gray}{0.9}
+
+% -----------------------------
+
+\begin{document}
+
+\begin{frame}
+\titlepage
+   \tikz [remember picture,overlay]
+    \node at
+        ([yshift=2.0cm, xshift=-4.8cm]current page.center) 
+        {\includegraphics[scale=0.05]{pics/project_logo}};
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{Self Introduction}
+\begin{itemize}
+  \item Working in Postgres Professional as a Core Developer since 2017.
+  \item Ph.D. in Computer Sciences (Distributed Databases), MSU, 2008.
+  \item Contributing to the PostgreSQL project since 2017
+  \item Lead of PostgreSQL optimisation group 
+  \item Designed the Shardman project architecture in its earlier steps
+  \item Worked on Multimaster project
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}
+\begin{center}
+\begin{center}
+\includegraphics[scale=0.1]{pics/project_logo}
+\end{center}
+\huge{Questions ?}
+\end{center}
+\end{frame}
+
+\end{document}
