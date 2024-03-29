@@ -39,10 +39,24 @@
 \definecolor{darkgreen}{rgb}{0.0, 0.5, 0.0}
 \definecolor{lightlightgray}{gray}{0.9}
 
+% Default listing format
+\lstset{language=sql, frame=none, tabsize=2, identifierstyle=\color{black},
+  showspaces=false, showtabs=false, showstringspaces=false,
+  columns=fullflexible, % Restore default spaces between letters
+  basicstyle=\rmfamily\scriptsize,
+  stringstyle=\color{purple},
+  keywordstyle=\bfseries\color{green!40!black},
+  numberstyle=\tiny\color{gray}}
+
 % -----------------------------
 
 \begin{document}
 
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% Title
+%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{frame}
 \titlepage
    \tikz [remember picture,overlay]
@@ -52,7 +66,15 @@
 
 \end{frame}
 
+% My name is Andrei. Today, I want to spend this time talking about extending statistics. It attempts to find correlations between columns in the table and more accurately predict cardinality. Or, in other words, the size of the data returned by the table scan operator. It was introduced in the PG12, but since then, it has been used quite rarely because of some questions, like over which set of columns we should create these statistics. Or how to control the overhead of these statistics calculations. Because it is a costly procedure, of course.
+% With a flow of performance reports related to the accuracy of optimizer predictions, we designed an extension that manages extended statistics creation/modification/removal. For the rationale of statistics management, we have chosen indexes. I'm going to explain how it works, the reasons for it, and the results.
 
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% About me
+%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{frame}[fragile]\frametitle{Self Introduction}
 \begin{columns}\begin{column}{0.6\textwidth}
 \begin{itemize}
@@ -67,11 +89,62 @@
 \end{column}\end{columns}
 \end{frame}
 
+% Because I am giving a speech for the first time in Asia, Let me tell you about myself shortly.
+%I live in Thailand. I have been contributing to PostgreSQL since 2017. I am a core developer at Postgres Professional company. Most of my reviews and commits are dedicated to optimization issues. This year, two of my features were committed: Self-Join Removal and group-by optimization.
+%I'm a Ph.D. Candidate in distributed databases, awarded in 2009. My most popular projects, which you would know, are Multimaster, Shardman, Adaptive Query Optimizer, and Plan Freezing. Previously, I attempted to resolve optimization issues with a query-driven approach. Nowadays, having understood the limitations of the query-driven approach in PG, I'm attempting to resolve the planning issues with a data-driven approach, elaborating on statistics.
 
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% Extended Statistics short introduction
+%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}[fragile]\frametitle{Extended Statistics}
+\vskip0pt plus 1filll
+CREATE STATISTICS ON x1,x2,x3,x4 FROM tablename;
+\vspace{10pt}
+\begin{itemize}
+  \item \textbf{ndistinct} - number of distinct values on all combinations of columns: (x1,x2),(x1,x3),(x1,x2,x3)...
+  \item \textbf{MCV} - \textbf{M}ost \textbf{C}ommon \textbf{V}alues on composite value  of (x1,x2,x3).
+  \item \textbf{dependencies} - functional dependencies between combinations of columns: x1->x2, (x1,x2)->x3,...
+\end{itemize}
+\vskip0pt plus 1filll
+\begin{columns}\begin{column}{0.03\textwidth}
+\includegraphics[scale=0.1]{pics/vondra_extstat}
+\end{column}\begin{column}{0.8\textwidth}
+\textit{Vondra. T. CREATE STATISTICS improvements,\\ PGConf.DE 2022}
+\end{column}\end{columns}
+\end{frame}
+%I want to mention the extended statistic to ensure we are on the same page. The best description of that feature can be found in Tomas Vondra's presentation. He is the leading developer of this feature. You can find it by following the link in the QR code.
+%This type of statistic is designed to provide information about the joint distribution of a set of columns or expressions. The slide provides an example of its definition.
+%These statistics are still not extensible and include three types of data: number of distinct values, most common values and dependency factor.
+%The number of distinct values is calculated for any possible combinations of the defining columns. The MCV is a collection of the most frequent values, and dependency shows us the factor of dependency between any possible combination of columns in the set of columns. 
+
+\begin{frame}[fragile]\frametitle{Laboriousness of Extended Statistics}
+\begin{itemize}
+  \item \textbf{ndistinct} - 1 integer for each of $2^n - (n+1)$ combinations
+  \item \textbf{MCV} - two arrays: values[] and frequences[].
+  \item \textbf{dependencies} - 1 float value for each of combinations
+\end{itemize}
+\vspace{20pt}
+\begin{center}
+\begin{tabular}{|l|c|c|c|c|c|}
+\hline
+columns: & 2 & 3 & 4 & ... & 8 \\
+\hline
+distinct combinations: & 1 & 4 & 11 & ... & 247 \\
+\hline
+dependency combinations: & 2 & 9 & 28 & ... & 1016 \\
+\hline
+\end{tabular}
+\end{center}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% What the extension do
+%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{frame}[fragile]\frametitle{Quick start}
-\lstset{language=sql, frame=none, tabsize=2, identifierstyle=\color{black},
-  backgroundcolor=\color{lightlightgray},
-  keywordstyle=\bfseries\color{green!40!black},showspaces=false, showtabs=false, showstringspaces=false}
 \begin{lstlisting}[basicstyle=\footnotesize]
 CREATE EXTENSION 'pg_index_stats';
 CREATE TABLE test (x int,y int,z text);
@@ -87,11 +160,11 @@ CREATE INDEX ON test (z,y);
  public | test_z_y_stat | y, z FROM test | defined   | defined      | defined
 \end{lstlisting}
 \end{frame}
+% И вот как первый шаг на пути развития data-driven approach in PostgreSQL I have designed this simple extension. What it does. You can find that out by using a simple example shown on the slide. Just by creating this extension (it can be loaded dynamically), you add one more action on any operation with indexes. For example, here, we create a plain table and a couple of indexes.
+% Immediately after that, if you look into the extended statistics created, you can find two new statistics (if their definitions don't duplicate any other statistics created before).
+% These statistics dependent on the extension and index relation. So
 
 \begin{frame}[fragile]\frametitle{Quick start - II}
-\lstset{language=sql, frame=none, tabsize=2, identifierstyle=\color{black},
-  backgroundcolor=\color{lightlightgray},
-  keywordstyle=\bfseries\color{green!40!black},showspaces=false, showtabs=false, showstringspaces=false}
 \begin{lstlisting}[basicstyle=\footnotesize]
 DROP INDEX test_x_y_idx;
 \end{lstlisting}
@@ -101,8 +174,18 @@ DROP INDEX test_x_y_idx;
 --------+---------------+----------------+-----------+--------------+---------
  public | test_z_y_stat | y, z FROM test | defined   | defined      | defined
 \end{lstlisting}
+\begin{lstlisting}[basicstyle=\footnotesize]
+SELECT stxname,obj_description(oid, 'pg_statistic_ext')
+FROM (SELECT oid,stxname FROM pg_statistic_ext);
+\end{lstlisting}
+\begin{lstlisting}[basicstyle=\tiny]
+    stxname    |             obj_description              
+---------------+------------------------------------------
+ test_z_y_stat | pg_index_stats - multivariate statistics
+\end{lstlisting}
 \end{frame}
-
+% If you delete one of the indexes after committing this operation, you will find only one statistic survived. Deleting the extension removes all auto-generated statistics if you don't change their dependencies in the system catalogue manually.
+% Also, auto-generated statistics have some specific sign - it is a comment assigned for each such object: you can just use the description function to identify such statistics for some reasons - for example, to script actions.
 
 \begin{frame}[fragile]\frametitle{GUCs \& Funcs}
 \begin{itemize}
@@ -113,8 +196,10 @@ DROP INDEX test_x_y_idx;
   \item \textit{pg\_index\_stats\_remove()}
 \end{itemize}
 \end{frame}
+% Also, the extension provides a few parameters related to the limitations and scope of the extension. We invented them because we quickly found that in real life, it could be harmful if someone creates an index containing 5-10 columns. And some people do that. No idea why.
+% Moreover, you have functions to manually delete all such stats or rebuild them over all tables in the database or just over one heap table. 
 
-\begin{frame}[fragile]\frametitle{Short Tech Backtrack}
+\begin{frame}[fragile]\frametitle{Short Tech Dive}
 Two-step process:
 \begin{itemize}
   \item Object Access Hook - gather candidate OIDs 
@@ -123,15 +208,19 @@ Two-step process:
 Set dependency of auto-generated statistics on the extension and index relation.\\
 Add specific description for auto-generated statistics
 \end{frame}
-
-\begin{frame}[fragile]\frametitle{What is the reason?}
-	\includegraphics[scale=0.52]{pics/querytree}
-\end{frame}
+% A bit of tech details that can be useful for DBA and developers. We realised that it is not trivial to create a database object while creating another index object. Here, I talk about index and extension statistics built upon its definition. So, the procedure is divided into two steps:
+% - Object creation. Here, we identify the creation of a table. You can't differentiate between plain tables, foreign tables, indexes, etc.
+% - Second step - is an end of utility operation. Here, we can already see the object created right before, its type and name, and we can build extended statistics if this object is an appropriate index.
+% And that's almost all about the extension. It's something like a TikTok-style speech. In the rest of the talk, I would like to explain why we have done it and how it works.
 
 \begin{frame}[fragile]\frametitle{Query auto-generation frameworks}
 \begin{center}
 	\includegraphics[scale=0.4]{pics/orms}
 \end{center}
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{What is the reason?}
+	\includegraphics[scale=0.52]{pics/querytree}
 \end{frame}
 
 \begin{frame}[fragile]\frametitle{Redundant expressions}
@@ -196,14 +285,6 @@ Indexes:
     "parcel_per_prik" btree (period, prik)
 \end{lstlisting}
 \end{frame}
-
-\lstset{language=sql, frame=none, tabsize=2, identifierstyle=\color{black},
-  backgroundcolor=\color{white}, showspaces=false, showtabs=false, showstringspaces=false,
-  columns=fullflexible, % Restore default spaces between letters
-  basicstyle=\rmfamily\scriptsize,
-  stringstyle=\color{purple},
-  keywordstyle=\bfseries\color{green!40!black},
-  numberstyle=\tiny\color{gray}}
   
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -264,8 +345,18 @@ AND longitude < 70.
 %
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{frame}[fragile]\frametitle{Does multicolumn histogram make sense?}
+In general - no. We need a multidimensional histogram. But it can make sense if we follow the definition of indexes ...
+\vspace{10pt}
+\begin{lstlisting}
+SELECT * FROM power_plants
+WHERE
+  country = 'RUS' AND
+  primary_fuel IN ('Solar', 'Biomass', 'Coal') AND
+  AND source = 'Wiki-Solar' AND
+  longitude > 40. AND longitude < 70.;
+\end{lstlisting}
 \begin{center}
-	
+	\includegraphics[scale=0.4]{pics/histogram}
 \end{center}
 \end{frame}
 
