@@ -66,8 +66,8 @@
 
 \end{frame}
 
-% My name is Andrei. Today, I want to spend this time talking about extending statistics and an extension we created to nudge improvement of PostgreSQL estimation techniques. Extended statistics dedicated to searching of correlations between columns in the table and predicting cardinality more accurately. Or, in other words, the size of the data returned by the table scan operator. It was introduced in the PG12, but since then, it has been used quite rarely because of some questions, like over which set of columns we should create these statistics. Or how to control the overhead of these statistics calculations. Because it is a costly procedure, of course.
-% With a flow of performance reports related to the accuracy of optimizer predictions, we designed an extension that manages extended statistics creation/modification/removal. As a rationale of statistics management, we have chosen indexes. I'm going to explain how it works, the reasons for it, and usage examples.
+% My name is Andrei. Today, I want to spend this time talking about extending statistics and an extension we created to nudge the improvement of PostgreSQL estimation techniques. Extended statistics dedicated to searching for correlations between columns in the table and predicting cardinality more accurately. Or, in other words, the size of the data returned by the table scan operator. It was introduced in the PG12, but it has rarely been used because of some questions, like over which set of columns we should create these statistics. Or how to control the overhead of these statistics calculations. Because it is a costly procedure, of course.
+%With a flow of performance reports related to the accuracy of optimizer predictions, we designed an extension that manages extended statistics creation/modification/removal. As a rationale for statistics management, we have chosen indexes. I'm going to explain how it works, the reasons for it, and usage examples.
 
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -90,8 +90,8 @@
 \end{frame}
 
 % Because I am giving a speech for the first time in Asia, Let me tell you about myself shortly.
-%I live in Thailand. I have been contributing to PostgreSQL since 2017. I am a core developer at Postgres Professional company. Most of my reviews and commits are dedicated to optimization issues. This year, two of my features were committed: Self-Join Removal and group-by optimization.
-%I'm a Ph.D. Candidate in distributed databases, awarded in 2009. My most popular projects, which you would know, are Multimaster, Shardman, Adaptive Query Optimizer, and Plan Freezing. Previously, I attempted to resolve optimization issues with a query-driven approach. Nowadays, having experience of the limitations of the query-driven approach in PG, I'm attempting to resolve the planning issues with a data-driven approach, elaborating on statistics.
+%I live in Thailand and have been contributing to PostgreSQL since 2017. I am a core developer at Postgres Professional. Most of my reviews and commits are dedicated to optimization issues. Two of my features were committed this year: Self-Join Removal and group-by optimization.
+%I'm a Ph.D. Candidate in distributed databases, awarded in 2009. My most popular projects, which you would know, are Multimaster, Shardman, Adaptive Query Optimizer, and Plan Freezing. Previously, I attempted to resolve optimization issues with a query-driven approach. Nowadays, having experience with the limitations of the query-driven approach in PG, I'm trying to fix the planning issues with a data-driven approach, elaborating on statistics.
 % KEY IDEA: data-driven approach can resolve weak points of query-driven approach.
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -117,9 +117,9 @@ CREATE STATISTICS ON x1,x2,x3,x4 FROM tablename;
 \end{column}\end{columns}
 \end{frame}
 %I want to explain the extended statistic a bit to ensure we are on the same page. The best description of that feature can be found in Tomas Vondra's recent presentation (see link below). He is the leading developer of this feature. You can find it by following the link in the QR code.
-%This type of statistic is designed to provide information about the joint distribution of a set of columns or expressions. At the top of the slide you can see an example of its definition. Right now extended statistics can be built upon one table involving some set of columns or expressions.
-%These statistics are still not extensible and include three types of data: number of distinct values, most common values and dependency factor.
-%The number of distinct values is calculated for all possible combinations of the defining columns. The MCV is a collection of the most frequent values, and dependency shows us the factor of dependency between any possible combination of columns in the set of columns. 
+%This type of statistic is designed to provide information about the joint distribution of a set of columns or expressions. At the top of the slide, you can see an example of its definition. Currently, extended statistics can be built upon one table involving some columns or expressions.
+%These statistics are still not extensible and include three types of data: most common values, number of distinct values and dependency factor.
+%The MCV is a collection of the most frequent values. The number of distinct values is calculated for all possible combinations of the defining columns and dependency shows us the dependency factor between any possible combination of columns in the set of columns. 
 
 \begin{frame}[fragile]\frametitle{Laboriousness of Extended Statistics}
 \begin{itemize}
@@ -140,11 +140,11 @@ dependency combinations: & 2 & 9 & 28 & ... & 1016 \\
 \end{tabular}
 \end{center}
 \end{frame}
-% Let's see the complexity of maintaining such statistics in actual state.
-% MCV is an array of data values and another one for their frequences. Here frequences are fixed-length real values. But data in the column, especially composite one can be lengthy and add overhead on detoasting.
-% ndistinct is just one number and don't add a lot of overhead on reading and writing from the catalog. But the number of combinations are growing quickly with the number of columns involved. Here you can see exact numbers of such combinations. With 8 columns we must calculate it for 247 combinations during analysis.
-% The same thing with dependencies. And even worse - for 8 columns we must generate 1016 combinations. It may be really expensive.
-% Taking all above facts into account I think we should separate ANALYZE of plain and extended statistics somehow. Or, at least, add a parameter to the analyse command.
+% Let's see the complexity of maintaining such statistics in the actual state.
+%MCV is an array of data values and another one for their frequency. Here, frequencies are fixed-length real values. But data in the column, especially composite one can be lengthy and add overhead on detoasting.
+%The ndistinct is just one number for whole column and only adds a little overhead to reading and writing from the catalog. However, the number of combinations is growing fast with the number of columns involved. Here, you can see the exact numbers of such combinations. With 8 columns, we must calculate it for 247 combinations during analysis.
+%It's the same with dependencies. Even worse, for 8 columns, we must generate around 1000 combinations. It may be expensive.
+%Taking all the above facts into account, I think we should somehow separate the ANALYZE of plain and extended statistics. Or, at least, add a parameter to the analyse command.
 % KEY IDEA: separation from plain statistics and be careful about that.
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -161,7 +161,7 @@ CREATE INDEX ON test (x,y);
 CREATE INDEX ON test (z,y);
 \dX
 \end{lstlisting}
-\begin{lstlisting}[basicstyle=\tiny]
+\begin{lstlisting}[basicstyle=\ttfamily\tiny, columns=fixed]
                          List of extended statistics
  Schema |     Name      |   Definition   | Ndistinct | Dependencies |   MCV   
 --------+---------------+----------------+-----------+--------------+---------
@@ -169,14 +169,13 @@ CREATE INDEX ON test (z,y);
  public | test_z_y_stat | y, z FROM test | defined   | defined      | defined
 \end{lstlisting}
 \end{frame}
-% MONOSPACE font here???
-% To reduce DBA's headache we tried to introduce a module which must approach two issues: when to create and delete statistics, remove it and how to reduce overhead. Let me show you with example, how the extension address this issue. Here you can see a sequence of commands: at first, we create the extension. Second - create table and some indexes. Immediately after that, if you check extended statistics in the database you will see two new statistics created according to the definition of indexes. To reduce the risk of overhead we limit number of columns in auto-generated statistics and disallow duplicates. But we see a room for improvements here around compactifying statistics.
+% To reduce DBA's headache, we tried to introduce a module that must approach two issues: when to create and delete statistics, remove it and how to reduce overhead. Let me show you an example how the extension addresses this issue. Here, you can see a sequence of commands: First, we create the extension. Second - create a table and some indexes. Immediately after that, if you check extended statistics in the database, you will see two new statistics created according to the definition of indexes. To reduce the risk of overhead, we limit the number of columns in auto-generated statistics and disallow duplicates for now. But we see room for improvement here, especially in compactifying statistics.
 
 \begin{frame}[fragile]\frametitle{Quick start - II}
 \begin{lstlisting}[basicstyle=\footnotesize]
 DROP INDEX test_x_y_idx;
 \end{lstlisting}
-\begin{lstlisting}[basicstyle=\tiny]
+\begin{lstlisting}[basicstyle=\tiny, columns=fixed]
                          List of extended statistics
  Schema |     Name      |   Definition   | Ndistinct | Dependencies |   MCV   
 --------+---------------+----------------+-----------+--------------+---------
@@ -186,16 +185,14 @@ DROP INDEX test_x_y_idx;
 SELECT stxname,obj_description(oid, 'pg_statistic_ext')
 FROM (SELECT oid,stxname FROM pg_statistic_ext);
 \end{lstlisting}
-\begin{lstlisting}[basicstyle=\tiny]
+\begin{lstlisting}[basicstyle=\tiny, columns=fixed]
     stxname    |             obj_description              
 ---------------+------------------------------------------
  test_z_y_stat | pg_index_stats - multivariate statistics
 \end{lstlisting}
 \end{frame}
-% Auto-generated statistics dependent on the extension and parent index. So,
-% If you delete one of the indexes, after committing this operation, you will find only one statistic survived. Deleting the extension removes all auto-generated statistics if you don't change their dependencies in the system catalogue manually.
-% Also, auto-generated statistics have some specific sign - it is a comment assigned for each such object: you can just use standard object description function to identify such statistics for some reasons - for example, to script your logic.
-% KEY IDEA: complexity is managed by the index policy.
+% The main danger of auto-generated statistics is a control of their effect on the database productivity. If they will grow uncontrollable we can get autovacuum computational bottleneck, something about that. Because of that reason auto-generated statistics are dependent on the extension and parent index. So, if you delete one of the indexes after committing this operation, only one statistic will survive. Deleting the extension removes all auto-generated statistics if you don't change their dependencies in the system catalogue manually.
+%Also, auto-generated statistics have a specific sign—a comment assigned for each such object. You can just use the standard object description function to identify such statistics for some reasons using query similar to shown on the slide, for example, to script your management logic.
 
 \begin{frame}[fragile]\frametitle{GUCs \& Funcs}
 \begin{itemize}
@@ -206,8 +203,8 @@ FROM (SELECT oid,stxname FROM pg_statistic_ext);
   \item \textit{pg\_index\_stats\_remove()}
 \end{itemize}
 \end{frame}
-% Also, the extension provides a few parameters related to the limitations and scope of the extension. We invented them because we quickly found that in real life, it could be harmful if someone creates an index containing 5-10 columns. And some people do that. No idea why.
-% Moreover, you have functions to manually delete all such stats or rebuild them over all tables in the database or just over one heap table. 
+% Also, the extension provides a few parameters related to its limitations and scope. We invented them because we quickly found that it could be harmful if someone creates an index containing 5-10 columns. And some people do that. No idea why.
+%Moreover, you have functions to manually delete all such stats or rebuild them across all database tables or just one heap table. 
 
 \begin{frame}[fragile]\frametitle{Short Tech Dive}
 Two-step process:
@@ -218,10 +215,10 @@ Two-step process:
 Set dependency of auto-generated statistics on the extension and index relation.\\
 Add specific description for auto-generated statistics
 \end{frame}
-% A bit of tech details that can be useful for DBA and developers. We realised that it is challenging and not native for Postgres architecture to create a database object while creating another index object. Here, I talk about index and extension statistics built upon its definition. So, the procedure is divided into two steps:
-% - Object creation. Here, we identify the creation of a table. You can't differentiate between plain tables, foreign tables, indexes, etc. We just save OID inside the extension.
-% - Second step - is an end of utility operation. Here, we can already see the object have created, its type and name, and we can build extended statistics if this object is an appropriate index.
-% And that's almost all about the extension. It's something like a TikTok-style speech. In the rest of the talk, I would like to explain why we have done it and how it works.
+% Some tech details can be helpful for DBA and core developers. We realised that it is challenging and not native for Postgres architecture to create a database object while creating another object. Here, I talk about index and extension statistics built upon its definition. So, the procedure is divided into two steps:
+%Object creation. Here, we identify the creation of a table. You can't differentiate between plain tables, foreign tables, indexes, etc. We just save OID inside the extension.
+%The second step is the end of the utility operation. Here, we can already see the object we created, its type, and its name, and we can build extended statistics if this object is an appropriate index.
+%And that's almost all about the extension. It's something like a TikTok-style speech. In the rest of the talk, I would like to explain why we have done it and what it give us.
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -234,14 +231,14 @@ Add specific description for auto-generated statistics
 	\includegraphics[scale=0.4]{pics/orms}
 \end{center}
 \end{frame}
-% The main reason for this work is current high flow of queries, containing not-optimized list of filters or join clauses. The source of the problem are frameworks, like ORMs or restful api. They can generate quite complex queries and Postgres with assumption of uniform distribution everywhere makes quaint predictions very often.
-% We are waiting that size of databases, managed with such frameworks in near future will steadily surge.
+% The main reason for this work is the current high flow of queries containing a not-optimised list of filters or join clauses. The source of the problem is frameworks, like ORMs or restful APIs. They can generate quite complex queries, and Postgres, with the assumption of uniform distribution everywhere, makes quaint predictions very often.
+%We expect the size of databases managed with such frameworks are going to surge steadily in the near future.
 
 \begin{frame}[fragile]\frametitle{What is the reason?}
 	\includegraphics[scale=0.52]{pics/querytree}
 \end{frame}
-% Analysing and solving this problem we found, that on the query level of table scan we should use different techniques than on higher levels of JOINs, GROUP-BYs and other aggregates. Higher levels can be tolerant to estimation overhead, low level - not.
-% For high levels we already have quite elaborate tools, but scan level estimation issue still may be resolved with only adequate statistics.
+% After analysing and solving this problem, we found that we should use different techniques on the level of table scan than on higher levels of JOINs, GROUP-BYs, and other aggregates. Higher levels can be tolerant to estimation overhead, but low levels are not.
+%We already have pretty elaborate tools for higher levels, but the scan level estimation issue may still be resolved with only adequate statistics.
 
 \begin{frame}[fragile]\frametitle{Redundant expressions}
 \lstset{language=sql, frame=none, tabsize=2, identifierstyle=\color{black},
@@ -274,9 +271,9 @@ WHERE
 }
 \end{center}
 \end{frame}
-% Here you can see some trivial demonstration of the problem. I got database of power plants, freely accessible online. You can download it with the link provided at the bottom of the slide. This databsase contains only one table with multiple columns. Large data but not so much different values in each column quite typical case for our clients.
-% Here we have only plain statistics, independent for each column.
-% Querying database with country abbreviation only we have precise prediction. But adding into that query full name of the country we see huge underestimation. It is just because DBMS doesn't know about correlation between these two columns: Each country has unique abbreviation and full name. It may be stupid query, but with ORMs in the middle we see such queries frequently enough. So, my question is...
+% Here, you can see a simple demonstration of the problem. For the experiments, I got a database of power plants freely accessible online. You can download it with the link provided at the bottom of the slide. This database contains only one table with multiple columns. It has large data but not many different values in each column, which is quite typical for our clients.
+%Here, we only have plain statistics that are independent for each column.
+%When we query the database with country abbreviation only, we have a precise prediction. But when we add the full name of the country to that query, we see a huge underestimation. It is just because DBMS doesn't know about the correlation between these two columns: Each country has a unique abbreviation and full name. It may be a stupid query, but with ORMs in the middle, we see such queries frequently enough. So, my question is...
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -288,8 +285,8 @@ WHERE
 Why can database systems, which manage all the data, not analyse it and find at least in-table dependencies and interconnections?
 \end{quote}
 \end{frame}
-% DBMSes have whole set of data and information about constraints. Why, having also information about incoming queries they shouldn't have analyzed hidden correlations in data. In our opinion, having growing practice of automatization and also sustainability aspects, next step in the evolution of DBMSes should address this question in some way.
-% This work - is a small step in that direction.
+% DBMSes have a whole set of data and information about constraints. Why, also having information about incoming queries, should theyn't analyse correlations in data? In our opinion, given the growing practice of automatisation and sustainability aspects, the next step in the evolution of DBMSes should address this question in some way.
+%This work - is a small step in that direction.
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -310,7 +307,7 @@ Indexes:
     "parcel_per_prik" btree (period, prik)
 \end{lstlisting}
 \end{frame}
-% Next question: why we have chasen indexes as a basis of our method. Looking into the common user practices we see, that the index usually is a template for most frequent or most important queries. btree indexes dependent on order of columns and users also frequently generate indexes on different orders of columns, trying to use it in the query. So, we have a big chance to get a query with filter over such specific set of columns, coming in such specific order. Covering these columns and these orders with extended statistics is a good strategy. Looking into this example of index coverage over a table you can understand, that we should inevitably stuck into the problem of compactifying the stats.
+% Next question: Why have we chosen indexes for our method? Looking into everyday user practices, we see that the index is usually a template for the most frequent or essential queries. btree indexes depend on the order of columns, and users also frequently generate indexes in different orders of columns when trying to use them in the query. So, we have a big chance to get a query with a filter over a specific set of columns coming in such order. Covering these columns and these orders with extended statistics is a good strategy. Looking into this example of index coverage over a table, you can understand that we should inevitably get stuck into the problem of compactifying the stats.
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -364,8 +361,8 @@ AND longitude < 70.
 }
 \end{center}
 \end{frame}
-% On the next slide I show comparison between cardinality estimation of trivial scan, when we use plain statistics and extended one.
-% Here we have the same table on energy plants as I described above. We step-by-step add clauses to the filter: country, type of fuel, source of data and coordinates. As you can see, plain statistics goes into underestimation because doesn't detect dependencies in data. Extended statistic works better and breaks only at the last step, when we select data by geographical position of the plant. Extended statistics doesn't work properly with inequalities because of its nature. Here can help only histogram, but we haven't had multidimensional histograms in the core so far.
+% In the next slide, I compare the cardinality estimation of the trivial scan when we use plain statistics and extended statistics.
+%Here, we have the same table on energy plants as I described above. We step-by-step add clauses to the filter: country, type of fuel, source of data and coordinates. As you can see, plain statistics goes into underestimation because it doesn't detect dependencies in data. Extended statistics work better and break only at the last step when we select data based on the geographical position of the plant. Extended statistics don't work accurately with inequalities because of their nature. Here, we can only help with histograms, but we have yet to have multidimensional histograms in the core.
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -387,8 +384,8 @@ WHERE
 	\includegraphics[scale=0.4]{pics/histogram}
 \end{center}
 \end{frame}
-% The goods news here: because we establish our idea on indexes, we think we have predefined order of columns in the filter. In that case we can use trivial histogram, not a multidimensional histogram. And we invented a patch which generates such a histogram. Just looking for the top and bottom boundaries in the histogram it returns target bins where our data can be and allows avoid underestimation in all cases except stale statistics and help in the case of range queries where extended stat falls short.
-% Of course, increasing number of columns in the composite type underlying the histogram we need increasingly more precise resolution of the histogram. And for small number of returning data it will not work precisely enough, but can help with big data sets.
+% The good news here is that because we have based on the idea of indexes, we think we have a predefined order of columns in the filter. In that case, we can use the trivial histogram, not a multidimensional histogram. We also invented a patch that generates such a histogram. Just looking for the top and bottom boundaries in the histogram, we can get target bins where our data can be, whic allows us to avoid underestimation in all cases except stale statistics, and helps in the case of range queries where extended stat falls short.
+%Of course, with an increasing number of columns in the composite type underlying the histogram, we need an increasingly more precise resolution of the histogram. For a small number of returning data, this will not work precisely enough, but it can help with big data sets.
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -442,8 +439,8 @@ AND longitude < 70.
 }
 \end{center}
 \end{frame}
-% Here we continued the experiment with complex selection filter and utilized this patch with histogram to see how it can work. The same queries, the same steps of adding new clauses and one additional column for histogram selectivity as a right column of the table. As you can see, histogram follows the extended statistics. The reason here is low number of distinct values in each column. It is just a trick for demonstration. But, see the bottom row of this table, histogram allows postgres to make objective estimation of selectivity with inequality, catching the fact, that most of Russian power plants located in the deep north semisphere.
-This experiment shows that we need at least additional statistics, may be histograms. And to add factual information and real user experience here we must develop small number of new hooks on clauses estimation and statistics generation. Because people don't like extensions with core patches.
+% Here, we continued the experiment with a complex selection filter and utilised this patch with a histogram to see how it could work. The same queries, the same steps of adding new clauses and one additional column for histogram selectivity as a right column of the table. As you can see, the histogram follows the extended statistics. The reason here is the low number of distinct values in each column. It is just a trick for demonstration. However, in the bottom row of this table, the histogram allows Postgres to estimate selectivity with inequality objectively, catching the fact that most Russian power plants are located in the deep north semisphere.
+%This experiment shows that we need at least additional statistics, possibly histograms. To add factual information and real user experience, we must develop a small number of new hooks on clause estimation and statistics generation. People don't like extensions with core patches.
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
