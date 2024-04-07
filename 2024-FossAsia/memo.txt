@@ -1,0 +1,78 @@
+MEMO
+
+Slide 1.
+- Stat nudges community
+- What is this?
+- Why so rare?
+- IS in short terms
+
+Slide 2.
+- Time
+- Community projects
+- Phd
+- Query V/S Data driven
+
+Slide 3.
+- What is it?
+- Limits
+- What is each one
+
+Slide 4.
+- Overhead of each
+- analyze Separation
+
+Slide 5.
+- Quick start (manage creation)
+- number of columns
+- mention compactifying
+
+Slide 6.
+- Quick start (removal)
+- Dependencies
+- Object description
+
+Slide 7.
+- GUCs
+- Funcs
+
+Slide 8.
+- Tech details
+
+Slide 9.
+- Frameworks
+- Stupid questions
+- Postgres basic assumption
+- Raise of such middleware
+
+Slide 10.
+- Two classes of nodes: scan and other relational operations
+- A lot of tools
+- Complexity of low-level estimations is limit on overhead
+
+Slide 11.
+Stupid example
+- Database
+- the gist of the experiment
+- stat don't have enough objective data to underpin the decision
+
+Slide 12.
+Database should analyse data
+
+Slide 13.
+- Users use indexes to speedup most critical queries
+- If they exist we can wait a lot of queries
+- Btree depends on the order and users give us a key to the order and most used columns
+
+Slide 14.
+- Experiment definition
+- senseless estimation
+- meaningful estimation
+- inequality problem
+
+Slide 15.
+- How histogram can be used
+- Problem of histogram and our luck
+
+Slide 16.
+- Experiment
+- Why histogram so successful?
