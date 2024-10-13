@@ -1,0 +1,73 @@
+diff --git a/src/backend/utils/adt/int.c b/src/backend/utils/adt/int.c
+index 234f20796b..a4a5c91cf2 100644
+--- a/src/backend/utils/adt/int.c
++++ b/src/backend/utils/adt/int.c
+@@ -829,6 +829,51 @@ int4mul(PG_FUNCTION_ARGS)
+ 	PG_RETURN_INT32(result);
+ }
+ 
++#include "nodes/makefuncs.h"
++Datum
++int4mul_support(PG_FUNCTION_ARGS)
++{
++	Node	   *rawreq = (Node *) PG_GETARG_POINTER(0);
++	Node	   *ret = NULL;
++
++	if (IsA(rawreq, SupportRequestSimplify))
++	{
++		SupportRequestSimplify *req = (SupportRequestSimplify *) rawreq;
++		ListCell *lc;
++
++		foreach(lc, req->fcall->args)
++		{
++			Node *value = (Node *) lfirst(lc);
++			Const *c;
++
++			if (!IsA(value, Const))
++				continue;
++
++			c = (Const *) value;
++			if (DatumGetInt32(c->constvalue) == 0)
++				PG_RETURN_POINTER(makeConst(INT4OID, -1, InvalidOid, sizeof(int32),0,
++								 false, true));
++			else if (DatumGetInt32(c->constvalue) == 1)
++				req->fcall->args = foreach_delete_current(req->fcall->args, lc);
++		}
++
++		if (list_length(req->fcall->args) == 0)
++			PG_RETURN_POINTER(makeConst(INT4OID, -1, InvalidOid, sizeof(int32),1,
++								 false, true));
++		else if (list_length(req->fcall->args) == 1)
++		{
++			ret = (Node *) linitial(req->fcall->args);
++
++			if (IsA(ret, RelabelType))
++				ret = (Node *) ((RelabelType *) ret)->arg;
++
++			PG_RETURN_POINTER(ret);
++		}
++	}
++
++	PG_RETURN_POINTER(ret);
++}
++
+ Datum
+ int4div(PG_FUNCTION_ARGS)
+ {
+diff --git a/src/include/catalog/pg_proc.dat b/src/include/catalog/pg_proc.dat
+index 77f54a79e6..1a7101c1ea 100644
+--- a/src/include/catalog/pg_proc.dat
++++ b/src/include/catalog/pg_proc.dat
+@@ -420,8 +420,11 @@
+   proargtypes => 'internal oid internal int2 internal',
+   prosrc => 'areajoinsel' },
+ { oid => '141',
+-  proname => 'int4mul', prorettype => 'int4', proargtypes => 'int4 int4',
++  proname => 'int4mul', prosupport => 'int4mul_support', prorettype => 'int4', proargtypes => 'int4 int4',
+   prosrc => 'int4mul' },
++{ oid => '9998', descr => 'planner support for int4mul',
++  proname => 'int4mul_support', prorettype => 'internal',
++  proargtypes => 'internal', prosrc => 'int4mul_support' },
+ { oid => '144',
+   proname => 'int4ne', proleakproof => 't', prorettype => 'bool',
+   proargtypes => 'int4 int4', prosrc => 'int4ne' },
