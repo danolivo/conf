@@ -210,7 +210,8 @@ ON b1.x IN (
 
 \begin{frame}\frametitle{Memoization: Top-bottom planning pass needed?}
 \begin{quote}
-Postgres optimisation passes from base relations to the top GROUP/ORDER-BY operation. We probably need a second, top-bottom optimisation pass to find out points of frequent rescanning and insert caching (Material, Memoize) nodes.
+Postgres optimisation passes from base relations to the top GROUP/ORDER-BY operation. We probably need a second, top-bottom optimisation pass to find out points of frequent rescanning and insert caching (Material, Memoize) nodes. \\
+Such an approach could also let us find new paths for queries with limits.
 \end{quote}
 \end{frame}
 
@@ -644,9 +645,7 @@ FROM pg_class c1
 
 \begin{frame}[fragile]\frametitle{Extended Statistics}
 \begin{lstlisting}
-SELECT * FROM table WHERE
-  id IN (1,2,3,4,5) AND
-  enabled = true AND
+SELECT * FROM table WHERE id IN (1,2,3,4,5) AND enabled = true AND
   status = 'ready';
 
 Selectivity 'id IN (1,2,3,4,5)' -> 0.00001
@@ -821,11 +820,14 @@ Let extensions do it!
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}
+\vspace*{\fill}
 \begin{center}
-\begin{center}
-\includegraphics[scale=0.5]{pics/project_logo}
-\end{center}
+\includegraphics[scale=0.5]{pics/project_logo}\\
 \huge{Questions ?}
+\end{center}
+\vspace*{\fill}
+\begin{center}
+\includegraphics[scale=0.1]{pics/url-supplement.png}
 \end{center}
 \end{frame}
 
