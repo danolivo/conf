@@ -226,6 +226,7 @@ Subqueries \& CTE
 \end{frame}
 
 \begin{frame}\frametitle{Subqueries \& CTE}
+DBMSes topics:
 \begin{itemize}
   \item Subquery -> JOIN transformation
   \item Precalculated Subquery and CTE result
@@ -238,8 +239,8 @@ Subqueries \& CTE
 
 \begin{frame}[fragile]\frametitle{Unnesting Correlated Subqueries (CSQ)}
 \begin{lstlisting}
-SELECT * FROM t1 WHERE y IN (
-  SELECT y FROM t2 WHERE t1.x=t2.x);
+SELECT t1.* FROM t1 WHERE y IN (
+  SELECT  FROM t2 WHERE t1.x=t2.x);
 \end{lstlisting}
 
 \begin{block}{BEFORE Unnesting}
@@ -253,10 +254,11 @@ SELECT * FROM t1 WHERE y IN (
 
 \begin{block}{AFTER Unnesting}
 \begin{lstlisting}[basicstyle=\footnotesize]
- Nested Loop Semi Join
-   Join Filter: ((t1.x = t2.x) AND (t1.y = t2.y))
+ Hash Semi Join
+   Hash Cond: ((t1.x = t2.x) AND (t1.y = t2.y))
    ->  Seq Scan on t1
-   ->  Seq Scan on t2
+   ->  Hash
+         ->  Seq Scan on t2
 \end{lstlisting}\end{block}
 \end{frame}
 
@@ -297,6 +299,8 @@ SELECT * FROM t1 WHERE y = (
 Before 2024, the general idea was to isolate the planning of the query and its subplans to simplify the process. In 2024, there is a big leap ahead: propagation of sorting. \\ Example: \\
 \begin{block}{EXPLAIN (COSTS OFF)}
 \begin{lstlisting}
+CREATE UNIQUE INDEX ON tenk1 (unique1);
+
 WITH x AS MATERIALIZED (
   SELECT unique1 FROM tenk1 b
   ORDER BY unique1
