@@ -794,7 +794,7 @@ WHERE a.x = ANY ('{1,2,3}');
 \begin{columns}[T]\begin{column}{0.6\textwidth}
   \includegraphics[scale=0.5]{pics/group-by-unique.png}
 \end{column}\begin{column}{0.4\textwidth}
-GROUP-BY makes grouped column 'almost' unique. We can use at in cardinality estimations.
+GROUP-BY makes grouped column 'almost' unique. We can use it in cardinality estimations.
 \end{column}\end{columns}
 % Knowing nothing about distribution of grouped data it uses ndistinct = 200
 \end{frame}
