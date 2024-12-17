@@ -448,6 +448,16 @@ Execution Time: 12.650 ms
 % What to improve in that area? This part of the code isn't popular and looks
 % like a big mess for now. - Maybe we need some explanation and a cost model here.
 
+\begin{frame}[fragile]\frametitle{Take a glance onto SQL Server}
+\begin{itemize}
+  \item Has limited number of ordered aggregate functions.
+  \item All the aggregates should be ordered according to the single rule (See Error 8711 in [1])
+  \item So, no chance to compare with Postgres :(
+\end{itemize}
+[1] Multiple ordered aggregate functions in the same scope have mutually incompatible orderings
+https://learn.microsoft.com/en-us/sql/relational-databases/errors-events/database-engine-events-and-errors-8000-to-8999?view=sql-server-ver16
+\end{frame}
+
 \begin{frame}[fragile]\frametitle{Prosupport machinery}
 \begin{itemize}
   \item A function has been a black box for the planner: rows? cost? selectivity? ...
