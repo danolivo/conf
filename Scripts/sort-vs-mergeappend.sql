@@ -25,7 +25,7 @@ BEGIN
 END$$;
 
 -- Let's change the constant in this INSERT to obtain different table size
-INSERT INTO test (x) SELECT random() FROM generate_series(1,1E7);
+INSERT INTO test (x) SELECT random() FROM generate_series(1,1E8);
 CREATE INDEX ON test (y);
 ANALYZE;
 ANALYZE test;
@@ -51,6 +51,7 @@ EXPLAIN (COSTS ON) SELECT * FROM test ORDER BY y;
 1E5: Merge Append  (cost=7754.19..10504.19 rows=100000 width=8)
 1E6: Merge Append  (cost=94092.25..121592.25 rows=1000000 width=8)
 1E7: Merge Append  (cost=1106931.22..1381931.22 rows=10000000 width=8) (actual rows=10000000.00 loops=1)
+1E8: Merge Append  (cost=14097413.40..16847413.40 rows=100000000 width=8) (actual rows=100000000.00 loops=1)
  
 SET enable_sort = 'off';
 
@@ -60,7 +61,8 @@ EXPLAIN (COSTS ON) SELECT * FROM test ORDER BY y;
 1E4: Sort  (cost=863.39..888.39 rows=10000 width=8)
 1E5: Sort  (cost=10253.82..10503.82 rows=100000 width=8)
 1E6: Sort  (cost=119089.84..121589.84 rows=1000000 width=8)
-1E7: Sort  (cost=1493651.33..1518651.33 rows=10000000 width=8) (actual rows=10000000.00 loops=1)
+1E7: Sort  (cost=1493651.33..1518651.33 rows=10000000 width=8) (actual rows=10000000.00 loops=1) - disk
+1E8: Sort  (cost=16597384.88..16847384.88 rows=100000000 width=8) (actual rows=100000000.00 loops=1) - disk
 */
 
 -- What about real timings?
@@ -71,6 +73,7 @@ EXPLAIN (COSTS ON) SELECT * FROM test ORDER BY y;
 1E5: MergeAppend: 118.885 ms, Sort: 88.492 ms
 1E6: MergeAppend: 1372.717 ms, Sort: 1106.184 ms
 1E7: MergeAppend: 15103.893 ms, Sort: 13415.806 ms
+1E8: MergeAppend: 176553.133 ms, Sort: 149458.787 ms
 */
 
 PREPARE tst AS SELECT * FROM test ORDER BY y;
