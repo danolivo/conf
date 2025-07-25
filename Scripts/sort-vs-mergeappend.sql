@@ -25,7 +25,7 @@ BEGIN
 END$$;
 
 -- Let's change the constant in this INSERT to obtain different table size
-INSERT INTO test (x) SELECT random() FROM generate_series(1,1E8);
+INSERT INTO test (x) SELECT random() FROM generate_series(1,1E1);
 CREATE INDEX ON test (y);
 ANALYZE;
 ANALYZE test;
@@ -37,7 +37,7 @@ SET enable_indexscan = 'off';
 SET enable_bitmapscan = 'off';
 RESET enable_sort;
 
-SET enable_sort = 'off';
+--SET enable_sort = 'off';
 
 /*
 SET enable_sort = 'on';
@@ -78,3 +78,23 @@ EXPLAIN (COSTS ON) SELECT * FROM test ORDER BY y;
 
 PREPARE tst AS SELECT * FROM test ORDER BY y;
 EXPLAIN (ANALYZE, COSTS ON, TIMING OFF, BUFFERS OFF) EXECUTE tst;
+
+/*
+Modified:
+
+1E1: Merge Append  (cost=6.59..7.58 rows=20 width=8) (actual rows=10.00 loops=1) Execution Time: 0.508 ms
+1E2: Merge Append  (cost=17.76..22.56 rows=101 width=8) (actual rows=100.00 loops=1) Execution Time: 0.457 ms
+1E4: Merge Append  (cost=613.83..1088.83 rows=10000 width=8) (actual rows=10000.00 loops=1) Execution Time: 9.797 ms
+1E6: Merge Append  (cost=94090.19..141590.19 rows=1000000 width=8) (actual rows=1000000.00 loops=1) Execution Time: 1317.099 ms
+1E7: Merge Append  (cost=1106930.24..1581930.24 rows=10000000 width=8) (actual rows=10000000.00 loops=1) Execution Time: 15440.124 ms
+1E8: Merge Append  (cost=14097410.90..18847410.90 rows=100000000 width=8) (actual rows=100000000.00 loops=1) Execution Time: 172893.067 ms
+*/
+
+/*
+SiftDown modifications:
+
+1E1: Sort  (cost=7.60..7.65 rows=19 width=8) (actual rows=10.00 loops=1)
+1E3: Sort  (cost=80.83..83.33 rows=1000 width=8) (actual rows=1000.00 loops=1)
+1E5: Sort  (cost=10254.82..10504.82 rows=100000 width=8) (actual rows=100000.00 loops=1)
+1E7: Sort  (cost=1493652.33..1518652.33 rows=10000000 width=8) (actual rows=10000000.00 loops=1)
+ */
