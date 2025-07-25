@@ -49,16 +49,29 @@ BEGIN
   END LOOP;
 END $$;
 
+/*
+-- RESULTS:
 
-SELECT part_builder(16, 100);
-EXPLAIN (COSTS ON) SELECT * FROM test ORDER BY y;
-SELECT part_builder(16, 1000);
-EXPLAIN (COSTS ON) SELECT * FROM test ORDER BY y;
-SELECT part_builder(16, 10000);
-EXPLAIN (COSTS ON) SELECT * FROM test ORDER BY y;
-SELECT part_builder(16, 100000);
-EXPLAIN (COSTS ON) SELECT * FROM test ORDER BY y;
-SELECT part_builder(16, 1000000);
-EXPLAIN (COSTS ON) SELECT * FROM test ORDER BY y;
-SELECT part_builder(16, 10000000);
-EXPLAIN (COSTS ON) SELECT * FROM test ORDER BY y;
+ Sort  (cost=20.82..21.07 rows=100 width=8)
+NOTICE:  Sort  (cost=80.83..83.33 rows=1000 width=8)
+NOTICE:  Sort  (cost=862.39..887.39 rows=10000 width=8)
+NOTICE:  Sort  (cost=10256.82..10506.82 rows=100000 width=8)
+NOTICE:  Sort  (cost=119090.84..121590.84 rows=1000000 width=8)
+NOTICE:  Sort  (cost=1493653.33..1518653.33 rows=10000000 width=8)
+
+ Merge Append  (cost=18.76..21.91 rows=100 width=8)
+NOTICE:  Merge Append  (cost=56.25..87.75 rows=1000 width=8)
+NOTICE:  Merge Append  (cost=613.83..928.83 rows=10000 width=8)
+NOTICE:  Merge Append  (cost=7757.28..10907.28 rows=100000 width=8)
+NOTICE:  Merge Append  (cost=94090.27..125590.27 rows=1000000 width=8)
+NOTICE:  Merge Append  (cost=1106931.30..1421931.30 rows=10000000 width=8)
+
+-- DIFFERENCE:
+
+21.07	21.91	1.03986711
+83.33	87.75	1.053042122
+887.39	928.83	1.046698746
+10506.8	10907.28	1.038116268
+121590.84	125590.27	1.032892527
+1518653.33	1421931.3	0.936310659
+ */
