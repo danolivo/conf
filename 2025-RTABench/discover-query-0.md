@@ -62,7 +62,8 @@ CREATE INDEX idx_2 ON order_events (event_created, event_type) INCLUDE (event_pa
 - Index Only Scan using idx_2 - 1586.097
 - Bitmap Index Scan on idx_3 - 1286.430
 
-Компактный индекс выглядит более привлекательным, нежели широкий но IndexOnlyScan. Любопытно. Оставим его и попробуем варьировать параллельных воркеров.
+В отсутствие  idx_3, оптимизатор выбирает  IndexScan по idx1 перед IndexOnlyScan по idx_2. Почему так происходит сказать сложно, поскольку EXPLAIN не даёт нам детальной информации, сколько строк предполагалось пофетчить с диска и впостледствии отфильтровать. И сколько блоков предполагалось потрогать, чтобы достать все нужные строки.
+Судя по времени сканирования, компактный индекс выглядит более привлекательным, нежели широкий но IndexOnlyScan. Любопытно. Оставим его и попробуем варьировать параллельных воркеров.
 Такой индекс уже не выглядит совсем уж естественным, а скорее заточенным под конкретный проблемный запрос или группу запросов. Но мы здесь просто смотрим потенциал оптимизации.
 
 Любопытно также, что на количестве воркеров 9 BitmapScan резко свалился в SeqScan и затормозил.
@@ -80,7 +81,15 @@ IndexOnlyScan распараллелился лучше и не свалился
 ```
 CREATE INDEX idx_4 ON order_events (event_created, event_type) INCLUDE (event_payload)
 WHERE ((event_payload ->> 'terminal'::text) = ANY ('{Berlin,Hamburg,Munich}'::text[]));
+```
 
-CREATE INDEX idx_5 ON order_events (event_created, event_type)
-WHERE ((event_payload ->> 'terminal'::text) = ANY ('{Berlin,Hamburg,Munich}'::text[]));
+Здесь также можно заметить, что потенциальная альтернатива - создать небольшие частичные индексы для каждого города. Однако оптимизатор не умеет разворачивать конструкцию x IN (y,z,w) в серию OR-ов, чтобы затем при помощи операции BitmapOr объединить результаты сканирования нескольких индексов.
+Однако, можно попробовать совсем мало реальный кейс и сделать частичный индекс по всему фильтру запроса:
+
+```
+CREATE INDEX idx_5 ON order_events (event_created, event_type) INCLUDE (event_payload)
+WHERE
+  event_created >= '2024-01-01' and event_created < '2024-02-01' AND
+  event_type IN ('Created', 'Departed', 'Delivered') AND
+  (event_payload ->> 'terminal'::text) = ANY ('{Berlin,Hamburg,Munich}'::text[]);
 ```
