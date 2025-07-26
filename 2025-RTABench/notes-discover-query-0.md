@@ -175,3 +175,15 @@ CREATE INDEX idx_3 ON order_events (event_created, event_type);
       Buffers: shared hit=4509185
 ```
 Выглядит так, как будто ширина индекса (дополнительная колонка) весит слишком много. Возможно именно поэтому, на многоколоночном индексе охотнее используется BitmapScan.
+
+# Загадка: Почему не работает объединение частичных индексов?
+Интересно, пытаюсь сделать покрытие частичными индексами, но постгрес его не подхватил:
+
+```
+CREATE INDEX idx_4_1 ON order_events (event_created, event_type)
+WHERE (event_payload ->> 'terminal' = 'Berlin');
+CREATE INDEX idx_4_2 ON order_events (event_created, event_type)
+WHERE (event_payload ->> 'terminal' = 'Hamburg');
+CREATE INDEX idx_4_3 ON order_events (event_created, event_type)
+WHERE (event_payload ->> 'terminal' = 'Munich');
+```

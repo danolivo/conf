@@ -80,4 +80,7 @@ IndexOnlyScan распараллелился лучше и не свалился
 ```
 CREATE INDEX idx_4 ON order_events (event_created, event_type) INCLUDE (event_payload)
 WHERE ((event_payload ->> 'terminal'::text) = ANY ('{Berlin,Hamburg,Munich}'::text[]));
+
+CREATE INDEX idx_5 ON order_events (event_created, event_type)
+WHERE ((event_payload ->> 'terminal'::text) = ANY ('{Berlin,Hamburg,Munich}'::text[]));
 ```
