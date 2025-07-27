@@ -1,5 +1,5 @@
 SET enable_bitmapscan = 'off';
-
+```
 -- 0
 
  WindowAgg  (cost=7690684.81..7692087.57 rows=70139 width=80) (actual time=15183.708..15184.392 rows=2232.00 loops=1)
@@ -303,4 +303,4 @@ NY ('{Berlin,Hamburg,Munich}'::text[])))
  Settings: work_mem = '1GB', min_parallel_table_scan_size = '0', min_parallel_index_scan_size = '0', parallel_setup_cost = '1', parallel_tuple_cost = '0.001', max_parallel_workers_per_gather = '8', enable_bitmapscan = 'off'
  Planning Time: 0.506 ms
  Execution Time: 9610.689 ms
-
+```
