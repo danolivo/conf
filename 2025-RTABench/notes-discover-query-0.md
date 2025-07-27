@@ -187,3 +187,50 @@ WHERE (event_payload ->> 'terminal' = 'Hamburg');
 CREATE INDEX idx_4_3 ON order_events (event_created, event_type)
 WHERE (event_payload ->> 'terminal' = 'Munich');
 ```
+# Загадка: Верхний лимит по количеству воркеров
+Имеем индексное сканирование, масштабируемое. Что мешает оптимизатору перешагнуть рубеж в 10 воркеров?
+```
+ WindowAgg  (cost=546868.03..548272.51 rows=70225 width=80) (actual time=976.510..1008.237 rows=2232.00 loops=1)
+   Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
+   Storage: Memory  Maximum Storage: 17kB
+   Buffers: shared hit=14317696
+   ->  Sort  (cost=546868.01..547043.57 rows=70225 width=48) (actual time=976.499..1007.454 rows=2232.00 loops=1)
+         Sort Key: ((order_events.event_payload ->> 'terminal'::text)), (date_trunc('hour'::text, order_events.event_created))
+         Sort Method: quicksort  Memory: 184kB
+         Buffers: shared hit=14317696
+         ->  GroupAggregate  (cost=538225.17..541215.00 rows=70225 width=48) (actual time=943.115..1006.704 rows=2232.00 loops=1)
+               Group Key: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text))
+               Buffers: shared hit=14317696
+               ->  Gather Merge  (cost=538225.17..539634.41 rows=70296 width=40) (actual time=943.103..996.099 rows=204053.00 loops=1)
+                     Workers Planned: 10
+                     Workers Launched: 10
+                     Buffers: shared hit=14317696
+                     ->  Sort  (cost=538224.98..538242.56 rows=7030 width=40) (actual time=936.860..937.606 rows=18550.27 loops=11)
+                           Sort Key: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text))
+                           Sort Method: quicksort  Memory: 1482kB
+                           Buffers: shared hit=14317696
+                           Worker 0:  Sort Method: quicksort  Memory: 1295kB
+                           Worker 1:  Sort Method: quicksort  Memory: 1293kB
+                           Worker 2:  Sort Method: quicksort  Memory: 1293kB
+                           Worker 3:  Sort Method: quicksort  Memory: 1421kB
+                           Worker 4:  Sort Method: quicksort  Memory: 1301kB
+                           Worker 5:  Sort Method: quicksort  Memory: 1300kB
+                           Worker 6:  Sort Method: quicksort  Memory: 1289kB
+                           Worker 7:  Sort Method: quicksort  Memory: 1299kB
+                           Worker 8:  Sort Method: quicksort  Memory: 1431kB
+                           Worker 9:  Sort Method: quicksort  Memory: 1425kB
+                           ->  Parallel Index Scan using idx1 on order_events  (cost=0.57..537775.79 rows=7030 width=40) (actual time=0.173..932.088 rows=18550.27 loops=11)
+                                 Index Cond: ((event_created >= '2024-01-01 00:00:00+00'::timestamp with time zone) AND (event_created < '2024-02-01 00:00:00+00'::timestamp with time zone))
+                                 Filter: ((event_type = ANY ('{Created,Departed,Delivered}'::text[])) AND ((event_payload ->> 'terminal'::text) = ANY ('{Berlin,Hamburg,Munich}'::text[])))
+                                 Rows Removed by Filter: 1281796
+                                 Index Searches: 1
+                                 Buffers: shared hit=14317536
+ Settings: work_mem = '1GB', min_parallel_table_scan_size = '0', min_parallel_index_scan_size = '0', parallel_setup_cost = '1e-11', parallel_tuple_cost = '1e-13', max_parallel_workers_per_gather = '16', max_parallel_workers = '16'
+ Planning:
+   Buffers: shared hit=5
+ Planning Time: 0.399 ms
+ Execution Time: 1008.383 ms
+```
+В коде есть лимит на количество страниц в таблице, который не обойти. Поэтому воспользуемся ручным режимом:
+`ALTER TABLE order_events SET (parallel_workers = 16);`
+Интересно, а как джойн принимает решение о количестве воркеров?
