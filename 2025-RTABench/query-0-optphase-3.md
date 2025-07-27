@@ -1,5 +1,5 @@
 -- BitmapOr:
-
+```
  WindowAgg  (cost=263601.27..264997.05 rows=69790 width=80) (actual time=204.832..205.515 rows=2232.00 loops=1)
    Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
    Storage: Memory  Maximum Storage: 17kB
@@ -294,4 +294,4 @@ _created >= '2024-01-01 00:00:00+00'::timestamp with time zone) AND (event_creat
  Settings: work_mem = '1GB', min_parallel_table_scan_size = '0', min_parallel_index_scan_size = '0', parallel_setup_cost = '1', parallel_tuple_cost = '0.001', max_parallel_workers_per_gather = '16', max_parallel_workers = '16'
  Planning Time: 0.536 ms
  Execution Time: 57.154 ms
-
+```
