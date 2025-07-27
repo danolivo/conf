@@ -1,5 +1,6 @@
 CREATE INDEX idx_1 ON order_events (event_created);
 
+```
  WindowAgg  (cost=821441.55..822846.03 rows=70225 width=80) (actual time=6591.242..6591.920 rows=2232.00 loops=1)
    Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
    Storage: Memory  Maximum Storage: 17kB
@@ -148,4 +149,4 @@ SET enable_bitmapscan = f;
    Buffers: shared hit=24 read=5 dirtied=2
  Planning Time: 0.960 ms
  Execution Time: 1625.320 ms
-
+```
