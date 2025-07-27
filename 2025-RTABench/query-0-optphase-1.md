@@ -416,87 +416,207 @@ CREATE INDEX idx_1 ON order_events (event_created);
 
 -- 12
 
- WindowAgg  (cost=546942.84..548347.32 rows=70225 width=80) (actual time=895.098..922.761 rows=2232.00 loops=1)
+ WindowAgg  (cost=541931.01..543335.49 rows=70225 width=80) (actual time=817.005..850.340 rows=2232.00 loops=1)
    Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
    Storage: Memory  Maximum Storage: 17kB
-   Buffers: shared hit=14317696
-   ->  Sort  (cost=546942.82..547118.38 rows=70225 width=48) (actual time=895.088..922.044 rows=2232.00 loops=1)
+   Buffers: shared hit=14317730
+   ->  Sort  (cost=541930.99..542106.56 rows=70225 width=48) (actual time=816.991..849.544 rows=2232.00 loops=1)
          Sort Key: ((order_events.event_payload ->> 'terminal'::text)), (date_trunc('hour'::text, order_events.event_created))
          Sort Method: quicksort  Memory: 184kB
-         Buffers: shared hit=14317696
-         ->  GroupAggregate  (cost=538226.17..541289.81 rows=70225 width=48) (actual time=867.155..921.375 rows=2232.00 loops=1)
+         Buffers: shared hit=14317730
+         ->  GroupAggregate  (cost=533132.57..536277.99 rows=70225 width=48) (actual time=789.195..848.858 rows=2232.00 loops=1)
                Group Key: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text))
-               Buffers: shared hit=14317696
-               ->  Gather Merge  (cost=538226.17..539709.22 rows=70296 width=40) (actual time=867.146..912.166 rows=204053.00 loops=1)
-                     Workers Planned: 10
-                     Workers Launched: 10
-                     Buffers: shared hit=14317696
-                     ->  Sort  (cost=538224.98..538242.56 rows=7030 width=40) (actual time=861.619..862.221 rows=18550.27 loops=11)
+               Buffers: shared hit=14317730
+               ->  Gather Merge  (cost=533132.57..534697.39 rows=70296 width=40) (actual time=789.183..839.976 rows=204053.00 loops=1)
+                     Workers Planned: 12
+                     Workers Launched: 12
+                     Buffers: shared hit=14317730
+                     ->  Sort  (cost=533131.33..533145.97 rows=5858 width=40) (actual time=782.389..782.891 rows=15696.38 loops=13)
                            Sort Key: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text))
-                           Sort Method: quicksort  Memory: 1357kB
-                           Buffers: shared hit=14317696
-                           Worker 0:  Sort Method: quicksort  Memory: 1291kB
-                           Worker 1:  Sort Method: quicksort  Memory: 1291kB
-                           Worker 2:  Sort Method: quicksort  Memory: 1294kB
-                           Worker 3:  Sort Method: quicksort  Memory: 1298kB
-                           Worker 4:  Sort Method: quicksort  Memory: 1428kB
-                           Worker 5:  Sort Method: quicksort  Memory: 1287kB
-                           Worker 6:  Sort Method: quicksort  Memory: 1428kB
-                           Worker 7:  Sort Method: quicksort  Memory: 1437kB
-                           Worker 8:  Sort Method: quicksort  Memory: 1426kB
-                           Worker 9:  Sort Method: quicksort  Memory: 1292kB
-                           ->  Parallel Index Scan using idx1 on order_events  (cost=0.57..537775.79 rows=7030 width=40) (actual time=0.147..856.959 rows=18550.27 loops=11)
+                           Sort Method: quicksort  Memory: 1286kB
+                           Buffers: shared hit=14317730
+                           Worker 0:  Sort Method: quicksort  Memory: 844kB
+                           Worker 1:  Sort Method: quicksort  Memory: 1318kB
+                           Worker 2:  Sort Method: quicksort  Memory: 859kB
+                           Worker 3:  Sort Method: quicksort  Memory: 896kB
+                           Worker 4:  Sort Method: quicksort  Memory: 843kB
+                           Worker 5:  Sort Method: quicksort  Memory: 846kB
+                           Worker 6:  Sort Method: quicksort  Memory: 841kB
+                           Worker 7:  Sort Method: quicksort  Memory: 852kB
+                           Worker 8:  Sort Method: quicksort  Memory: 1332kB
+                           Worker 9:  Sort Method: quicksort  Memory: 829kB
+                           Worker 10:  Sort Method: quicksort  Memory: 1313kB
+                           Worker 11:  Sort Method: quicksort  Memory: 851kB
+                           ->  Parallel Index Scan using idx1 on order_events  (cost=0.57..532764.73 rows=5858 width=40) (actual time=0.137..778.052 rows=15696.38 loops=13)
                                  Index Cond: ((event_created >= '2024-01-01 00:00:00+00'::timestamp with time zone) AND (event_created < '2024-02-01 00:00:00+00'::timestamp with time zone))
                                  Filter: ((event_type = ANY ('{Created,Departed,Delivered}'::text[])) AND ((event_payload ->> 'terminal'::text) = ANY ('{Berlin,Hamburg,Munich}'::text[])))
-                                 Rows Removed by Filter: 1281796
+                                 Rows Removed by Filter: 1084597
                                  Index Searches: 1
-                                 Buffers: shared hit=14317536
+                                 Buffers: shared hit=14317538
  Settings: work_mem = '1GB', min_parallel_table_scan_size = '0', min_parallel_index_scan_size = '0', parallel_setup_cost = '1', parallel_tuple_cost = '0.001', max_parallel_workers_per_gather = '12', max_parallel_workers = '16'
  Planning:
    Buffers: shared hit=5
- Planning Time: 0.409 ms
- Execution Time: 922.861 ms
+ Planning Time: 0.476 ms
+ Execution Time: 850.522 ms
+
 
 -- 16
 
- WindowAgg  (cost=546942.84..548347.32 rows=70225 width=80) (actual time=889.270..917.873 rows=2232.00 loops=1)
+ WindowAgg  (cost=535698.94..537103.42 rows=70225 width=80) (actual time=777.284..805.543 rows=2232.00 loops=1)
    Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
    Storage: Memory  Maximum Storage: 17kB
-   Buffers: shared hit=14317696
-   ->  Sort  (cost=546942.82..547118.38 rows=70225 width=48) (actual time=889.260..917.083 rows=2232.00 loops=1)
+   Buffers: shared hit=14317794
+   ->  Sort  (cost=535698.92..535874.48 rows=70225 width=48) (actual time=777.270..804.402 rows=2232.00 loops=1)
          Sort Key: ((order_events.event_payload ->> 'terminal'::text)), (date_trunc('hour'::text, order_events.event_created))
          Sort Method: quicksort  Memory: 184kB
-         Buffers: shared hit=14317696
-         ->  GroupAggregate  (cost=538226.17..541289.81 rows=70225 width=48) (actual time=861.669..916.413 rows=2232.00 loops=1)
+         Buffers: shared hit=14317794
+         ->  GroupAggregate  (cost=526768.12..530045.91 rows=70225 width=48) (actual time=732.458..803.589 rows=2232.00 loops=1)
                Group Key: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text))
-               Buffers: shared hit=14317696
-               ->  Gather Merge  (cost=538226.17..539709.22 rows=70296 width=40) (actual time=861.660..907.386 rows=204053.00 loops=1)
-                     Workers Planned: 10
-                     Workers Launched: 10
-                     Buffers: shared hit=14317696
-                     ->  Sort  (cost=538224.98..538242.56 rows=7030 width=40) (actual time=855.912..856.520 rows=18550.27 loops=11)
+               Buffers: shared hit=14317794
+               ->  Gather Merge  (cost=526768.12..528465.32 rows=70296 width=40) (actual time=732.446..794.239 rows=204053.00 loops=1)
+                     Workers Planned: 16
+                     Workers Launched: 16
+                     Buffers: shared hit=14317794
+                     ->  Sort  (cost=526766.77..526777.76 rows=4394 width=40) (actual time=724.458..724.839 rows=12003.12 loops=17)
                            Sort Key: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text))
-                           Sort Method: quicksort  Memory: 1478kB
-                           Buffers: shared hit=14317696
-                           Worker 0:  Sort Method: quicksort  Memory: 1284kB
-                           Worker 1:  Sort Method: quicksort  Memory: 1292kB
-                           Worker 2:  Sort Method: quicksort  Memory: 1417kB
-                           Worker 3:  Sort Method: quicksort  Memory: 1291kB
-                           Worker 4:  Sort Method: quicksort  Memory: 1297kB
-                           Worker 5:  Sort Method: quicksort  Memory: 1289kB
-                           Worker 6:  Sort Method: quicksort  Memory: 1298kB
-                           Worker 7:  Sort Method: quicksort  Memory: 1433kB
-                           Worker 8:  Sort Method: quicksort  Memory: 1314kB
-                           Worker 9:  Sort Method: quicksort  Memory: 1437kB
-                           ->  Parallel Index Scan using idx1 on order_events  (cost=0.57..537775.79 rows=7030 width=40) (actual time=0.232..851.132 rows=18550.27 loops=11)
+                           Sort Method: quicksort  Memory: 790kB
+                           Buffers: shared hit=14317794
+                           Worker 0:  Sort Method: quicksort  Memory: 747kB
+                           Worker 1:  Sort Method: quicksort  Memory: 748kB
+                           Worker 2:  Sort Method: quicksort  Memory: 741kB
+                           Worker 3:  Sort Method: quicksort  Memory: 758kB
+                           Worker 4:  Sort Method: quicksort  Memory: 754kB
+                           Worker 5:  Sort Method: quicksort  Memory: 737kB
+                           Worker 6:  Sort Method: quicksort  Memory: 772kB
+                           Worker 7:  Sort Method: quicksort  Memory: 783kB
+                           Worker 8:  Sort Method: quicksort  Memory: 766kB
+                           Worker 9:  Sort Method: quicksort  Memory: 772kB
+                           Worker 10:  Sort Method: quicksort  Memory: 766kB
+                           Worker 11:  Sort Method: quicksort  Memory: 759kB
+                           Worker 12:  Sort Method: quicksort  Memory: 742kB
+                           Worker 13:  Sort Method: quicksort  Memory: 748kB
+                           Worker 14:  Sort Method: quicksort  Memory: 773kB
+                           Worker 15:  Sort Method: quicksort  Memory: 758kB
+                           ->  Parallel Index Scan using idx1 on order_events  (cost=0.57..526500.91 rows=4394 width=40) (actual time=0.241..720.592 rows=12003.12 loops=17)
                                  Index Cond: ((event_created >= '2024-01-01 00:00:00+00'::timestamp with time zone) AND (event_created < '2024-02-01 00:00:00+00'::timestamp with time zone))
                                  Filter: ((event_type = ANY ('{Created,Departed,Delivered}'::text[])) AND ((event_payload ->> 'terminal'::text) = ANY ('{Berlin,Hamburg,Munich}'::text[])))
-                                 Rows Removed by Filter: 1281796
+                                 Rows Removed by Filter: 829398
                                  Index Searches: 1
-                                 Buffers: shared hit=14317536
+                                 Buffers: shared hit=14317538
  Settings: work_mem = '1GB', min_parallel_table_scan_size = '0', min_parallel_index_scan_size = '0', parallel_setup_cost = '1', parallel_tuple_cost = '0.001', max_parallel_workers_per_gather = '16', max_parallel_workers = '16'
  Planning:
    Buffers: shared hit=5
- Planning Time: 0.368 ms
- Execution Time: 917.974 ms
+ Planning Time: 0.557 ms
+ Execution Time: 805.731 ms
+
+-- 20
+
+ WindowAgg  (cost=531986.86..533391.34 rows=70225 width=80) (actual time=808.496..854.867 rows=2232.00 loops=1)
+   Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
+   Storage: Memory  Maximum Storage: 17kB
+   Buffers: shared hit=14317857
+   ->  Sort  (cost=531986.84..532162.41 rows=70225 width=48) (actual time=808.482..853.716 rows=2232.00 loops=1)
+         Sort Key: ((order_events.event_payload ->> 'terminal'::text)), (date_trunc('hour'::text, order_events.event_created))
+         Sort Method: quicksort  Memory: 184kB
+         Buffers: shared hit=14317857
+         ->  GroupAggregate  (cost=522951.09..526333.84 rows=70225 width=48) (actual time=758.581..852.892 rows=2232.00 loops=1)
+               Group Key: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text))
+               Buffers: shared hit=14317857
+               ->  Gather Merge  (cost=522951.09..524753.24 rows=70296 width=40) (actual time=758.569..842.572 rows=204053.00 loops=1)
+                     Workers Planned: 20
+                     Workers Launched: 20
+                     Buffers: shared hit=14317857
+                     ->  Sort  (cost=522949.63..522958.42 rows=3515 width=40) (actual time=748.621..748.933 rows=9716.81 loops=21)
+                           Sort Key: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text))
+                           Sort Method: quicksort  Memory: 444kB
+                           Buffers: shared hit=14317857
+                           Worker 0:  Sort Method: quicksort  Memory: 719kB
+                           Worker 1:  Sort Method: quicksort  Memory: 733kB
+                           Worker 2:  Sort Method: quicksort  Memory: 368kB
+                           Worker 3:  Sort Method: quicksort  Memory: 361kB
+                           Worker 4:  Sort Method: quicksort  Memory: 699kB
+                           Worker 5:  Sort Method: quicksort  Memory: 393kB
+                           Worker 6:  Sort Method: quicksort  Memory: 723kB
+                           Worker 7:  Sort Method: quicksort  Memory: 757kB
+                           Worker 8:  Sort Method: quicksort  Memory: 771kB
+                           Worker 9:  Sort Method: quicksort  Memory: 384kB
+                           Worker 10:  Sort Method: quicksort  Memory: 708kB
+                           Worker 11:  Sort Method: quicksort  Memory: 711kB
+                           Worker 12:  Sort Method: quicksort  Memory: 751kB
+                           Worker 13:  Sort Method: quicksort  Memory: 652kB
+                           Worker 14:  Sort Method: quicksort  Memory: 695kB
+                           Worker 15:  Sort Method: quicksort  Memory: 739kB
+                           Worker 16:  Sort Method: quicksort  Memory: 754kB
+                           Worker 17:  Sort Method: quicksort  Memory: 721kB
+                           Worker 18:  Sort Method: quicksort  Memory: 747kB
+                           Worker 19:  Sort Method: quicksort  Memory: 662kB
+                           ->  Parallel Index Scan using idx1 on order_events  (cost=0.57..522742.61 rows=3515 width=40) (actual time=0.507..745.088 rows=9716.81 loops=21)
+                                 Index Cond: ((event_created >= '2024-01-01 00:00:00+00'::timestamp with time zone) AND (event_created < '2024-02-01 00:00:00+00'::timestamp with time zone))
+                                 Filter: ((event_type = ANY ('{Created,Departed,Delivered}'::text[])) AND ((event_payload ->> 'terminal'::text) = ANY ('{Berlin,Hamburg,Munich}'::text[])))
+                                 Rows Removed by Filter: 671417
+                                 Index Searches: 1
+                                 Buffers: shared hit=14317537
+ Settings: work_mem = '1GB', min_parallel_table_scan_size = '0', min_parallel_index_scan_size = '0', parallel_setup_cost = '1', parallel_tuple_cost = '0.001', max_parallel_workers_per_gather = '20', max_parallel_workers = '32'
+ Planning:
+   Buffers: shared hit=5
+ Planning Time: 0.703 ms
+ Execution Time: 855.011 ms
+
+-- 24
+
+ WindowAgg  (cost=529530.03..530934.51 rows=70225 width=80) (actual time=845.781..883.500 rows=2232.00 loops=1)
+   Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
+   Storage: Memory  Maximum Storage: 17kB
+   Buffers: shared hit=14317921
+   ->  Sort  (cost=529530.01..529705.57 rows=70225 width=48) (actual time=845.764..882.162 rows=2232.00 loops=1)
+         Sort Key: ((order_events.event_payload ->> 'terminal'::text)), (date_trunc('hour'::text, order_events.event_created))
+         Sort Method: quicksort  Memory: 184kB
+         Buffers: shared hit=14317921
+         ->  GroupAggregate  (cost=520407.32..523877.01 rows=70225 width=48) (actual time=775.869..881.233 rows=2232.00 loops=1)
+               Group Key: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text))
+               Buffers: shared hit=14317921
+               ->  Gather Merge  (cost=520407.32..522296.41 rows=70296 width=40) (actual time=775.857..863.433 rows=204053.00 loops=1)
+                     Workers Planned: 24
+                     Workers Launched: 24
+                     Buffers: shared hit=14317921
+                     ->  Sort  (cost=520405.73..520413.06 rows=2929 width=40) (actual time=764.858..765.119 rows=8162.12 loops=25)
+                           Sort Key: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text))
+                           Sort Method: quicksort  Memory: 733kB
+                           Buffers: shared hit=14317921
+                           Worker 0:  Sort Method: quicksort  Memory: 443kB
+                           Worker 1:  Sort Method: quicksort  Memory: 381kB
+                           Worker 2:  Sort Method: quicksort  Memory: 433kB
+                           Worker 3:  Sort Method: quicksort  Memory: 403kB
+                           Worker 4:  Sort Method: quicksort  Memory: 439kB
+                           Worker 5:  Sort Method: quicksort  Memory: 709kB
+                           Worker 6:  Sort Method: quicksort  Memory: 381kB
+                           Worker 7:  Sort Method: quicksort  Memory: 378kB
+                           Worker 8:  Sort Method: quicksort  Memory: 682kB
+                           Worker 9:  Sort Method: quicksort  Memory: 702kB
+                           Worker 10:  Sort Method: quicksort  Memory: 442kB
+                           Worker 11:  Sort Method: quicksort  Memory: 677kB
+                           Worker 12:  Sort Method: quicksort  Memory: 713kB
+                           Worker 13:  Sort Method: quicksort  Memory: 389kB
+                           Worker 14:  Sort Method: quicksort  Memory: 437kB
+                           Worker 15:  Sort Method: quicksort  Memory: 393kB
+                           Worker 16:  Sort Method: quicksort  Memory: 723kB
+                           Worker 17:  Sort Method: quicksort  Memory: 389kB
+                           Worker 18:  Sort Method: quicksort  Memory: 404kB
+                           Worker 19:  Sort Method: quicksort  Memory: 397kB
+                           Worker 20:  Sort Method: quicksort  Memory: 409kB
+                           Worker 21:  Sort Method: quicksort  Memory: 751kB
+                           Worker 22:  Sort Method: quicksort  Memory: 660kB
+                           Worker 23:  Sort Method: quicksort  Memory: 643kB
+                           ->  Parallel Index Scan using idx1 on order_events  (cost=0.57..520237.08 rows=2929 width=40) (actual time=0.487..761.673 rows=8162.12 loops=25)
+                                 Index Cond: ((event_created >= '2024-01-01 00:00:00+00'::timestamp with time zone) AND (event_created < '2024-02-01 00:00:00+00'::timestamp with time zone))
+                                 Filter: ((event_type = ANY ('{Created,Departed,Delivered}'::text[])) AND ((event_payload ->> 'terminal'::text) = ANY ('{Berlin,Hamburg,Munich}'::text[])))
+                                 Rows Removed by Filter: 563990
+                                 Index Searches: 1
+                                 Buffers: shared hit=14317537
+ Settings: work_mem = '1GB', min_parallel_table_scan_size = '0', min_parallel_index_scan_size = '0', parallel_setup_cost = '1', parallel_tuple_cost = '0.001', max_parallel_workers_per_gather = '24', max_parallel_workers = '32'
+ Planning:
+   Buffers: shared hit=5
+ Planning Time: 0.541 ms
+ Execution Time: 883.697 ms
+
 ```
