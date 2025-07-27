@@ -1,5 +1,5 @@
 SET enable_seqscan = 'off';
-
+```
 -- 0
 
  WindowAgg  (cost=5162432.55..5163835.31 rows=70139 width=80) (actual time=20237.347..20238.123 rows=2232.00 loops=1)
@@ -382,4 +382,4 @@ SET enable_seqscan = 'off';
  Settings: work_mem = '1GB', min_parallel_table_scan_size = '0', min_parallel_index_scan_size = '0', parallel_setup_cost = '1', parallel_tuple_cost = '0.001', max_parallel_workers_per_gather = '8', enable_seqscan = 'off'
  Planning Time: 0.474 ms
  Execution Time: 16247.952 ms
-
+```
