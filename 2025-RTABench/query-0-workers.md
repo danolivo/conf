@@ -1,5 +1,5 @@
 -- Q0: Does number of workers speed up?
-
+```
 -- max_parallel_workers_per_gather = '16'
 
  WindowAgg  (cost=3467563.63..3468966.39 rows=70139 width=80) (actual time=16467.430..16472.305 rows=2232.00 loops=1)
@@ -849,4 +849,4 @@ NY ('{Berlin,Hamburg,Munich}'::text[])))
  Settings: work_mem = '1GB', min_parallel_table_scan_size = '0', min_parallel_index_scan_size = '0', parallel_setup_cost = '1', parallel_tuple_cost = '0.001', max_parallel_workers_per_gather = '8'
  Planning Time: 0.456 ms
  Execution Time: 8333.891 ms
-
+```
