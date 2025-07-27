@@ -234,3 +234,7 @@ WHERE (event_payload ->> 'terminal' = 'Munich');
 В коде есть лимит на количество страниц в таблице, который не обойти. Поэтому воспользуемся ручным режимом:
 `ALTER TABLE order_events SET (parallel_workers = 16);`
 Интересно, а как джойн принимает решение о количестве воркеров?
+```
+/* This is a foolish way to estimate parallel_workers, but for now... */
+pathnode->jpath.path.parallel_workers = outer_path->parallel_workers;
+```
