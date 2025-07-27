@@ -1,5 +1,5 @@
 CREATE INDEX idx_1 ON order_events (event_created);
-
+```
 -- 0
 
  WindowAgg  (cost=821441.55..822846.03 rows=70225 width=80) (actual time=6591.242..6591.920 rows=2232.00 loops=1)
@@ -499,4 +499,4 @@ CREATE INDEX idx_1 ON order_events (event_created);
    Buffers: shared hit=5
  Planning Time: 0.368 ms
  Execution Time: 917.974 ms
-
+```
