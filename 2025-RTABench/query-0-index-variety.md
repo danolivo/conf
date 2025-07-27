@@ -121,32 +121,32 @@ CREATE INDEX idx_2 ON order_events (event_created, event_type);
  Execution Time: 1329.114 ms
 
 SET enable_bitmapscan = f;
+SET enable_indexonlyscan = f;
 
- WindowAgg  (cost=1053915.66..1055320.14 rows=70225 width=80) (actual time=1624.555..1625.240 rows=2232.00 loops=1)
+ WindowAgg  (cost=7610680.89..7612085.37 rows=70225 width=80) (actual time=2882.373..2883.060 rows=2232.00 loops=1)
    Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
    Storage: Memory  Maximum Storage: 17kB
-   Buffers: shared hit=2558314
-   ->  Sort  (cost=1053915.64..1054091.20 rows=70225 width=48) (actual time=1624.547..1624.591 rows=2232.00 loops=1)
+   Buffers: shared hit=4509185
+   ->  Sort  (cost=7610680.87..7610856.43 rows=70225 width=48) (actual time=2882.364..2882.408 rows=2232.00 loops=1)
          Sort Key: ((order_events.event_payload ->> 'terminal'::text)), (date_trunc('hour'::text, order_events.event_created))
          Sort Method: quicksort  Memory: 184kB
-         Buffers: shared hit=2558314
-         ->  GroupAggregate  (cost=1046506.30..1048262.63 rows=70225 width=48) (actual time=1611.325..1624.014 rows=2232.00 loops=1)
+         Buffers: shared hit=4509185
+         ->  GroupAggregate  (cost=7603271.52..7605027.86 rows=70225 width=48) (actual time=2869.367..2881.795 rows=2232.00 loops=1)
                Group Key: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text))
-               Buffers: shared hit=2558314
-               ->  Sort  (cost=1046506.30..1046682.04 rows=70296 width=40) (actual time=1611.317..1615.189 rows=204053.00 loops=1)
+               Buffers: shared hit=4509185
+               ->  Sort  (cost=7603271.52..7603447.26 rows=70296 width=40) (actual time=2869.359..2873.270 rows=204053.00 loops=1)
                      Sort Key: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text))
                      Sort Method: quicksort  Memory: 12521kB
-                     Buffers: shared hit=2558314
-                     ->  Index Only Scan using idx_2 on order_events  (cost=0.57..1040847.06 rows=70296 width=40) (actual time=0.060..1586.097 rows=204053.00 loops=1)
+                     Buffers: shared hit=4509185
+                     ->  Index Scan using idx_2 on order_events  (cost=0.57..7597612.29 rows=70296 width=40) (actual time=0.136..2847.517 rows=204053.00 loops=1)
                            Index Cond: ((event_created >= '2024-01-01 00:00:00+00'::timestamp with time zone) AND (event_created < '2024-02-01 00:00:00+00'::timestamp with time zone) AND (event_type = ANY ('{Created,Departed,Delivered}'::text[])))
                            Filter: ((event_payload ->> 'terminal'::text) = ANY ('{Berlin,Hamburg,Munich}'::text[]))
                            Rows Removed by Filter: 4292642
-                           Heap Fetches: 0
                            Index Searches: 1
-                           Buffers: shared hit=2558314
- Settings: work_mem = '1GB', min_parallel_table_scan_size = '0', min_parallel_index_scan_size = '0', parallel_setup_cost = '1', parallel_tuple_cost = '0.001', max_parallel_workers_per_gather = '0', max_parallel_workers = '16'
+                           Buffers: shared hit=4509185
+ Settings: work_mem = '1GB', min_parallel_table_scan_size = '0', min_parallel_index_scan_size = '0', parallel_setup_cost = '1', parallel_tuple_cost = '0.001', max_parallel_workers_per_gather = '0', max_parallel_workers = '32', enable_bitmapscan = 'off', enable_indexonlyscan = 'off'
  Planning:
-   Buffers: shared hit=24 read=5 dirtied=2
- Planning Time: 0.960 ms
- Execution Time: 1625.320 ms
+   Buffers: shared hit=5
+ Planning Time: 0.381 ms
+ Execution Time: 2883.144 ms
 ```
