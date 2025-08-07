@@ -1,5 +1,5 @@
 -- (1)
-
+```
  WindowAgg  (cost=239284.93..240572.69 rows=64389 width=104) (actual time=315.372..320.555 rows=6409.00 loops=1)
    Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
    Storage: Memory  Maximum Storage: 17kB
@@ -23,9 +23,9 @@
  Settings: parallel_setup_cost = '1e-05', parallel_tuple_cost = '1e-05', min_parallel_table_scan_size = '0', min_parallel_index_scan_size = '0', work_mem = '1GB'
  Planning Time: 0.725 ms
  Execution Time: 322.497 ms
-
+```
 -- (2)
-
+```
 WindowAgg  (cost=627133.78..628423.26 rows=64475 width=104) (actual time=14482.640..14486.968 rows=6409.00 loops=1)
    Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
    Storage: Memory  Maximum Storage: 17kB
@@ -50,9 +50,9 @@ WindowAgg  (cost=627133.78..628423.26 rows=64475 width=104) (actual time=14482.6
    Buffers: shared hit=5
  Planning Time: 2.314 ms
  Execution Time: 14488.326 ms
-
+```
 -- (3)
-
+```
  WindowAgg  (cost=6991250.18..6992539.66 rows=64475 width=104) (actual time=8980.705..8985.116 rows=6409.00 loops=1)
    Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
    Storage: Memory  Maximum Storage: 17kB
@@ -79,3 +79,4 @@ WindowAgg  (cost=627133.78..628423.26 rows=64475 width=104) (actual time=14482.6
    Buffers: shared hit=5
  Planning Time: 1.178 ms
  Execution Time: 8986.287 ms
+```
