@@ -1,4 +1,36 @@
--- (1)
+# (1)
+
+```
+ WindowAgg  (cost=488.50..264985.22 rows=64475 width=104) (actual time=116.688..388.288 rows=6409.00 loops=1)
+   Output: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text)), ((order_events.event_payload ->> 'status'::text)), avg((count(*))) OVER w1
+   Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
+   Storage: Memory  Maximum Storage: 17kB
+   Buffers: shared hit=204566
+   ->  GroupAggregate  (cost=484.39..263856.91 rows=64475 width=80) (actual time=116.667..381.503 rows=6409.00 loops=1)
+         Output: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text)), ((order_events.event_payload ->> 'status'::text)), count(*)
+         Group Key: ((order_events.event_payload ->> 'terminal'::text)), (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'status'::text))
+         Buffers: shared hit=204566
+         ->  Incremental Sort  (cost=484.39..262083.20 rows=64540 width=72) (actual time=116.655..343.929 rows=204053.00 loops=1)
+               Output: (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'terminal'::text)), ((order_events.event_payload ->> 'status'::text))
+               Sort Key: ((order_events.event_payload ->> 'terminal'::text)), (date_trunc('hour'::text, order_events.event_created)), ((order_events.event_payload ->> 'status'::text))
+               Presorted Key: ((order_events.event_payload ->> 'terminal'::text))
+               Full-sort Groups: 3  Sort Method: quicksort  Average Memory: 28kB  Peak Memory: 28kB
+               Pre-sorted Groups: 3  Sort Method: quicksort  Average Memory: 6261kB  Peak Memory: 6283kB
+               Buffers: shared hit=204566
+               ->  Index Scan using order_events_expr_event_type_event_created_idx on public.order_events  (cost=0.57..259038.66 rows=64540 width=72) (actual time=0.095..232.855 rows=204053.00 loops=1)
+                     Output: date_trunc('hour'::text, order_events.event_created), (order_events.event_payload ->> 'terminal'::text), (order_events.event_payload ->> 'status'::text)
+                     Index Cond: (((order_events.event_payload ->> 'terminal'::text) = ANY ('{Berlin,Hamburg,Munich}'::text[])) AND (order_events.event_type = ANY ('{Created,Departed,Delivered}'::text[])) AND (order_events.event_created >= '2024-01-01 00:00:00+00'::timestamp with time zone) AND (order_events.event_created < '2024-02-01 00:00:00+00'::timestamp with time zone))
+                     Index Searches: 9
+                     Buffers: shared hit=204566
+ Settings: parallel_setup_cost = '1e-05', parallel_tuple_cost = '1e-05', min_parallel_table_scan_size = '0', min_parallel_index_scan_size = '0', work_mem = '1GB', enable_bitmapscan = 'off', max_parallel_workers_per_gather = '0'
+ Planning:
+   Buffers: shared hit=5
+ Planning Time: 1.876 ms
+ Execution Time: 388.957 ms
+```
+
+# The BitmapScan effect:
+
 ```
  WindowAgg  (cost=239284.93..240572.69 rows=64389 width=104) (actual time=315.372..320.555 rows=6409.00 loops=1)
    Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
@@ -24,7 +56,7 @@
  Planning Time: 0.725 ms
  Execution Time: 322.497 ms
 ```
--- (2)
+# (2)
 ```
 WindowAgg  (cost=627133.78..628423.26 rows=64475 width=104) (actual time=14482.640..14486.968 rows=6409.00 loops=1)
    Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
@@ -51,7 +83,7 @@ WindowAgg  (cost=627133.78..628423.26 rows=64475 width=104) (actual time=14482.6
  Planning Time: 2.314 ms
  Execution Time: 14488.326 ms
 ```
--- (3)
+# (3)
 ```
  WindowAgg  (cost=6991250.18..6992539.66 rows=64475 width=104) (actual time=8980.705..8985.116 rows=6409.00 loops=1)
    Window: w1 AS (PARTITION BY ((order_events.event_payload ->> 'terminal'::text)) ORDER BY (date_trunc('hour'::text, order_events.event_created)) ROWS BETWEEN '3'::bigint PRECEDING AND CURRENT ROW)
