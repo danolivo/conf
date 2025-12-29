@@ -1,3 +1,20 @@
+/*
+ * Benchmark TEMP TABLE page sequental scan V/S sequental write.
+ * 
+ * Goal:
+ * This benchmark is designed with purpose to estimate how much efforts the
+ * Postgres executor needs to spend flushing temporary buffers before execution.
+ *
+ * It is assumed that optimiser has an access to trivial statistics on total
+ * number of allocated temporary pages and percentage of dirty temp pages.
+ * Considering that data it should estimate if it worth flushing temp buffers on
+ * disk and execute query including more nodes in parallel operations (scan on
+ * temp tables) or do temporary table scans sequentially and reduce effect of
+ * parallel workers.
+ *
+ * NOTE: Do not foget to build optimised binaries.
+ */
+ 
 -- Setup input variable nbuffers beforehand
 
 CREATE EXTENSION IF NOT EXISTS pgstattuple;
@@ -32,6 +49,8 @@ CREATE TEMP TABLE displacer AS (SELECT r FROM repeat('a', 1024) AS r
 \echo "NO MEASURE: flush displacer to exclude writings on read test (Check 'local written' to be sure)"
 EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
 SELECT * FROM pg_flush_local_buffers();
+\echo "DROP displacer to free buffers"
+DROP TABLE displacer; 
 
 \echo "MEASURE: Read temp table block-by-block"
 EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
