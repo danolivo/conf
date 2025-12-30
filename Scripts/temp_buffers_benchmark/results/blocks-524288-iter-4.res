@@ -1,72 +1,67 @@
+SET
 CREATE EXTENSION
 SET
-temp_buffers= 2048, ntuples= 2048*7
+"TEST RUN: " temp_buffers= 524288, ntuples= 524288*7
 "Prepare table"
 CREATE TABLE
-INSERT 0 14336
+INSERT 0 3670016
 "Check real number of disk pages used by the table"
  pg_relpages 
 -------------
-        2048
+      524288
 (1 row)
 
 "MEASURE: flush of the table, block-by-block (Check 'local written' to be sure)"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
-   Buffers: local written=2047
- Planning Time: 0.008 ms
- Execution Time: 10.594 ms
+   Buffers: local written=524287
+ Planning Time: 0.013 ms
+ Execution Time: 12484.469 ms
 (4 rows)
 
 "MEASURE: dry flush (Nothing to write. Check 'local written' to be sure)"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
- Planning Time: 0.015 ms
- Execution Time: 0.010 ms
+ Planning Time: 0.029 ms
+ Execution Time: 2.601 ms
 (3 rows)
 
 "Check actually Allocated buffers. Should be equal to :nbuffers"
  pg_allocated_local_buffers 
 ----------------------------
-                       2048
+                     524288
 (1 row)
 
 "Wash away test table from memory buffers"
-SELECT 14336
+SELECT 3670016
 "NO MEASURE: flush displacer to exclude writings on read test (Check 'local written' to be sure)"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
-   Buffers: local written=2046
- Planning Time: 0.022 ms
- Execution Time: 8.027 ms
+   Buffers: local written=524156
+ Planning Time: 0.031 ms
+ Execution Time: 14185.847 ms
 (4 rows)
 
+"DROP displacer to free buffers"
+DROP TABLE
 "MEASURE: Read temp table block-by-block"
                             QUERY PLAN                             
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
-   Buffers: local hit=2 read=2046
- Planning Time: 0.024 ms
- Execution Time: 8.018 ms
+   Buffers: local hit=130 read=524158
+ Planning Time: 0.031 ms
+ Execution Time: 3005.950 ms
 (4 rows)
 
 "MEASURE: Dry-run: all the pages in the memory (check 'local hit')"
                             QUERY PLAN                             
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
-   Buffers: local hit=2013 read=35
- Planning Time: 0.018 ms
- Execution Time: 0.526 ms
-(4 rows)
-
-                            QUERY PLAN                             
--------------------------------------------------------------------
- Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
-   Buffers: local hit=2048
- Planning Time: 0.006 ms
- Execution Time: 0.387 ms
+   Buffers: local hit=132 read=524156
+ Planning Time: 0.028 ms
+ Execution Time: 3486.604 ms
 (4 rows)
 

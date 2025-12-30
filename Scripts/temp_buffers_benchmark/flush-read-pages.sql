@@ -17,12 +17,13 @@
  
 -- Setup input variable nbuffers beforehand
 
+SET client_min_messages TO 'ERROR';
 CREATE EXTENSION IF NOT EXISTS pgstattuple;
 
 SET temp_buffers = :nbuffers;
 \set ntuples :nbuffers * 7
 
-\echo temp_buffers= :nbuffers, ntuples= :ntuples
+\echo "TEST RUN: " temp_buffers= :nbuffers, ntuples= :ntuples
 
 \echo "Prepare table"
 CREATE TEMP TABLE test (x text);
@@ -57,7 +58,5 @@ EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
 SELECT * FROM pg_read_temp_relation('test');
 
 \echo "MEASURE: Dry-run: all the pages in the memory (check 'local hit')"
-EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
-SELECT * FROM pg_read_temp_relation('test');
 EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
 SELECT * FROM pg_read_temp_relation('test');
