@@ -16,16 +16,16 @@ INSERT 0 229376
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
    Buffers: local written=32767
- Planning Time: 0.010 ms
- Execution Time: 136.497 ms
+ Planning Time: 0.004 ms
+ Execution Time: 47.720 ms
 (4 rows)
 
 "MEASURE: dry flush (Nothing to write. Check 'local written' to be sure)"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
- Planning Time: 0.029 ms
- Execution Time: 0.089 ms
+ Planning Time: 0.015 ms
+ Execution Time: 0.031 ms
 (3 rows)
 
 "Check actually Allocated buffers. Should be equal to :nbuffers"
@@ -37,12 +37,13 @@ INSERT 0 229376
 "Wash away test table from memory buffers"
 SELECT 229376
 "NO MEASURE: flush displacer to exclude writings on read test (Check 'local written' to be sure)"
+"Evictions of already flushed buffers don't need disk operations"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
    Buffers: local written=32756
- Planning Time: 0.033 ms
- Execution Time: 133.840 ms
+ Planning Time: 0.021 ms
+ Execution Time: 55.491 ms
 (4 rows)
 
 "DROP displacer to free buffers"
@@ -52,8 +53,8 @@ DROP TABLE
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local hit=10 read=32758
- Planning Time: 0.028 ms
- Execution Time: 135.564 ms
+ Planning Time: 0.017 ms
+ Execution Time: 38.288 ms
 (4 rows)
 
 "MEASURE: Dry-run: all the pages in the memory (check 'local hit')"
@@ -61,7 +62,7 @@ DROP TABLE
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local hit=12 read=32756
- Planning Time: 0.029 ms
- Execution Time: 139.617 ms
+ Planning Time: 0.015 ms
+ Execution Time: 38.814 ms
 (4 rows)
 

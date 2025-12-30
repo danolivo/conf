@@ -16,16 +16,16 @@ INSERT 0 3670016
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
    Buffers: local written=524287
- Planning Time: 0.013 ms
- Execution Time: 12484.469 ms
+ Planning Time: 0.006 ms
+ Execution Time: 11450.240 ms
 (4 rows)
 
 "MEASURE: dry flush (Nothing to write. Check 'local written' to be sure)"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
- Planning Time: 0.029 ms
- Execution Time: 2.601 ms
+ Planning Time: 0.020 ms
+ Execution Time: 0.503 ms
 (3 rows)
 
 "Check actually Allocated buffers. Should be equal to :nbuffers"
@@ -37,12 +37,13 @@ INSERT 0 3670016
 "Wash away test table from memory buffers"
 SELECT 3670016
 "NO MEASURE: flush displacer to exclude writings on read test (Check 'local written' to be sure)"
+"Evictions of already flushed buffers don't need disk operations"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
    Buffers: local written=524156
- Planning Time: 0.031 ms
- Execution Time: 14185.847 ms
+ Planning Time: 0.021 ms
+ Execution Time: 11322.929 ms
 (4 rows)
 
 "DROP displacer to free buffers"
@@ -52,8 +53,8 @@ DROP TABLE
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local hit=130 read=524158
- Planning Time: 0.031 ms
- Execution Time: 3005.950 ms
+ Planning Time: 0.023 ms
+ Execution Time: 1576.509 ms
 (4 rows)
 
 "MEASURE: Dry-run: all the pages in the memory (check 'local hit')"
@@ -61,7 +62,7 @@ DROP TABLE
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local hit=132 read=524156
- Planning Time: 0.028 ms
- Execution Time: 3486.604 ms
+ Planning Time: 0.024 ms
+ Execution Time: 1760.375 ms
 (4 rows)
 

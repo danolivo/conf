@@ -16,16 +16,16 @@ INSERT 0 57344
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
    Buffers: local written=8191
- Planning Time: 0.010 ms
- Execution Time: 33.034 ms
+ Planning Time: 0.013 ms
+ Execution Time: 13.424 ms
 (4 rows)
 
 "MEASURE: dry flush (Nothing to write. Check 'local written' to be sure)"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
- Planning Time: 0.020 ms
- Execution Time: 0.027 ms
+ Planning Time: 0.018 ms
+ Execution Time: 0.012 ms
 (3 rows)
 
 "Check actually Allocated buffers. Should be equal to :nbuffers"
@@ -37,12 +37,13 @@ INSERT 0 57344
 "Wash away test table from memory buffers"
 SELECT 57344
 "NO MEASURE: flush displacer to exclude writings on read test (Check 'local written' to be sure)"
+"Evictions of already flushed buffers don't need disk operations"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
    Buffers: local written=8186
- Planning Time: 0.028 ms
- Execution Time: 32.994 ms
+ Planning Time: 0.022 ms
+ Execution Time: 13.165 ms
 (4 rows)
 
 "DROP displacer to free buffers"
@@ -52,8 +53,8 @@ DROP TABLE
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local hit=4 read=8188
- Planning Time: 0.032 ms
- Execution Time: 32.252 ms
+ Planning Time: 0.022 ms
+ Execution Time: 10.308 ms
 (4 rows)
 
 "MEASURE: Dry-run: all the pages in the memory (check 'local hit')"
@@ -61,7 +62,7 @@ DROP TABLE
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local hit=72 read=8120
- Planning Time: 0.029 ms
- Execution Time: 34.429 ms
+ Planning Time: 0.020 ms
+ Execution Time: 11.025 ms
 (4 rows)
 

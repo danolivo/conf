@@ -48,6 +48,7 @@ SELECT * FROM pg_allocated_local_buffers();
 CREATE TEMP TABLE displacer AS (SELECT r FROM repeat('a', 1024) AS r
   CROSS JOIN (SELECT 1 FROM generate_series(1,:ntuples)) AS q);
 \echo "NO MEASURE: flush displacer to exclude writings on read test (Check 'local written' to be sure)"
+\echo "Evictions of already flushed buffers don't need disk operations"
 EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
 SELECT * FROM pg_flush_local_buffers();
 \echo "DROP displacer to free buffers"

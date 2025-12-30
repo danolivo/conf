@@ -16,16 +16,16 @@ INSERT 0 917504
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
    Buffers: local written=131071
- Planning Time: 0.015 ms
- Execution Time: 570.055 ms
+ Planning Time: 0.005 ms
+ Execution Time: 200.802 ms
 (4 rows)
 
 "MEASURE: dry flush (Nothing to write. Check 'local written' to be sure)"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
- Planning Time: 0.032 ms
- Execution Time: 0.399 ms
+ Planning Time: 0.019 ms
+ Execution Time: 0.120 ms
 (3 rows)
 
 "Check actually Allocated buffers. Should be equal to :nbuffers"
@@ -37,12 +37,13 @@ INSERT 0 917504
 "Wash away test table from memory buffers"
 SELECT 917504
 "NO MEASURE: flush displacer to exclude writings on read test (Check 'local written' to be sure)"
+"Evictions of already flushed buffers don't need disk operations"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
    Buffers: local written=131036
- Planning Time: 0.033 ms
- Execution Time: 543.909 ms
+ Planning Time: 0.021 ms
+ Execution Time: 189.416 ms
 (4 rows)
 
 "DROP displacer to free buffers"
@@ -52,8 +53,8 @@ DROP TABLE
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local hit=34 read=131038
- Planning Time: 0.032 ms
- Execution Time: 553.039 ms
+ Planning Time: 0.023 ms
+ Execution Time: 174.586 ms
 (4 rows)
 
 "MEASURE: Dry-run: all the pages in the memory (check 'local hit')"
@@ -61,7 +62,7 @@ DROP TABLE
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local hit=36 read=131036
- Planning Time: 0.029 ms
- Execution Time: 575.319 ms
+ Planning Time: 0.017 ms
+ Execution Time: 166.965 ms
 (4 rows)
 
