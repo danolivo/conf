@@ -16,19 +16,19 @@ INSERT 0 14336
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
    Buffers: local written=2049
- Planning Time: 0.004 ms
- Execution Time: 2.890 ms
+ Planning Time: 0.006 ms
+ Execution Time: 3.049 ms
 (4 rows)
 
 "MEASURE: dry flush (Nothing to write. Check 'local written' to be sure)"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
- Planning Time: 0.006 ms
+ Planning Time: 0.007 ms
  Execution Time: 0.004 ms
 (3 rows)
 
-"Check actually Allocated buffers. Should be equal to :nbuffers or so"
+"Check actually Allocated buffers. Should be equal to "2048" or so"
  pg_allocated_local_buffers 
 ----------------------------
                        2051
@@ -42,8 +42,8 @@ SELECT 14336
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
    Buffers: local written=1841
- Planning Time: 0.013 ms
- Execution Time: 2.722 ms
+ Planning Time: 0.016 ms
+ Execution Time: 2.798 ms
 (4 rows)
 
 "DROP displacer to free buffers"
@@ -53,8 +53,8 @@ DROP TABLE
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local read=2048
- Planning Time: 0.007 ms
- Execution Time: 2.449 ms
+ Planning Time: 0.010 ms
+ Execution Time: 2.302 ms
 (4 rows)
 
 "MEASURE: Dry-run: all the pages in the memory (check 'local hit')"
@@ -62,7 +62,7 @@ DROP TABLE
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local hit=2048
- Planning Time: 0.009 ms
- Execution Time: 0.055 ms
+ Planning Time: 0.010 ms
+ Execution Time: 0.057 ms
 (4 rows)
 

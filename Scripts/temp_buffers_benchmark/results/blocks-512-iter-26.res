@@ -16,8 +16,8 @@ INSERT 0 3584
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
    Buffers: local written=513
- Planning Time: 0.005 ms
- Execution Time: 0.582 ms
+ Planning Time: 0.004 ms
+ Execution Time: 0.563 ms
 (4 rows)
 
 "MEASURE: dry flush (Nothing to write. Check 'local written' to be sure)"
@@ -28,7 +28,7 @@ INSERT 0 3584
  Execution Time: 0.002 ms
 (3 rows)
 
-"Check actually Allocated buffers. Should be equal to :nbuffers or so"
+"Check actually Allocated buffers. Should be equal to "512" or so"
  pg_allocated_local_buffers 
 ----------------------------
                         515
@@ -43,7 +43,7 @@ SELECT 3584
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
    Buffers: local written=462
  Planning Time: 0.006 ms
- Execution Time: 0.801 ms
+ Execution Time: 0.796 ms
 (4 rows)
 
 "DROP displacer to free buffers"
@@ -53,8 +53,8 @@ DROP TABLE
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local read=512
- Planning Time: 0.004 ms
- Execution Time: 0.608 ms
+ Planning Time: 0.003 ms
+ Execution Time: 0.577 ms
 (4 rows)
 
 "MEASURE: Dry-run: all the pages in the memory (check 'local hit')"
@@ -63,6 +63,6 @@ DROP TABLE
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local hit=512
  Planning Time: 0.003 ms
- Execution Time: 0.017 ms
+ Execution Time: 0.016 ms
 (4 rows)
 

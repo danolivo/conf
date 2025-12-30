@@ -47,7 +47,7 @@ SELECT * FROM pg_flush_local_buffers();
 EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
 SELECT * FROM pg_flush_local_buffers();
 
-\echo "Check actually Allocated buffers. Should be equal to :nbuffers or so"
+\echo "Check actually Allocated buffers. Should be equal to ":nbuffers" or so"
 SELECT * FROM pg_allocated_local_buffers();
 
 \echo "Wash away test table from memory buffers"
