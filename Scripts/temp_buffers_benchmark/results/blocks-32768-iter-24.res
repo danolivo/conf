@@ -15,23 +15,23 @@ INSERT 0 229376
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
-   Buffers: local written=32767
- Planning Time: 0.005 ms
- Execution Time: 51.496 ms
+   Buffers: local written=32777
+ Planning Time: 0.004 ms
+ Execution Time: 49.085 ms
 (4 rows)
 
 "MEASURE: dry flush (Nothing to write. Check 'local written' to be sure)"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
- Planning Time: 0.014 ms
- Execution Time: 0.030 ms
+ Planning Time: 0.011 ms
+ Execution Time: 0.032 ms
 (3 rows)
 
-"Check actually Allocated buffers. Should be equal to :nbuffers"
+"Check actually Allocated buffers. Should be equal to :nbuffers or so"
  pg_allocated_local_buffers 
 ----------------------------
-                      32768
+                      32779
 (1 row)
 
 "Wash away test table from memory buffers"
@@ -41,9 +41,9 @@ SELECT 229376
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
-   Buffers: local written=32756
- Planning Time: 0.013 ms
- Execution Time: 47.998 ms
+   Buffers: local written=29398
+ Planning Time: 0.021 ms
+ Execution Time: 44.605 ms
 (4 rows)
 
 "DROP displacer to free buffers"
@@ -52,17 +52,17 @@ DROP TABLE
                             QUERY PLAN                             
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
-   Buffers: local hit=10 read=32758
- Planning Time: 0.019 ms
- Execution Time: 39.351 ms
+   Buffers: local read=32768
+ Planning Time: 0.016 ms
+ Execution Time: 38.736 ms
 (4 rows)
 
 "MEASURE: Dry-run: all the pages in the memory (check 'local hit')"
                             QUERY PLAN                             
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
-   Buffers: local hit=12 read=32756
- Planning Time: 0.016 ms
- Execution Time: 39.461 ms
+   Buffers: local hit=32768
+ Planning Time: 0.013 ms
+ Execution Time: 0.976 ms
 (4 rows)
 

@@ -20,7 +20,13 @@
 SET client_min_messages TO 'ERROR';
 CREATE EXTENSION IF NOT EXISTS pgstattuple;
 
-SET temp_buffers = :nbuffers;
+/*
+ *Increase number of actually allocated buffers to place additional metadata
+ * blocks (FSM, VM).
+ */
+SELECT (:nbuffers + 0.1 * :nbuffers)::bigint AS effective_nbuffers \gset
+
+SET temp_buffers = :effective_nbuffers;
 \set ntuples :nbuffers * 7
 
 \echo "TEST RUN: " temp_buffers= :nbuffers, ntuples= :ntuples
@@ -41,7 +47,7 @@ SELECT * FROM pg_flush_local_buffers();
 EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
 SELECT * FROM pg_flush_local_buffers();
 
-\echo "Check actually Allocated buffers. Should be equal to :nbuffers"
+\echo "Check actually Allocated buffers. Should be equal to :nbuffers or so"
 SELECT * FROM pg_allocated_local_buffers();
 
 \echo "Wash away test table from memory buffers"

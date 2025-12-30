@@ -15,23 +15,23 @@ INSERT 0 896
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
-   Buffers: local written=127
- Planning Time: 0.005 ms
- Execution Time: 0.153 ms
+   Buffers: local written=129
+ Planning Time: 0.004 ms
+ Execution Time: 0.177 ms
 (4 rows)
 
 "MEASURE: dry flush (Nothing to write. Check 'local written' to be sure)"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
- Planning Time: 0.002 ms
+ Planning Time: 0.003 ms
  Execution Time: 0.002 ms
 (3 rows)
 
-"Check actually Allocated buffers. Should be equal to :nbuffers"
+"Check actually Allocated buffers. Should be equal to :nbuffers or so"
  pg_allocated_local_buffers 
 ----------------------------
-                        128
+                        131
 (1 row)
 
 "Wash away test table from memory buffers"
@@ -41,9 +41,9 @@ SELECT 896
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
-   Buffers: local written=126
+   Buffers: local written=116
  Planning Time: 0.002 ms
- Execution Time: 0.387 ms
+ Execution Time: 0.329 ms
 (4 rows)
 
 "DROP displacer to free buffers"
@@ -52,9 +52,9 @@ DROP TABLE
                             QUERY PLAN                             
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
-   Buffers: local hit=2 read=126
+   Buffers: local read=128
  Planning Time: 0.003 ms
- Execution Time: 0.139 ms
+ Execution Time: 0.175 ms
 (4 rows)
 
 "MEASURE: Dry-run: all the pages in the memory (check 'local hit')"
@@ -63,6 +63,6 @@ DROP TABLE
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local hit=128
  Planning Time: 0.002 ms
- Execution Time: 0.007 ms
+ Execution Time: 0.008 ms
 (4 rows)
 
