@@ -11,58 +11,97 @@ INSERT 0 917504
       131072
 (1 row)
 
-"MEASURE: flush of the table, block-by-block (Check 'local written' to be sure)"
-                             QUERY PLAN                             
---------------------------------------------------------------------
- Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
-   Buffers: local written=131105
- Planning Time: 0.005 ms
- Execution Time: 202.606 ms
-(4 rows)
-
-"MEASURE: dry flush (Nothing to write. Check 'local written' to be sure)"
-                             QUERY PLAN                             
---------------------------------------------------------------------
- Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
- Planning Time: 0.017 ms
- Execution Time: 0.123 ms
-(3 rows)
-
-"Check actually Allocated buffers. Should be equal to "131072" or so"
+"Check actually allocated buffers (should be approximately "131072")"
  pg_allocated_local_buffers 
 ----------------------------
                      131107
 (1 row)
 
-"Wash away test table from memory buffers"
-SELECT 917504
-"NO MEASURE: flush displacer to exclude writings on read test (Check 'local written' to be sure)"
-"Evictions of already flushed buffers don't need disk operations"
+"MEASURE: Flush the table block-by-block (verify 'local written' in output)"
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
-   Buffers: local written=117589
- Planning Time: 0.020 ms
- Execution Time: 169.421 ms
+   Buffers: local written=131105
+ Planning Time: 0.002 ms
+ Execution Time: 204.650 ms
 (4 rows)
 
-"DROP displacer to free buffers"
+"MEASURE: Dry flush - no dirty buffers to write (verify 'local written' is zero)"
+                             QUERY PLAN                             
+--------------------------------------------------------------------
+ Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
+ Planning Time: 0.020 ms
+ Execution Time: 0.116 ms
+(3 rows)
+
+"Evict test table from memory buffers by creating a displacer table"
+"NOTE: insert extra tuples to be sure we evicted all the pages of the test table"
+SELECT 926681
+"NO MEASURE: Flush displacer to ensure it's on disk (verify 'local written')"
+"Note: Evicting already-flushed buffers requires no disk writes"
+                             QUERY PLAN                             
+--------------------------------------------------------------------
+ Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
+   Buffers: local written=131067
+ Planning Time: 0.020 ms
+ Execution Time: 205.819 ms
+(4 rows)
+
+"Drop displacer table to free buffers"
 DROP TABLE
 "MEASURE: Read temp table block-by-block"
                             QUERY PLAN                             
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local read=131072
- Planning Time: 0.017 ms
- Execution Time: 178.476 ms
+ Planning Time: 0.020 ms
+ Execution Time: 164.318 ms
 (4 rows)
 
-"MEASURE: Dry-run: all the pages in the memory (check 'local hit')"
+"MEASURE: Dry run - all pages now in memory (verify 'local hit' count)"
                             QUERY PLAN                             
 -------------------------------------------------------------------
  Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
    Buffers: local hit=131072
- Planning Time: 0.018 ms
- Execution Time: 4.517 ms
+ Planning Time: 0.013 ms
+ Execution Time: 4.547 ms
+(4 rows)
+
+"NO MEASURE: Evict test table from buffers by filling them with a dummy table"
+SELECT 926681
+DROP TABLE
+"MEASURE: Read blocks of the temp table randomly"
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
+   Buffers: local read=131072
+ Planning Time: 0.015 ms
+ Execution Time: 205.526 ms
+(4 rows)
+
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Function Scan on pg_read_temp_relation (actual rows=1.00 loops=1)
+   Buffers: local hit=131072
+ Planning Time: 0.020 ms
+ Execution Time: 13.495 ms
+(4 rows)
+
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Function Scan on pg_temp_buffers_dirty (actual rows=1.00 loops=1)
+   Buffers: local hit=131072 dirtied=131072
+ Planning Time: 0.011 ms
+ Execution Time: 6.826 ms
+(4 rows)
+
+"Flush temp buffers to disk: they were read in random order. So, it will "
+"be written in random order too"
+                             QUERY PLAN                             
+--------------------------------------------------------------------
+ Function Scan on pg_flush_local_buffers (actual rows=1.00 loops=1)
+   Buffers: local written=131072
+ Planning Time: 0.005 ms
+ Execution Time: 248.260 ms
 (4 rows)
 

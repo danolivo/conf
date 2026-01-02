@@ -53,7 +53,6 @@ This commit adds SQL-callable functions that allow direct manipulation and inspe
 - `pg_allocated_local_buffers()` - returns the count of currently allocated local buffers
 - `pg_flush_local_buffers()` - explicitly flushes all dirty local buffers to disk
 - `pg_read_temp_relation(relation_name)` - reads all blocks of a temporary table sequentially
-- `pg_relpages(relation_name)` - returns the number of disk pages used by a relation
 
 These functions enable precise measurement of flush and read operations at the block level, which is essential for developing accurate cost estimates.
 
