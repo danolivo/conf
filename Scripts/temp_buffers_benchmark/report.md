@@ -1,8 +1,8 @@
-# Parallel Query Execution over PostgreSQL Temporary Tables
+# Temporary Buffer Flush Performance: A Cost Model for PostgreSQL Parallel Execution
 
-## Objective
+## Abstract
 
-This benchmark quantifies the cost of flushing temporary buffers to disk in preparation of parallel section in query execution. It is done in support of the query optimiser's cost model, enabling it to choose between flushing buffers for parallel execution versus running temporary table operations sequentially outside the parallel section.
+This work benchmarks sequential write versus read performance for PostgreSQL temporary buffers. PostgreSQL functions are extended with instrumentation to measure buffer flush operations and tests are conducted. The measurements show that sequential writes are approximately 30% slower than reads on NVMe storage. Based on these results, the cost estimation formula has been proposed: `flush_cost = 1.30 × dirtied_localbufs + 0.01 × allocated_localbufs` for the query optimiser.
 
 ## Introduction
 
