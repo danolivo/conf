@@ -24,7 +24,7 @@ CREATE EXTENSION IF NOT EXISTS pgstattuple;
  * Increase the number of allocated buffers by 10% to accommodate additional
  * metadata blocks (Free Space Map and Visibility Map).
  */
-SELECT (:nbuffers + 0.1 * :nbuffers)::bigint AS effective_nbuffers \gset
+SELECT (:nbuffers + 0.01 * :nbuffers)::bigint AS effective_nbuffers \gset
 
 SET temp_buffers = :effective_nbuffers;
 \set ntuples :nbuffers * 7
@@ -63,8 +63,40 @@ DROP TABLE displacer;
 
 \echo "MEASURE: Read temp table block-by-block"
 EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
-SELECT * FROM pg_read_temp_relation('test');
+SELECT * FROM pg_read_temp_relation('test', false);
 
 \echo "MEASURE: Dry run - all pages now in memory (verify 'local hit' count)"
 EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
-SELECT * FROM pg_read_temp_relation('test');
+SELECT * FROM pg_read_temp_relation('test', false);
+
+/* *****************************************************************************
+ *
+ * Benchmark random access
+ *
+ * ************************************************************************** */
+
+\echo "NO MEASURE: Evict test table from buffers by filling them with a dummy table"
+CREATE TEMP TABLE displacer AS (SELECT r FROM repeat('a', 1024) AS r
+  CROSS JOIN (SELECT 1 FROM generate_series(1, :effective_nbuffers * 7)) AS q);
+DROP TABLE displacer;
+
+/*
+ * Temp buffers are scanned sequentially, from first to the last one. At this
+ * moment each page is free (thanks dropped 'displacer' table. Hence, picking
+ * a block randomly and put it into the next free place we will have random
+ * distribution of disk blocks across the temp_buffers.
+ */
+\echo "MEASURE: Read blocks of the temp table randomly"
+EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
+SELECT * FROM pg_read_temp_relation('test', true);
+-- Just to check
+EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
+SELECT * FROM pg_read_temp_relation('test', false);
+-- Mark pages dirty, ensure each of them in temp buffers
+EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
+SELECT * FROM pg_temp_buffers_dirty('test');
+
+\echo "Flush temp buffers to disk: they were read in random order. So, it will "
+\echo "be written in random order too"
+EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY ON, BUFFERS ON)
+SELECT * FROM pg_flush_local_buffers();
