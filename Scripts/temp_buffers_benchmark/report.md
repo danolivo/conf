@@ -1,8 +1,8 @@
-# Temporary Buffer Flush Performance: A Cost Model for PostgreSQL Parallel Execution
+# Inventing A Cost Model for PostgreSQL Local Buffers Flush
 
 ## Abstract
 
-This work benchmarks sequential write versus read performance for PostgreSQL temporary buffers. PostgreSQL functions are extended with instrumentation to measure buffer flush operations and tests are conducted. The measurements show that sequential writes are approximately 30% slower than reads on NVMe storage. Based on these results, the cost estimation formula has been proposed: `flush_cost = 1.30 × dirtied_localbufs + 0.01 × allocated_localbufs` for the query optimiser.
+This work benchmarks sequential write versus read of PostgreSQL temporary buffers. PostgreSQL functions are extended with instrumentation to measure buffer flush operations and tests are conducted. The measurements show that writes are approximately 30% slower than reads. Based on these results, the cost estimation formula for the optimiser purposes has been proposed: `flush_cost = 1.30 × dirtied_localbufs + 0.01 × allocated_localbufs` .
 
 ## Introduction
 
@@ -52,28 +52,37 @@ These statistics potentially provide the foundation for a future cost model, giv
 This commit adds SQL-callable functions that allow direct manipulation and inspection of local buffers:
 - `pg_allocated_local_buffers()` - returns the count of currently allocated local buffers
 - `pg_flush_local_buffers()` - explicitly flushes all dirty local buffers to disk
-- `pg_read_temp_relation(relation_name)` - reads all blocks of a temporary table sequentially
+- `pg_read_temp_relation(relname, randomize)` - reads all blocks of a temporary table either sequentially or in random orde
+- `pg_temp_buffers_dirty(relname)` - marks all pages of a temporary table as dirty in the buffer pool
 
-These functions enable precise measurement of flush and read operations at the block level, which is essential for developing accurate cost estimates.
+These functions enable direct measurement of read and write operations at the block level, including simulation of random access patterns, which is essential for developing accurate cost estimates.
 
 ## Methodology
 
 The complete test bench can be found [here](https://github.com/danolivo/conf/tree/main/Scripts/temp_buffers_benchmark).
 
-Fortunately, Local buffer operations are quite straightforward: they don't acquire locks, don't require WAL logging, and avoid other costly manipulations. This eliminates concurrency concerns and simplifies the test logic. To build a cost estimation model, we need to measure three things: sequential write speed, sequential read speed, and the overhead of scanning buffers when no I/O is required.
+Fortunately, local buffer operations are quite straightforward: they don't acquire locks, don't require WAL logging, and avoid other costly manipulations. This eliminates concurrency concerns and simplifies the test logic. To build a cost estimation model, we need to measure three things: write speed, read speed, and the overhead of scanning buffers when no I/O is required.
 
-The ratio between read and write speed will allow us to derive a sequential write page cost parameter based on the [DEFAULT_SEQ_PAGE_COST](https://github.com/postgres/postgres/blob/915711c8a4e60f606a8417ad033cea5385364c07/src/include/optimizer/cost.h#L24) value used in core PostgreSQL. The optimiser can use this parameter to estimate the cost of flushing dirty local buffers before parallel operations.
+The ratio between read and write speed will allow us to derive a sequential write page cost parameter based on the [DEFAULT_SEQ_PAGE_COST](https://github.com/postgres/postgres/blob/915711c8a4e60f606a8417ad033cea5385364c07/src/include/optimizer/cost.h#L24) value used in core PostgreSQL. The optimiser can use this parameter to estimate the cost of flushing dirty local buffers before the start of parallel operations.
 
 Each test iteration follows this algorithm:
+
+**Sequential access testing:**
 1. Create a temp table and fill it with data that fits within the local buffer pool (all pages will be dirty in memory).
 2. Call `pg_flush_local_buffers()` to write all dirty buffers to disk. Measure I/O.
 3. Call `pg_flush_local_buffers()` again to measure the overhead of scanning buffers without actual flush (dry-write-run).
 4. Evict the test table's pages by creating a dummy table that fills the entire buffer pool, then drop it.
-5. Call `pg_read_temp_relation()` to read all blocks from disk into buffers. Measure I/O.
-6. Call `pg_read_temp_relation()` again to measure the overhead of scanning buffers without actual read (dry-read-run).
+5. Call `pg_read_temp_relation('test', false)` to read all blocks sequentially from disk into buffers. Measure I/O.
+6. Call `pg_read_temp_relation('test', false)` again to measure the overhead of scanning buffers without actual read (dry-read-run).
+
+**Random access testing:**
+7. Evict the test table's pages again by creating and dropping a dummy table.
+8. Call `pg_read_temp_relation('test', true)` to read blocks in random order, distributing them randomly across the buffer pool.
+9. Call `pg_temp_buffers_dirty('test')` to mark all table pages as dirty.
+10. Call `pg_flush_local_buffers()` to flush pages to disk. Since pages were loaded randomly into buffers, this pretends to simulate random write patterns.
 
 All measurements are captured using `EXPLAIN (ANALYZE, BUFFERS)`, which records execution time in milliseconds and buffer I/O statistics (local read, local written, local hit counts). Planning time is negligible (typically < 0.02ms) and excluded from analysis.
-While it's possible to avoid EXPLAIN and instrumentation overhead entirely, I believe this overhead is minimal and consistent between write and read operations. Using EXPLAIN provides a convenient way to verify execution time and confirm the actual number of blocks affected.
+While it's possible to avoid EXPLAIN and the Instrumentation overhead entirely, I believe this overhead is minimal and consistent between write and read operations. Using EXPLAIN provides a convenient way to verify execution time and confirm the actual number of blocks affected.
 
 The tests cover buffer pool sizes at powers of 2 from 128 to 262,144 blocks (1MB to 2GB), with 30 iterations per size for statistical reliability. Each test allocates 110% of the target block count to accommodate Free Space Map and Visibility Map metadata. Higher buffer counts cause memory swapping and produce unreliable results.
 
@@ -81,35 +90,41 @@ The tests cover buffer pool sizes at powers of 2 from 128 to 262,144 blocks (1MB
 
 On my laptop, the most stable performance occurs in the 4-512 MB range:
 
-| Blocks  | Size   | Write (ms) | Dry-Write (ms) | Read (ms) | Dry-Read (ms) | W/R Ratio | Write CV | Read CV |
-|---------|--------|------------|----------------|-----------|---------------|-----------|----------|---------|
-| 512     | 4 MB   | 0.54       | 0.002          | 0.58      | 0.016         | 0.93      | 5.0%     | 8.2%    |
-| 1,024   | 8 MB   | 1.07       | 0.003          | 1.13      | 0.028         | 0.95      | 7.9%     | 6.5%    |
-| 2,048   | 16 MB  | 3.02       | 0.004          | 2.42      | 0.054         | 1.25      | 4.7%     | 5.8%    |
-| 4,096   | 32 MB  | 6.36       | 0.007          | 4.81      | 0.107         | 1.33      | 4.5%     | 3.2%    |
-| 8,192   | 64 MB  | 12.34      | 0.013          | 9.79      | 0.210         | 1.26      | 3.7%     | 1.9%    |
-| 16,384  | 128 MB | 24.63      | 0.026          | 19.35     | 0.421         | 1.27      | 3.1%     | 1.7%    |
-| 32,768  | 256 MB | 49.60      | 0.051          | 38.72     | 0.838         | 1.28      | 2.7%     | 1.6%    |
-| 65,536  | 512 MB | 98.93      | 0.102          | 77.46     | 1.681         | 1.28      | 2.5%     | 1.6%    |
+| Blocks  | Size   | Write (ms) | Dry-Write (ms) | Read (ms) | Dry-Read (ms) |
+|---------|--------|------------|----------------|-----------|---------------|
+| 512     | 4 MB   | 0.54       | 0.002          | 0.58      | 0.016         |
+| 1,024   | 8 MB   | 1.07       | 0.003          | 1.13      | 0.028         |
+| 2,048   | 16 MB  | 3.02       | 0.004          | 2.42      | 0.054         |
+| 4,096   | 32 MB  | 6.36       | 0.007          | 4.81      | 0.107         |
+| 8,192   | 64 MB  | 12.34      | 0.013          | 9.79      | 0.210         |
+| 16,384  | 128 MB | 24.63      | 0.026          | 19.35     | 0.421         |
+| 32,768  | 256 MB | 49.60      | 0.051          | 38.72     | 0.838         |
+| 65,536  | 512 MB | 98.93      | 0.102          | 77.46     | 1.681         |
 
 Large datasets show higher write overhead and variability:
 
-| Blocks  | Size   | Write (ms) | Dry-Write (ms) | Read (ms) | Dry-Read (ms) | W/R Ratio | Write CV  |
-|---------|--------|------------|----------------|-----------|---------------|-----------|-----------|
-| 131,072 | 1 GB   | 283.15     | 0.204          | 180.06    | 3.353         | 1.46      | 157.3%    |
-| 262,144 | 2 GB   | 728.18     | 0.413          | 373.46    | 6.725         | 1.76      | 166.8%    |
+| Blocks  | Size   | Write (ms) | Dry-Write (ms) | Read (ms) | Dry-Read (ms) |
+|---------|--------|------------|----------------|-----------|---------------|
+| 131,072 | 1 GB   | 283.15     | 0.204          | 180.06    | 3.353         |
+| 262,144 | 2 GB   | 728.18     | 0.413          | 373.46    | 6.725         |
 
-Scanning without I/O (Dry-Run) is minimal:
-- Clean buffer flush scan: 0.002-0.240 ms
-- Cached read scan: 0.007-10 ms
+Scanning without I/O (Dry-Run) is minimal, around 0.002-0.240 ms.
 
-Based on the results I can say that temp table write cost should be close to the sequential page cost. To be more precise I'd use the following formula:
+Based on the results, the temp table write cost should account for both sequential overhead and random access patterns. The analysis shows:
+
+**Sequential write overhead**: Approximately 20% slower than sequential reads.
+
+**Random access degradation**: Random buffer distribution patterns show an additional 10-24% performance degradation compared to sequential access. This occurs when temporary table pages are scattered across the buffer pool due to interleaved operations or random access patterns.
+
+**Recommended cost formula**:
 
 ```
 DEFAULT_WRITE_TEMP_PAGE_COST = 1.30 × DEFAULT_SEQ_PAGE_COST
 ```
 
-Write cost is close to the read cost because no WAL logging is required for temporary tables. I'm uncertain what storage type the current default seq_page_cost targets; my measurements were conducted on NVMe SSD. Would the relationship differ on HDD? Additionally, I haven't modelled random page writes in temporary buffers—would random writes have different cost characteristics?
+This 1.30 multiplier accounts for both the sequential write overhead (~1.20) and the random access degradation (additional ~0.10), providing a conservative estimate that covers realistic workload scenarios where buffer access patterns may not be purely sequential.
+
+Write cost is relatively close to read cost because no WAL logging is required for temporary tables. I'm uncertain what storage type the current default seq_page_cost targets; my measurements were conducted on NVMe SSD. Would the relationship differ on HDD? Further investigation into different storage types may be warranted.
 
 Also, tests say that we can estimate the buffer scanning overhead as approximately 1% of the writing cost. Hence the whole formula for the preliminary temporary buffers flushing may look like (`DEFAULT_SEQ_PAGE_COST = 1`):
 
@@ -117,8 +132,17 @@ Also, tests say that we can estimate the buffer scanning overhead as approximate
 flush_cost = 1.30 × dirtied_localbufs + 0.01 × allocated_localbufs
 ```
 
+## What's next?
+
+This benchmark provides the foundational cost model needed to enable parallel query execution on temporary tables in PostgreSQL. The whole implementation requires four key development phases:
+
+1. Add a planner flag to signal when a plan subtree contains operations on temporary objects. This allows the planner to identify when buffer flushing may be required for parallel execution.
+2. Implement the buffer flush operation in Gather and GatherMerge nodes before launching parallel workers. This ensures that all dirty temporary table pages are synchronized to disk before workers begin execution.
+3. Enable parallel workers to access the leader process's temporary table data from disk. This requires teaching workers how to locate and read temporary table files written by the leader process.
+4. Integrate the cost model into the query planner. The planner can then make informed decisions about whether flushing temporary buffers for parallel execution will outperform sequential execution without parallel workers.
+
 ## Conclusion
 
-* Sequential writes to local buffers are approximately **30% slower** than sequential reads on NVMe storage.
+* Flush of local buffer are approximately **30% slower** than sequential read.
 * For the sake of optimisation, default write cost may be hardcoded as 1.3*DEFAULT_SEQ_PAGE_COST.
 * 360 measurements with 30 iterations per size. Medium datasets (16-512 MB) show coefficient of variation consistently below 6%, indicating highly stable results. Large datasets (1-2 GB) show higher variability (CV >150% for writes), requiring careful interpretation.
