@@ -16,7 +16,7 @@ Idea
 ## Типовой путь
 
 604ffd2, get_relation_info_hook
-Не поможет: At this moment of call, we have no idea about the clauses
+Не поможет: At this moment of the call, we have no idea about the clauses
 
 ## Альтернатива
 
@@ -24,4 +24,6 @@ set_rel_pathlist_hook
 set_join_pathlist_hook
 set_rel_pathlist_hook may add 'hypothetical' indexes for each clause (clause combinations) from baserestrictinfo and joininfo, and re-launch the search (in fact, we only need to create_index_paths).
 
-set_join_pathlist_hook may pass the joinclause through, add new indexes, and call add_paths_to_joinrel. We need only PNL, so , may be just limit
+set_join_pathlist_hook may pass the joinclause through, add new indexes, and call add_paths_to_joinrel. We need only PNL, so maybe just limit
+
+Дополнительный бонус: найдём-таки квадратичное поведение в pathkeys и сможем предложить в сообщество.
