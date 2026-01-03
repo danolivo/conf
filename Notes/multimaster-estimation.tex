@@ -1,0 +1,52 @@
+% Use xelatex to generate pdf file of this presentation
+
+\documentclass{paper}
+\usepackage{roboto}
+\usepackage{amsmath}
+\usepackage[russian]{babel}
+
+% Simple way to put a code listing to the slide
+\usepackage{listings}
+
+% -----------------------------
+
+\begin{document}
+
+\begin{section}{Estimate Multimaster Replication factor}
+\begin{itemize}
+	\item $T_l$ - transaction execution time itself, ms.
+	\item $T^c_l$ - network round-trip time for intra-continent connection, ms.
+	\item $T^c_r$ - network round-trip time for inter-continent connection, ms.
+	\item $T_r$ - time needed to get remote commit confirmation, ms.
+	\item $X_l$ - fraction of intra-continent connections.
+	\item $N$ - fraction of DML operations that need no more than asynchronous replication (local or OK with eventual consistency).
+\end{itemize}
+\par \textbf{First case}: a single server, with users connecting locally and remotely.
+\[
+	TPS_1 = (T_l+T^c_l)*X_l + (T_l+T^c_r)*(1-X_1)
+\]
+\par \textbf{Second case}: two servers, users always connect to their local server.
+\[
+	TPS_2 = (T_l +T^c_l)*N + (T_l+T^c_l+T_r)*(1-N)
+\]
+\par Let's choose proper numbers:
+$T_l = 5 ms$, $T^c_l = 10 ms$, $T^c_r = 150 ms$, $T_r = 300 ms$, $X_l = 0.5$.
+\par So, we have:
+\begin{gather*}
+	TPS_1 = (5+10)*0.5 + (5+150)*0.5 = 7.5+77.5=85,\\
+	TPS_2 = 15*N + 315 * (1-N) = 315 - 300*N,\\
+	315 - 300*N < 85 => N > \frac{230}{300}\approx 76\%.
+\end{gather*}
+
+\par Imagine severe problems with connection:
+$T_l = 5 ms$, $T^c_l = 10 ms$, $T^c_r = 300 ms$, $T_r = 600 ms$, $X_l = 0.5$.
+\par So, we have:
+\begin{gather*}
+	TPS_1 = (5+10)*0.5 + (5+300)*0.5 = 7.5+152.5=160,\\
+	TPS_2 = 15*N + 615 * (1-N) = 615 - 600*N,\\
+	615 - 600*N < 160 => N > \frac{455}{600}\approx 76\%.
+\end{gather*}
+
+\end{section}
+
+\end{document}
