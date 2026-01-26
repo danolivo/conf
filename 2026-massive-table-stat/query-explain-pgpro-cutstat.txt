@@ -1,0 +1,106 @@
+/*
+ * After removing of all the statistics by the call:
+ * select count(*) from pg_statistic;
+ */
+
+Nested Loop Left Join  (cost=0.22..43.89 rows=1 width=33) (actual time=0.306..0.308 rows=0 loops=1)
+   Buffers: shared hit=19
+   ->  Nested Loop Left Join  (cost=0.22..33.31 rows=1 width=34) (actual time=0.306..0.307 rows=0 loops=1)
+         Buffers: shared hit=19
+         ->  Nested Loop Left Join  (cost=0.11..7.14 rows=1 width=33) (actual time=0.306..0.306 rows=0 loops=1)
+               Buffers: shared hit=19
+               ->  Index Scan using _reference127_9 on _reference127 t1  (cost=0.11..2.35 rows=1 width=32) (actual time=0.305..0.305 rows=0 loops=1)
+                     Index Cond: ((_fld809 = '0'::numeric) AND (_idrref = '\\x00000000000000000000000000000000'::bytea))
+                     Filter: (_fld1806rref = '\\x83ee005056be2b6311f08d4ce2699bc4'::bytea)
+                     Buffers: shared hit=19
+               ->  Seq Scan on _inforg12030 t3  (cost=0.00..4.78 rows=1 width=33) (never executed)
+                     Filter: ((_fld809 = '0'::numeric) AND (_fld12031rref = '\\x00000000000000000000000000000000'::bytea))
+                     SubPlan 3
+                       ->  Nested Loop  (cost=0.33..4.78 rows=1 width=0) (never executed)
+                             Join Filter: (t4._fld8201rref = t5._fld10622rref)
+                             ->  Index Only Scan using _inforg8199_1 on _inforg8199 t4  (cost=0.16..2.38 rows=1 width=32) (never executed)
+                                   Index Cond: ((_fld809 = '0'::numeric) AND (_fld8200_type = '\\x08'::bytea) AND (_fld8200_rtref = '\\x0000007f'::bytea) AND (_fld8200_rrref = t3._fld12031rref))
+                                   Heap Fetches: 0
+                             ->  Index Only Scan using _inforg10621_2 on _inforg10621 t5  (cost=0.17..2.38 rows=1 width=32) (never executed)
+                                   Index Cond: ((_fld809 = '0'::numeric) AND (_fld15131rref = '\\x8840005056bec73c11f0a4a33fd169be'::bytea))
+                                   Heap Fetches: 0
+         ->  Index Only Scan using _inforg11506_1 on _inforg11506 t7  (cost=0.11..26.17 rows=1 width=33) (never executed)
+               Index Cond: ((_fld809 = '0'::numeric) AND (_fld11507_type = '\\x08'::bytea) AND (_fld11507_rtref = '\\x0000007f'::bytea) AND (_fld11507_rrref = '\\x00000000000000000000000000000000'::bytea) AND (_fld11508rref = '\\x9f58005056bec67f11f0896cf79bbf9c'::bytea))
+               Heap Fetches: 0
+               SubPlan 11
+                 ->  Nested Loop Left Join  (cost=9.77..23.84 rows=1 width=0) (never executed)
+                       Join Filter: ((t7._fld11509_type = '\\x08'::bytea) AND (t7._fld11509_rtref = '\\x00000138'::bytea))
+                       Filter: (((t7._fld11509_type = '\\x01'::bytea) AND (t7._fld11509_rtref = '\\x00000000'::bytea) AND (t7._fld11509_rrref = '\\x00000000000000000000000000000000'::bytea)) OR ((t7._fld11509_type = '\\x08'::bytea) AND (t7._fld11509_rtref = '\\x00000138'::bytea) AND (ANY ((t9._fld4781_type = (hashed SubPlan 9).col1) AND (t9._fld4781_rtref = (hashed SubPlan 9).col2) AND (t9._fld4781_rrref = (hashed SubPlan 9).col3)))) OR (((t7._fld11509_type <> '\\x08'::bytea) OR (t7._fld11509_rtref <> '\\x00000138'::bytea)) AND (InitPlan 10).col1))
+                       InitPlan 7
+                         ->  Nested Loop  (cost=0.33..4.78 rows=1 width=0) (never executed)
+                               Join Filter: (t12._fld8201rref = t13._fld10622rref)
+                               ->  Index Only Scan using _inforg8199_1 on _inforg8199 t12  (cost=0.16..2.38 rows=1 width=32) (never executed)
+                                     Index Cond: ((_fld809 = '0'::numeric) AND (_fld8200_type = t7._fld11507_type) AND (_fld8200_rtref = t7._fld11507_rtref) AND (_fld8200_rrref = t7._fld11507_rrref))
+                                     Heap Fetches: 0
+                               ->  Index Only Scan using _inforg10621_2 on _inforg10621 t13  (cost=0.17..2.38 rows=1 width=32) (never executed)
+                                     Index Cond: ((_fld809 = '0'::numeric) AND (_fld15131rref = '\\x8840005056bec73c11f0a4a33fd169be'::bytea))
+                                     Heap Fetches: 0
+                       InitPlan 10
+                         ->  Nested Loop  (cost=0.33..4.78 rows=1 width=0) (never executed)
+                               Join Filter: (t16._fld8201rref = t17._fld10622rref)
+                               ->  Index Only Scan using _inforg8199_1 on _inforg8199 t16  (cost=0.16..2.38 rows=1 width=32) (never executed)
+                                     Index Cond: ((_fld809 = '0'::numeric) AND (_fld8200_type = t7._fld11509_type) AND (_fld8200_rtref = t7._fld11509_rtref) AND (_fld8200_rrref = t7._fld11509_rrref))
+                                     Heap Fetches: 0
+                               ->  Index Only Scan using _inforg10621_2 on _inforg10621 t17  (cost=0.17..2.38 rows=1 width=32) (never executed)
+                                     Index Cond: ((_fld809 = '0'::numeric) AND (_fld15131rref = '\\x8840005056bec73c11f0a4a33fd169be'::bytea))
+                                     Heap Fetches: 0
+                       ->  Nested Loop Left Join  (cost=0.11..7.14 rows=1 width=0) (never executed)
+                             Join Filter: ((t7._fld11507_type = '\\x08'::bytea) AND (t7._fld11507_rtref = '\\x00000138'::bytea))
+                             Filter: (((t7._fld11507_type = '\\x08'::bytea) AND (t7._fld11507_rtref = '\\x00000138'::bytea) AND (ANY ((t8._fld4781_type = (hashed SubPlan 6).col1) AND (t8._fld4781_rtref = (hashed SubPlan 6).col2) AND (t8._fld4781_rrref = (hashed SubPlan 6).col3)))) OR (((t7._fld11507_type <> '\\x08'::bytea) OR (t7._fld11507_rtref <> '\\x00000138'::bytea)) AND (InitPlan 7).col1))
+                             ->  Result  (cost=0.00..0.01 rows=1 width=0) (never executed)
+                             ->  Index Scan using _reference312_9 on _reference312 t8  (cost=0.11..2.34 rows=1 width=96) (never executed)
+                                   Index Cond: ((_fld809 = '0'::numeric) AND (_idrref = t7._fld11507_rrref))
+                             SubPlan 6
+                               ->  Nested Loop  (cost=0.33..4.77 rows=1 width=96) (never executed)
+                                     ->  Index Only Scan using _inforg10621_2 on _inforg10621 t11  (cost=0.17..2.38 rows=1 width=32) (never executed)
+                                           Index Cond: ((_fld809 = '0'::numeric) AND (_fld15131rref = '\\x8840005056bec73c11f0a4a33fd169be'::bytea))
+                                           Heap Fetches: 0
+                                     ->  Index Only Scan using _inforg8199_2 on _inforg8199 t10  (cost=0.16..2.38 rows=1 width=128) (never executed)
+                                           Index Cond: ((_fld809 = '0'::numeric) AND (_fld8201rref = t11._fld10622rref))
+                                           Heap Fetches: 0
+                       ->  Index Scan using _reference312_9 on _reference312 t9  (cost=0.11..2.34 rows=1 width=96) (never executed)
+                             Index Cond: ((_fld809 = '0'::numeric) AND (_idrref = t7._fld11509_rrref))
+                       SubPlan 9
+                         ->  Nested Loop  (cost=0.33..4.77 rows=1 width=96) (never executed)
+                               ->  Index Only Scan using _inforg10621_2 on _inforg10621 t15  (cost=0.17..2.38 rows=1 width=32) (never executed)
+                                     Index Cond: ((_fld809 = '0'::numeric) AND (_fld15131rref = '\\x8840005056bec73c11f0a4a33fd169be'::bytea))
+                                     Heap Fetches: 0
+                               ->  Index Only Scan using _inforg8199_2 on _inforg8199 t14  (cost=0.16..2.38 rows=1 width=128) (never executed)
+                                     Index Cond: ((_fld809 = '0'::numeric) AND (_fld8201rref = t15._fld10622rref))
+                                     Heap Fetches: 0
+   ->  Seq Scan on _inforg8926 t19  (cost=0.00..5.79 rows=1 width=33) (never executed)
+         Filter: ((_fld809 = '0'::numeric) AND ('\\x08'::bytea = _fld8927_type) AND ('\\x0000007f'::bytea = _fld8927_rtref) AND (_fld8927_rrref = '\\x00000000000000000000000000000000'::bytea))
+         SubPlan 14
+           ->  Seq Scan on _reference147 t20  (cost=0.00..5.79 rows=1 width=0) (never executed)
+                 Filter: ((t19._fld8928rref = _idrref) AND (_fld809 = '0'::numeric) AND (((_fld2132_type = '\\x08'::bytea) AND (_fld2132_rtref = '\\x00000110'::bytea) AND (_fld2132_rrref = '\\x8840005056bec73c11f0a4a3392378c8'::bytea)) OR ((NOT _fld2135) AND (ANY (_idrref = (hashed SubPlan 13).col1)))))
+                 SubPlan 13
+                   ->  Nested Loop Semi Join  (cost=0.33..4.78 rows=1 width=32) (never executed)
+                         Join Filter: (t21._fld8201rref = t22._fld10622rref)
+                         ->  Index Only Scan using _inforg8199_1 on _inforg8199 t21  (cost=0.16..2.38 rows=1 width=64) (never executed)
+                               Index Cond: ((_fld809 = '0'::numeric) AND (_fld8200_type = '\\x08'::bytea) AND (_fld8200_rtref = '\\x00000093'::bytea))
+                               Heap Fetches: 0
+                         ->  Index Only Scan using _inforg10621_2 on _inforg10621 t22  (cost=0.17..2.38 rows=1 width=32) (never executed)
+                               Index Cond: ((_fld809 = '0'::numeric) AND (_fld15131rref = '\\x8840005056bec73c11f0a4a33fd169be'::bytea))
+                               Heap Fetches: 0
+   SubPlan 1
+     ->  Nested Loop  (cost=0.33..4.78 rows=1 width=0) (never executed)
+           Join Filter: (t23._fld8201rref = t24._fld10622rref)
+           ->  Index Only Scan using _inforg8199_1 on _inforg8199 t23  (cost=0.16..2.38 rows=1 width=32) (never executed)
+                 Index Cond: ((_fld809 = '0'::numeric) AND (_fld8200_type = '\\x08'::bytea) AND (_fld8200_rtref = '\\x0000007f'::bytea) AND (_fld8200_rrref = t1._idrref))
+                 Heap Fetches: 0
+           ->  Index Only Scan using _inforg10621_2 on _inforg10621 t24  (cost=0.17..2.38 rows=1 width=32) (never executed)
+                 Index Cond: ((_fld809 = '0'::numeric) AND (_fld15131rref = '\\x8840005056bec73c11f0a4a33fd169be'::bytea))
+                 Heap Fetches: 0
+ Settings: effective_cache_size = '15GB', random_page_cost = '1.1', work_mem = '1747kB', max_parallel_workers_per_gather = '3', max_parallel_workers = '6', enable_mergejoin = 'off', cpu_operator_cost = '0.001'
+ Planning:
+   Buffers: shared hit=1447
+   Memory: used=3675kB  allocated=4096kB
+ Planning Time: 13.925 ms
+ Execution Time: 0.673 ms
+(99 rows)
+

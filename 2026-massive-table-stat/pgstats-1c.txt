@@ -1,0 +1,194 @@
+ schemaname |   tablename   |   column_name   | n_distinct  | mcv_count | histogram_bins | correlation  | null_frac | avg_width 
+------------+---------------+-----------------+-------------+-----------+----------------+--------------+-----------+-----------
+ public     | _inforg10621  | _fld10622rref   |        1073 |       500 |            501 |    0.9152254 |         0 |        17
+ public     | _inforg10621  | _fld10623rref   |         162 |       162 |                |   0.09570214 |         0 |        17
+ public     | _inforg10621  | _fld10624_rrref |          45 |        45 |                |   0.62922955 |         0 |        17
+ public     | _inforg10621  | _fld10624_rtref |           3 |         3 |                |    0.6892289 |         0 |         5
+ public     | _inforg10621  | _fld10624_type  |           2 |         2 |                |    0.6972119 |         0 |         2
+ public     | _inforg10621  | _fld10625       |           2 |         2 |                |    0.5662952 |         0 |         1
+ public     | _inforg10621  | _fld10626       |           2 |         2 |                |    0.5662952 |         0 |         1
+ public     | _inforg10621  | _fld10627       |           2 |         2 |                |    0.5662952 |         0 |         1
+ public     | _inforg10621  | _fld10628       |           1 |         1 |                |            1 |         0 |         1
+ public     | _inforg10621  | _fld10629       |           1 |         1 |                |            1 |         0 |         1
+ public     | _inforg10621  | _fld15131rref   |         161 |       161 |                |   0.11234584 |         0 |        17
+ public     | _inforg10621  | _fld7826        |           1 |         1 |                |            1 |         0 |        20
+ public     | _inforg10621  | _fld7827        |           1 |         1 |                |            1 |         0 |        20
+ public     | _inforg10621  | _fld809         |           1 |         1 |                |            1 |         0 |         3
+ public     | _inforg11506  | _fld11507_rrref |  -0.7140151 |        96 |            281 |  -0.07345131 |         0 |        17
+ public     | _inforg11506  | _fld11507_rtref |           1 |         1 |                |            1 |         0 |         5
+ public     | _inforg11506  | _fld11507_type  |           1 |         1 |                |            1 |         0 |         2
+ public     | _inforg11506  | _fld11508rref   |          10 |        10 |                |   0.40504858 |         0 |        17
+ public     | _inforg11506  | _fld11509_rrref |  -0.7140151 |        96 |            281 |  -0.07200607 |         0 |        17
+ public     | _inforg11506  | _fld11509_rtref |           1 |         1 |                |            1 |         0 |         5
+ public     | _inforg11506  | _fld11509_type  |           1 |         1 |                |            1 |         0 |         2
+ public     | _inforg11506  | _fld11510       |           1 |         1 |                |            1 |         0 |         1
+ public     | _inforg11506  | _fld11511rref   |           1 |         1 |                |            1 |         0 |        17
+ public     | _inforg11506  | _fld11512       |           1 |         1 |                |            1 |         0 |         1
+ public     | _inforg11506  | _fld11513       | -0.50189394 |       263 |              2 |   0.99565864 |         0 |         8
+ public     | _inforg11506  | _fld11514       |           1 |         1 |                |            1 |         0 |         1
+ public     | _inforg11506  | _fld11515       |           1 |         1 |                |            1 |         0 |         3
+ public     | _inforg11506  | _fld11516_rrref |          17 |        17 |                |   -0.0465909 |         0 |        17
+ public     | _inforg11506  | _fld11516_rtref |           1 |         1 |                |            1 |         0 |         5
+ public     | _inforg11506  | _fld11516_type  |           1 |         1 |                |            1 |         0 |         2
+ public     | _inforg11506  | _fld3920        |           1 |         1 |                |            1 |         0 |         1
+ public     | _inforg11506  | _fld3921        |           1 |         1 |                |            1 |         0 |         1
+ public     | _inforg11506  | _fld7826        |           1 |         1 |                |            1 |         0 |        20
+ public     | _inforg11506  | _fld809         |           1 |         1 |                |            1 |         0 |         3
+ public     | _inforg8199   | _fld7827        |           1 |         1 |                |            1 |         0 |        20
+ public     | _inforg8199   | _fld809         |           1 |         1 |                |            1 |         0 |         3
+ public     | _inforg8199   | _fld8200_rrref  |   -0.367398 |       500 |            501 | -0.013070492 |         0 |        20
+ public     | _inforg8199   | _fld8200_rtref  |          28 |        16 |             12 |   0.54122746 |         0 |         8
+ public     | _inforg8199   | _fld8200_type   |           1 |         1 |                |            1 |         0 |         5
+ public     | _inforg8199   | _fld8201rref    |        1104 |       500 |            501 |  -0.23066422 |         0 |        20
+ public     | _inforg8199   | _fld8202rref    |          28 |        16 |             12 |   0.54122746 |         0 |        20
+ public     | _inforg8199   | _fld8203        |           5 |         5 |                |    0.6466329 |         0 |         4
+ public     | _inforg8199   | _fld8204_rrref  |           4 |         4 |                |   0.99980766 |         0 |        20
+ public     | _inforg8199   | _fld8204_rtref  |           3 |         3 |                |   0.99980766 |         0 |         8
+ public     | _inforg8199   | _fld8204_type   |           2 |         2 |                |    0.9998094 |         0 |         5
+ public     | _reference127 | _code           |          -1 |           |            501 |    0.9443135 |         0 |        31
+ public     | _reference127 | _description    |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference127 | _fld1269rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1459        |           1 |         1 |                |            1 |         0 |        20
+ public     | _reference127 | _fld1776_rrref  |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1776_rtref  |           1 |         1 |                |            1 |         0 |         5
+ public     | _reference127 | _fld1776_type   |           1 |         1 |                |            1 |         0 |         2
+ public     | _reference127 | _fld1777        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference127 | _fld1778rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1779rref    |           3 |         2 |                |    0.9687825 |         0 |        17
+ public     | _reference127 | _fld1780rref    |          48 |        39 |              9 |   -0.2917445 |         0 |        17
+ public     | _reference127 | _fld1781rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1782        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference127 | _fld1783rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1784        |          11 |         3 |              8 |   0.96876526 |         0 |         8
+ public     | _reference127 | _fld1785        |           4 |         2 |              2 |   0.96883035 |         0 |         8
+ public     | _reference127 | _fld1786        |          28 |        22 |              6 |   0.76139975 |         0 |         8
+ public     | _reference127 | _fld1787        | -0.39789197 |         2 |            300 |   0.81572783 |         0 |         8
+ public     | _reference127 | _fld1788        |          -1 |           |            501 |   0.94424146 |         0 |         8
+ public     | _reference127 | _fld1789        |           1 |         1 |                |            1 |         0 |         8
+ public     | _reference127 | _fld1790rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1791        |  -0.5019763 |        98 |            283 |  -0.21203266 |         0 |       132
+ public     | _reference127 | _fld1792        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference127 | _fld1793_rrref  |          28 |        23 |              5 |    0.7010143 |         0 |        17
+ public     | _reference127 | _fld1793_rtref  |           1 |         1 |                |            1 |         0 |         5
+ public     | _reference127 | _fld1793_type   |           1 |         1 |                |            1 |         0 |         2
+ public     | _reference127 | _fld1794rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1795        |           1 |         1 |                |            1 |         0 |         5
+ public     | _reference127 | _fld1796        |           1 |         1 |                |            1 |         0 |         3
+ public     | _reference127 | _fld1797        |           1 |         1 |                |            1 |         0 |         5
+ public     | _reference127 | _fld1798        |          15 |         6 |              9 |    0.9886509 |         0 |         4
+ public     | _reference127 | _fld1799        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference127 | _fld1800rref    |          46 |        39 |              7 |   0.57804096 |         0 |        17
+ public     | _reference127 | _fld1801rref    |          65 |        55 |             10 |   0.42004952 |         0 |        17
+ public     | _reference127 | _fld1802        |           1 |         1 |                |            1 |         0 |         3
+ public     | _reference127 | _fld1803_rrref  |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1803_rtref  |           1 |         1 |                |            1 |         0 |         5
+ public     | _reference127 | _fld1803_s      |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference127 | _fld1803_type   |           1 |         1 |                |            1 |         0 |         2
+ public     | _reference127 | _fld1804        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference127 | _fld1805rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1806rref    |          46 |        35 |             11 |   0.53845924 |         0 |        17
+ public     | _reference127 | _fld1807_rrref  |          30 |        28 |              2 |   -0.0657541 |         0 |        17
+ public     | _reference127 | _fld1807_rtref  |           1 |         1 |                |            1 |         0 |         5
+ public     | _reference127 | _fld1807_type   |           1 |         1 |                |            1 |         0 |         2
+ public     | _reference127 | _fld1808_rrref  |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1808_rtref  |           1 |         1 |                |            1 |         0 |         5
+ public     | _reference127 | _fld1808_type   |           1 |         1 |                |            1 |         0 |         2
+ public     | _reference127 | _fld1809rref    |           9 |         9 |                |  -0.17734085 |         0 |        17
+ public     | _reference127 | _fld1810_rrref  |          31 |        27 |              4 |  -0.08488945 |         0 |        17
+ public     | _reference127 | _fld1810_rtref  |           1 |         1 |                |            1 |         0 |         5
+ public     | _reference127 | _fld1810_type   |           1 |         1 |                |            1 |         0 |         2
+ public     | _reference127 | _fld1811_rrref  |          14 |        10 |              4 |   0.68622756 |         0 |        17
+ public     | _reference127 | _fld1811_rtref  |           2 |         2 |                |   0.72631794 |         0 |         5
+ public     | _reference127 | _fld1811_type   |           2 |         2 |                |   0.72631794 |         0 |         2
+ public     | _reference127 | _fld1812rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1813        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference127 | _fld1814        |           2 |         2 |                |   0.98784095 |         0 |        22
+ public     | _reference127 | _fld1815        |           2 |         2 |                |   0.89355975 |         0 |         1
+ public     | _reference127 | _fld1816rref    |          19 |        17 |              2 |   0.27056217 |         0 |        17
+ public     | _reference127 | _fld1817rref    |           3 |         3 |                |   0.96886265 |         0 |        17
+ public     | _reference127 | _fld1818rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1819        | -0.39130434 |         1 |            296 |   0.76031446 |         0 |        11
+ public     | _reference127 | _fld1820rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1821        |  -0.4387352 |        61 |            272 |   0.62197965 |         0 |        64
+ public     | _reference127 | _fld1822_rrref  |          31 |        27 |              4 |  -0.08488945 |         0 |        17
+ public     | _reference127 | _fld1822_rtref  |           1 |         1 |                |            1 |         0 |         5
+ public     | _reference127 | _fld1822_type   |           1 |         1 |                |            1 |         0 |         2
+ public     | _reference127 | _fld1823        |           1 |         1 |                |            1 |         0 |         8
+ public     | _reference127 | _fld1824        |  -0.3043478 |       110 |            121 |    0.7274448 |         0 |         5
+ public     | _reference127 | _fld1825        |           1 |         1 |                |            1 |         0 |         3
+ public     | _reference127 | _fld1826        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference127 | _fld1827        |  -0.3043478 |       110 |            121 |   0.75412107 |         0 |        55
+ public     | _reference127 | _fld1828rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1829        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference127 | _fld1830_rrref  |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1830_rtref  |           2 |         2 |                |    0.8860852 |         0 |         5
+ public     | _reference127 | _fld1830_type   |           2 |         2 |                |    0.8860852 |         0 |         2
+ public     | _reference127 | _fld1831_rrref  |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference127 | _fld1831_rtref  |           2 |         2 |                |    0.8860852 |         0 |         5
+ public     | _reference127 | _fld1831_type   |           1 |         1 |                |            1 |         0 |         2
+ public     | _reference127 | _fld1832rref    |           2 |         2 |                |   0.50350326 |         0 |        17
+ public     | _reference127 | _fld1833        | -0.39262187 |         2 |            296 |    0.8355084 |         0 |         3
+ public     | _reference127 | _fld1834rref    |          47 |        40 |              7 |  -0.29586703 |         0 |        17
+ public     | _reference127 | _fld809         |           1 |         1 |                |            1 |         0 |         3
+ public     | _reference127 | _idrref         |          -1 |           |            501 |   0.07025076 |         0 |        17
+ public     | _reference127 | _marked         |           2 |         2 |                |   -0.2822618 |         0 |         1
+ public     | _reference127 | _predefinedid   |           1 |         1 |                |            1 |         0 |        20
+ public     | _reference127 | _version        |           1 |         1 |                |            1 |         0 |         4
+ public     | _reference147 | _code           |          -1 |           |                |              |         0 |        19
+ public     | _reference147 | _description    |          -1 |           |                |              |         0 |        27
+ public     | _reference147 | _fld2132_rrref  |          -1 |           |                |              |         0 |        17
+ public     | _reference147 | _fld2132_rtref  |          -1 |           |                |              |         0 |         5
+ public     | _reference147 | _fld2132_type   |          -1 |           |                |              |         0 |         2
+ public     | _reference147 | _fld2133        |          -1 |           |                |              |         0 |         8
+ public     | _reference147 | _fld2134        |          -1 |           |                |              |         0 |         1
+ public     | _reference147 | _fld2135        |          -1 |           |                |              |         0 |         1
+ public     | _reference147 | _fld809         |          -1 |           |                |              |         0 |         3
+ public     | _reference147 | _idrref         |          -1 |           |                |              |         0 |        17
+ public     | _reference147 | _marked         |          -1 |           |                |              |         0 |         1
+ public     | _reference147 | _parentidrref   |          -1 |           |                |              |         0 |        20
+ public     | _reference147 | _predefinedid   |          -1 |           |                |              |         0 |        20
+ public     | _reference147 | _version        |          -1 |           |                |              |         0 |         4
+ public     | _reference312 | _code           |          -1 |           |            501 |    0.8900151 |         0 |       101
+ public     | _reference312 | _description    | -0.74738675 |        93 |            336 |    0.0886461 |         0 |        68
+ public     | _reference312 | _fld1269rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference312 | _fld4780_rrref  |          26 |        20 |              6 |     0.314383 |         0 |        17
+ public     | _reference312 | _fld4780_rtref  |           1 |         1 |                |            1 |         0 |         5
+ public     | _reference312 | _fld4780_type   |           1 |         1 |                |            1 |         0 |         2
+ public     | _reference312 | _fld4781_rrref  |  -0.5487805 |       135 |            180 |  -0.24625185 |         0 |        17
+ public     | _reference312 | _fld4781_rtref  |           3 |         2 |                |    0.9897413 |         0 |         5
+ public     | _reference312 | _fld4781_type   |           1 |         1 |                |            1 |         0 |         2
+ public     | _reference312 | _fld4782        |           1 |         1 |                |            1 |         0 |         8
+ public     | _reference312 | _fld4783        |  -0.9982578 |         1 |            501 |   0.89001584 |         0 |         8
+ public     | _reference312 | _fld4784        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference312 | _fld4785        |           9 |         8 |                |    0.9139689 |         0 |         5
+ public     | _reference312 | _fld4786        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference312 | _fld4787        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference312 | _fld4788        |           2 |         2 |                |    0.6711636 |         0 |         1
+ public     | _reference312 | _fld4789        | -0.74738675 |        93 |            336 |    0.0886461 |         0 |        68
+ public     | _reference312 | _fld4790rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference312 | _fld4791_rrref  |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference312 | _fld4791_rtref  |           1 |         1 |                |            1 |         0 |         5
+ public     | _reference312 | _fld4791_type   |           1 |         1 |                |            1 |         0 |         2
+ public     | _reference312 | _fld4792rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference312 | _fld4793rref    |          -1 |           |            501 |  -0.23554955 |         0 |        17
+ public     | _reference312 | _fld4794_rrref  |          26 |        20 |              6 |     0.314383 |         0 |        17
+ public     | _reference312 | _fld4794_rtref  |           1 |         1 |                |            1 |         0 |         5
+ public     | _reference312 | _fld4794_type   |           1 |         1 |                |            1 |         0 |         2
+ public     | _reference312 | _fld4795        | -0.74390244 |        93 |            334 |   0.73108906 |         0 |         8
+ public     | _reference312 | _fld4796        |  -0.9982578 |         1 |            501 |    0.8900151 |         0 |         8
+ public     | _reference312 | _fld4797        |           1 |         1 |                |            1 |         0 |       101
+ public     | _reference312 | _fld4798        |           1 |         1 |                |            1 |         0 |         5
+ public     | _reference312 | _fld4799        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference312 | _fld4800        | -0.77874565 |        84 |            363 |  0.035318557 |         0 |         7
+ public     | _reference312 | _fld4801        |          10 |         8 |              2 |    0.9465714 |         0 |         7
+ public     | _reference312 | _fld4802rref    |           1 |         1 |                |            1 |         0 |        17
+ public     | _reference312 | _fld4803        |           1 |         1 |                |            1 |         0 |        19
+ public     | _reference312 | _fld4804        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference312 | _fld4805rref    |           2 |         2 |                |    0.9945617 |         0 |        17
+ public     | _reference312 | _fld4806        |           1 |         1 |                |            1 |         0 |         1
+ public     | _reference312 | _fld809         |           1 |         1 |                |            1 |         0 |         3
+ public     | _reference312 | _idrref         |          -1 |           |            501 |  -0.23554955 |         0 |        17
+ public     | _reference312 | _marked         |           2 |         2 |                |   0.56867975 |         0 |         1
+ public     | _reference312 | _predefinedid   |           1 |         1 |                |            1 |         0 |        20
+ public     | _reference312 | _version        |           1 |         1 |                |            1 |         0 |         4
+(191 rows)
