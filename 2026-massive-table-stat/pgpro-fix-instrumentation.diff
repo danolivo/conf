@@ -1,0 +1,38 @@
+diff --git a/src/backend/commands/explain.c b/src/backend/commands/explain.c
+index 4d2869c0cbd..ef91b82cb3c 100644
+--- a/src/backend/commands/explain.c
++++ b/src/backend/commands/explain.c
+@@ -467,6 +467,8 @@ standard_ExplainOneQuery(Query *query, int cursorOptions,
+ 						 QueryEnvironment *queryEnv)
+ {
+ 	PlannedStmt *plan;
++		instr_time	planstart,
++				planduration;
+ 	BufferUsage bufusage_start,
+ 				bufusage;
+ 	MemoryContextCounters mem_counters;
+@@ -492,8 +494,13 @@ standard_ExplainOneQuery(Query *query, int cursorOptions,
+ 	if (es->buffers)
+ 		bufusage_start = pgBufferUsage;
+ 
+-	/* plan the query */
+-	plan = pg_plan_query(query, queryString, cursorOptions, params);
++		INSTR_TIME_SET_CURRENT(planstart);
++
++		/* plan the query */
++		plan = pg_plan_query(query, queryString, cursorOptions, params);
++
++		INSTR_TIME_SET_CURRENT(planduration);
++		INSTR_TIME_SUBTRACT(planduration, planstart);
+ 
+ 	if (es->memory)
+ 	{
+@@ -510,7 +517,7 @@ standard_ExplainOneQuery(Query *query, int cursorOptions,
+ 
+ 	/* run it (if needed) and produce output */
+ 	ExplainOnePlan(plan, into, es, queryString, params, queryEnv,
+-				   &plan->planDuration, (es->buffers ? &bufusage : NULL),
++				   &planduration, (es->buffers ? &bufusage : NULL),
+ 				   es->memory ? &mem_counters : NULL);
+ }
+ 
