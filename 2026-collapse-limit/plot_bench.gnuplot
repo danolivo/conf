@@ -22,6 +22,12 @@ set key top left
 
 set style line 1 lc rgb "#0060ad" lw 2 pt 7 ps 1.0
 set style line 2 lc rgb "#dd181f" lw 2 pt 5 ps 1.0
+set style line 3 lc rgb "#0060ad" lw 1.5 dt 2
+
+# Linear fit for planning time
+f(x) = a*x + b
+fit f(x) "bench_data.dat" using 1:2 via a, b
 
 plot "bench_data.dat" using 1:2 axes x1y1 with linespoints ls 1 title "Planning time (ms)", \
-     ""              using 1:3 axes x1y2 with steps       ls 2 title "Allocated memory (kB)"
+     f(x)                      axes x1y1 with lines       ls 3 title sprintf("Linear fit (%.1f x %+.0f)", a, b), \
+     "bench_data.dat" using 1:3 axes x1y2 with steps      ls 2 title "Allocated memory (kB)"
