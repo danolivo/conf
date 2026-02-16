@@ -1,0 +1,165 @@
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+            4 |       0.403 |             264 |        0.046
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+            8 |       1.725 |            1040 |        0.061
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+           16 |      69.543 |             520 |        0.126
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+           24 |     116.219 |            1032 |        0.144
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+           32 |      172.45 |            1032 |         0.22
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+           40 |     242.031 |            2064 |        0.255
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+           48 |     314.795 |            2064 |         0.31
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+           56 |     392.519 |            2064 |        0.342
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+           64 |     480.772 |            4112 |        0.381
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+           72 |     631.644 |            4128 |        0.438
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+           80 |     694.574 |            4128 |        0.489
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+           88 |      865.45 |            4128 |         0.68
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+           96 |     947.472 |            4128 |        0.593
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          104 |    1065.575 |            8224 |        0.603
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          112 |    1209.345 |            8224 |        0.652
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          120 |    1362.513 |            8224 |        0.676
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          128 |    1534.305 |            8224 |         0.73
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          136 |    1697.552 |            8224 |        0.851
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          144 |    1873.982 |            8224 |        0.832
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          152 |     2052.38 |            8224 |        0.878
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          160 |    2284.453 |           16416 |         0.94
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          168 |    2475.946 |           16416 |        1.124
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          176 |    2732.742 |           16416 |        1.227
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          184 |     2956.04 |           16416 |        1.115
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          192 |    3153.113 |           16416 |        1.122
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          200 |    3425.018 |           16416 |        1.167
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          208 |    3695.483 |           16416 |        1.182
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          216 |    3975.445 |           16416 |         1.27
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          224 |    4264.172 |           16416 |        1.236
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          232 |    4577.102 |           16416 |         1.44
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          240 |    4864.468 |           16416 |         1.44
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          248 |    5226.069 |           16416 |         1.46
+(1 row)
+
+ tables_count | planning_ms | planning_mem_kb | execution_ms 
+--------------+-------------+-----------------+--------------
+          256 |    5526.825 |           24608 |        1.438
+(1 row)
+
