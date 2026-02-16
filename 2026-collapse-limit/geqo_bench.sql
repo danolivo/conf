@@ -71,14 +71,16 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Run the benchmark for a given number of tables.
--- Returns planning and execution times (ms).
-CREATE OR REPLACE FUNCTION bench_geqo(n int) RETURNS TABLE(tables_count int,
-                                                            planning_ms  float8,
-                                                            execution_ms float8) AS $$
+-- Returns planning time/memory and execution time.
+CREATE OR REPLACE FUNCTION bench_geqo(n int) RETURNS TABLE(tables_count    int,
+                                                            planning_ms    float8,
+                                                            planning_mem_kb int8,
+                                                            execution_ms   float8) AS $$
 DECLARE
   qry    text;
   line   text;
   p_time float8;
+  p_mem  int8;
   e_time float8;
 BEGIN
   -- Prepare the ring.
@@ -86,10 +88,13 @@ BEGIN
 
   qry := build_join_query(n);
 
-  -- Run EXPLAIN (ANALYZE, FORMAT JSON) to get structured timing.
-  FOR line IN EXECUTE 'EXPLAIN (ANALYZE, FORMAT TEXT) ' || qry LOOP
+  -- MEMORY option (PG 17+) reports planner memory usage.
+  FOR line IN EXECUTE 'EXPLAIN (ANALYZE, MEMORY, FORMAT TEXT) ' || qry LOOP
     IF line ~ 'Planning Time' THEN
       p_time := substring(line FROM '[\d.]+')::float8;
+    END IF;
+    IF line ~ 'Memory Used' THEN
+      p_mem := substring(line FROM '[\d.]+')::int8;
     END IF;
     IF line ~ 'Execution Time' THEN
       e_time := substring(line FROM '[\d.]+')::float8;
@@ -97,7 +102,7 @@ BEGIN
   END LOOP;
 
   PERFORM drop_ring(n);
-  RETURN QUERY SELECT n, p_time, e_time;
+  RETURN QUERY SELECT n, p_time, p_mem, e_time;
 END;
 $$ LANGUAGE plpgsql;
 
