@@ -93,8 +93,8 @@ BEGIN
     IF line ~ 'Planning Time' THEN
       p_time := substring(line FROM '[\d.]+')::float8;
     END IF;
-    IF line ~ 'Memory Used' THEN
-      p_mem := substring(line FROM '[\d.]+')::int8;
+    IF line ~ 'Memory:.*allocated' THEN
+      p_mem := substring(line FROM 'allocated=(\d+)')::int8;
     END IF;
     IF line ~ 'Execution Time' THEN
       e_time := substring(line FROM '[\d.]+')::float8;
