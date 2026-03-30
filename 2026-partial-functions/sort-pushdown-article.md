@@ -154,7 +154,7 @@ made things worse.
 Using the same tables, consider an ORDER BY ... LIMIT over a join:
 
 ```sql
-SELECT * FROM raw_data LEFT JOIN numbers USING (id)
+SELECT * FROM raw_data JOIN numbers USING (id)
 ORDER BY val
 LIMIT 10;
 ```
@@ -165,19 +165,20 @@ Normally PostgreSQL sorts the entire join result, then grabs 10 rows:
  Limit
    ->  Sort
          Sort Key: raw_data.val
-         ->  Hash Left Join
+         ->  Hash Join
+               Hash Cond: (raw_data.id = numbers.id)
                ->  Seq Scan on raw_data
                ->  Hash
                      ->  Seq Scan on numbers
 ```
 
-Our optimisation pushes the Sort below the join.  A LEFT JOIN produces at
-least one row per outer row, so it preserves sort order — and the LIMIT can
-propagate down, enabling a top-N heapsort:
+Our optimisation pushes the Sort below the join.  If the inner side is small
+or efficiently indexed, a NestLoop with a pre-sorted outer wins — and the
+LIMIT can propagate down, enabling a top-N heapsort:
 
 ```
  Limit
-   ->  Nested Loop Left Join
+   ->  Nested Loop
          ->  Sort
                Sort Key: raw_data.val
                ->  Seq Scan on raw_data
@@ -191,9 +192,7 @@ semantics.  Everybody wins.
 
 ### Where it breaks
 
-But what happens when ORDER BY uses a `"partial"` expression?  We switch to an
-INNER JOIN here — unlike the LEFT JOIN above, it actually filters out rows,
-which is what makes the problem visible:
+But what happens when ORDER BY uses a `"partial"` expression?
 
 ```sql
 SELECT * FROM raw_data JOIN numbers USING (id)

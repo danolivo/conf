@@ -104,12 +104,12 @@ ERROR:  invalid input syntax for type integer: "42.1"
 
 Столкнулись мы с этим в ходе имплементации и тестирования новой фичи оптимизатора Postgres, расширяющей пространство возможных планов для JOIN. Область её применения - запросы с `LIMIT <N>` ограничением на выборку и ORDER-BY на outer-сторону JOIN. Её суть в том, что иногда может быть эффективнем план с отсортированной outer-стороной, в котором этому JOIN нужно произвести не более `N` строк. Такая шаблонная конструкция, по отзывам, является характерной для запросов, генерируемых платформой 1С и эффективно планируется в SQL Server. 
 
-### Идея: сортировка до соединения
+### Сортировка до соединения
 
 На тех же таблицах, что представлены выше, рассмотрим запрос с ORDER BY ... LIMIT поверх соединения:
 
 ```sql
-SELECT * FROM raw_data LEFT JOIN numbers USING (id)
+SELECT * FROM raw_data JOIN numbers USING (id)
 ORDER BY val LIMIT 10;
 ```
 
@@ -119,17 +119,18 @@ ORDER BY val LIMIT 10;
  Limit
    ->  Sort
          Sort Key: raw_data.val
-         ->  Hash Left Join
+         ->  Hash Join
+               Hash Cond: (raw_data.id = numbers.id)
                ->  Seq Scan on raw_data
                ->  Hash
                      ->  Seq Scan on numbers
 ```
 
-Наша оптимизация проталкивает Sort ниже соединения. LEFT JOIN выдаёт как минимум одну строку на каждую строку внешней стороны, поэтому сохраняет порядок сортировки — а LIMIT может распространиться вниз, задействуя top-N heapsort:
+Наша оптимизация позволяет проталкивать Sort ниже соединения, если это эффективно с точки зрения cost-модели.  Если inner-сторона мала или эффективно индексирована, NestLoop с отсортированной outer-стороной выигрывает — а LIMIT может распространиться вниз, задействуя top-N heapsort:
 
 ```
  Limit
-   ->  Nested Loop Left Join
+   ->  Nested Loop
          ->  Sort
                Sort Key: raw_data.val
                ->  Seq Scan on raw_data
@@ -141,10 +142,10 @@ ORDER BY val LIMIT 10;
 
 ### Где это ломается
 
-Но что произойдёт, если ORDER BY использует `"partial"` выражение? Здесь мы переключаемся на INNER JOIN — в отличие от LEFT JOIN выше, он реально отфильтровывает строки, что и делает проблему видимой:
+Но что произойдёт, если ORDER BY использует `"partial"` выражение?
 
 ```sql
-SELECT * FROM raw_data LEFT JOIN numbers USING (id)
+SELECT * FROM raw_data JOIN numbers USING (id)
 ORDER BY CAST(val AS integer)
 LIMIT 10;
 ```
