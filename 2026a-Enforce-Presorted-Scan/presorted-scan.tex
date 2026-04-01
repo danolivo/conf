@@ -1,0 +1,375 @@
+% Use xelatex to generate a pdf file of this presentation
+
+\documentclass{beamer}
+\usepackage{roboto}
+\usepackage[english]{babel}
+\usetheme{Copenhagen}
+
+% Simple way to put a code listing to the slide
+\usepackage{listings}
+
+\usepackage{tikz}
+\usepackage{graphicx}
+
+% Blocks settings
+\setbeamerfont{block title}{size=\tiny}
+
+%Information to be included in the title page:
+\title{Enforcing Pre-sorted Scans}
+\subtitle{on Query Pathkeys in PostgreSQL 18}
+\author{Andrei Lepikhov}
+\institute{pgEdge}
+\date{pgconf.dev 2026}
+
+% Add page numbers in the footnote
+\expandafter\def\expandafter\insertshorttitle\expandafter{%
+  \insertshorttitle\hfill%
+  \insertframenumber\,/\,\inserttotalframenumber}
+
+\definecolor{lightlightgray}{gray}{0.9}
+
+% Default listing format
+\lstset{language=sql, frame=none, tabsize=2, identifierstyle=\color{black},
+  showspaces=false, showtabs=false, showstringspaces=false,
+  columns=fullflexible, % Restore default spaces between letters
+  basicstyle=\rmfamily\scriptsize,
+  stringstyle=\color{purple},
+  keywordstyle=\bfseries\color{green!40!black},
+  numberstyle=\tiny\color{gray}}
+
+% -----------------------------
+
+\begin{document}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Enforcing Pre-sorted Scans on Query Pathkeys
+% pgconf.dev 2026
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Self Introduction
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]\frametitle{Self Introduction}
+\begin{itemize}
+  \item 2007 - First touch to PostgreSQL (distributed query execution)
+  \item 2010 - designer and user of databases based on PostgreSQL (and SQLite)
+  \item 2017 - now - PostgreSQL Enthusiast, sporadic contributor and patch reviewer
+\end{itemize}
+My projects:
+\begin{itemize}
+  \item Multimaster, Shardman, Joinsel
+  \item AQO, sr\_plan, SwitchJoin, re-optimisation ...
+  \item Patches: GROUP-BY, Self-Join Removal, OR->ANY Optimisation ...
+\end{itemize}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% The Problem
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]\frametitle{The Problem -- A Real-Life Scenario}
+% A typical sales system query: show top-10 most popular products
+% with type-specific properties from multiple tables.
+\begin{lstlisting}
+SELECT p.id, p.name, p.category, p.popularity,
+  json_strip_nulls(json_build_object(
+    'warranty', e.warranty_months,
+    'voltage',  e.voltage,
+    'size',     c.size,
+    'color',    c.color,
+    'expiry',   f.expiry_days,
+    'organic',  f.organic
+  )) AS properties
+FROM products p                                -- 100k rows
+  LEFT JOIN electronics_props e ON e.product_id = p.id
+  LEFT JOIN clothing_props    c ON c.product_id = p.id
+  LEFT JOIN food_props        f ON f.product_id = p.id
+ORDER BY p.popularity DESC
+LIMIT 10;
+\end{lstlisting}
+\medskip
+\textbf{Key:} \texttt{products(id)} has a PK index (needed for joins), but
+\textit{no index on} \texttt{popularity} --- it changes with every sale,
+maintaining such an index is impractical.
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{The Problem -- PG17 Plan}
+% The planner joins everything first, then sorts the entire result.
+\begin{lstlisting}
+ Limit
+   ->  Sort
+         Sort Key: p.popularity DESC
+         ->  Nested Loop Left Join
+               ->  Nested Loop Left Join
+                     ->  Nested Loop Left Join
+                           ->  Seq Scan on products p
+                           ->  Index Scan ... on electronics_props e
+                     ->  Index Scan ... on clothing_props c
+               ->  Index Scan ... on food_props f
+\end{lstlisting}
+\bigskip
+No index on the sort column $\Rightarrow$ full sort of \textbf{100k joined rows}
+just to return \textbf{10}.
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Background: Sorting in the Planner Today
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}\frametitle{Background: Pathkeys and Sort Order}
+% Brief refresher:
+% - Pathkeys represent sort order of a path
+% - Equivalence classes group expressions that are equal
+% - The planner generates sorted paths via index scans, explicit Sort, incremental sort
+\end{frame}
+
+\begin{frame}\frametitle{Background: The Gap}
+% The planner never generates Sort + SeqScan for a base relation
+% just because it might help a join higher in the plan tree.
+% No "lookahead" from base-relation planning to top-level ORDER BY.
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% The Idea
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}\frametitle{The Idea: Push Sort Below the Join}
+% If a prefix of query_pathkeys can be computed from a single relation,
+% generate a pre-sorted scan path for that relation.
+% The NestLoop preserves sort order -> top-level Sort disappears.
+% With LIMIT, the Sort becomes bounded top-N heapsort.
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{The Idea -- Before and After}
+\begin{columns}[T]\begin{column}{0.5\textwidth}
+\begin{block}{PG17: Sort on top}
+\begin{lstlisting}[basicstyle=\tiny]
+ Limit
+   -> Sort  <-- sorts 100k rows!
+     Sort Key: p.popularity DESC
+     -> NL Left Join
+       -> NL Left Join
+         -> NL Left Join
+           -> Seq Scan on products p
+           -> IdxScan electronics_props
+         -> IdxScan clothing_props
+       -> IdxScan food_props
+\end{lstlisting}
+\end{block}
+\end{column}\begin{column}{0.5\textwidth}
+\begin{block}{PG18: Sort pushed down}
+\begin{lstlisting}[basicstyle=\tiny]
+ Limit
+   -> NL Left Join
+     -> NL Left Join
+       -> NL Left Join
+         -> Sort  <-- top-N heapsort!
+           Sort Key: p.popularity DESC
+           -> Seq Scan on products p
+         -> IdxScan electronics_props
+       -> IdxScan clothing_props
+     -> IdxScan food_props
+\end{lstlisting}
+\end{block}
+\end{column}\end{columns}
+\bigskip
+\begin{center}
+No index on the sort column --- but with LIMIT 10 the Sort becomes
+a \textbf{bounded top-N heapsort} over the base table only.
+\end{center}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Implementation
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+\vspace*{\fill}\begin{center}
+\huge{Implementation}
+\end{center}\vspace*{\fill}
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{generate\_presorted\_paths()}
+% Called from set_plain_rel_pathlist() for each base relation.
+% Algorithm:
+% 1. Check enable_presorted_scan GUC and query_pathkeys existence
+% 2. Walk query_pathkeys prefix, check relation_can_be_sorted_early()
+% 3. If useful pathkeys found and no path with them exists yet:
+%    - copy_path_for_sort() the cheapest unsorted path
+%    - Wrap with create_sort_path()
+%    - add_path() to the relation's pathlist
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{relation\_can\_be\_sorted\_early()}
+% Safety gate -- same as used for FDW/custom-scan sorted paths.
+% Rejects:
+% - Volatile expressions
+% - Set-returning functions
+% - Expressions not computable from the relation's reltarget
+% - Non-parallel-safe expressions
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{copy\_path\_for\_sort()}
+% Creates an independent shallow copy of the path.
+% Same technique as reparameterize_path().
+% Supports: SeqScan, SampleScan, IndexPath, BitmapHeapPath, TidPath, CustomPath.
+% Prevents the Sort subpath from sharing state with the original in pathlist.
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{Tuple Bound Propagation Through NestLoop}
+% ExecSetTupleBound() changes:
+% LEFT/ANTI joins -> propagate bound to OUTER side
+% RIGHT joins -> propagate bound to INNER side
+% These join types guarantee >= 1 output row per driving-side row,
+% so a LIMIT-derived bound safely applies -> enables top-N heapsort.
+%
+% This is the EXECUTOR part of the feature -- it lives in ExecSetTupleBound(),
+% which no extension hook can reach.
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{The enable\_presorted\_scan GUC}
+% New boolean GUC, default true.
+% PGC_USERSET -- per-session control.
+% GUC_EXPLAIN flag -- visible in EXPLAIN output.
+% SET enable_presorted_scan = off; -- to disable
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Challenges and Edge Cases
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+\vspace*{\fill}\begin{center}
+\huge{Challenges \& Edge Cases}
+\end{center}\vspace*{\fill}
+\end{frame}
+
+\begin{frame}\frametitle{Equivalence Classes Spanning Joins}
+% Problem: EC for t1.x = t2.x has ec_relids = {t1, t2}.
+% Naive bms_is_subset(ec->ec_relids, rel->relids) rejects it,
+% even though the EC contains a member computable from t1 alone.
+% Solution: looser pre-filter + explicit ec_members scan.
+\end{frame}
+
+\begin{frame}\frametitle{Volatile and Unsafe Expressions}
+% Volatile ECs, SRFs, partial functions (e.g., regclass casts)
+% must not be sorted early.
+% relation_can_be_sorted_early() handles all of these.
+\end{frame}
+
+\begin{frame}\frametitle{Adding Sort Expressions to Pathtarget}
+% Initially refused to add expressions not already in the scan's pathtarget.
+% Too conservative -- disabled the optimization for most non-trivial ORDER BY.
+% SQL standard: expression evaluation order is implementation-dependent.
+% Core planner already does the same via resjunk injection.
+\end{frame}
+
+\begin{frame}\frametitle{Why Core, Not an Extension?}
+% The planner part (generate_presorted_paths) could in theory use
+% the set_rel_pathlist_hook or custom path machinery.
+% But the feature has TWO parts:
+%
+% 1. Planner: generate pre-sorted paths (hookable, in principle)
+% 2. Executor: propagate tuple bound through NestLoop in ExecSetTupleBound()
+%
+% Without the executor change, LIMIT cannot be pushed down to the Sort node
+% below the join -> no bounded top-N heapsort -> much of the benefit is lost.
+%
+% ExecSetTupleBound() has no extension hook.
+% This makes the feature impossible to maintain as a standalone extension.
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Results
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+\vspace*{\fill}\begin{center}
+\huge{Results}
+\end{center}\vspace*{\fill}
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{Products Example -- enable\_presorted\_scan = on}
+% Actual EXPLAIN ANALYZE output from PG18 branch.
+\begin{lstlisting}[basicstyle=\tiny]
+ Limit (actual time=43.924..44.176 rows=10 loops=1)
+   Buffers: shared hit=940
+   ->  Nested Loop Left Join (actual time=43.922..44.172 rows=10 loops=1)
+         ->  Nested Loop Left Join (actual time=43.865..43.980 rows=10 loops=1)
+               ->  Nested Loop Left Join (actual time=43.851..43.903 rows=10 loops=1)
+                     ->  Sort (actual time=43.825..43.826 rows=10 loops=1)
+                           Sort Key: p.popularity DESC
+                           Sort Method: top-N heapsort  Memory: 26kB
+                           ->  Seq Scan on products p (actual rows=100000 loops=1)
+                     ->  Index Scan ... on electronics_props e
+               ->  Index Scan ... on clothing_props c
+         ->  Index Scan ... on food_props f
+\end{lstlisting}
+\begin{center}
+\textbf{44 ms} --- Sort is \textit{below} the joins, top-N heapsort with LIMIT 10.
+\end{center}
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{Products Example -- enable\_presorted\_scan = off}
+% Same query with the optimization disabled.
+\begin{lstlisting}[basicstyle=\tiny]
+ Limit (actual time=813.491..813.495 rows=10 loops=1)
+   Buffers: shared hit=1442
+   ->  Sort (actual time=813.489..813.491 rows=10 loops=1)
+         Sort Key: p.popularity DESC
+         Sort Method: top-N heapsort  Memory: 27kB
+         ->  Hash Left Join (actual time=73.483..772.134 rows=100000 loops=1)
+               ->  Hash Left Join (actual time=54.732..128.615 rows=100000 loops=1)
+                     ->  Hash Left Join (actual time=32.330..79.951 rows=100000 loops=1)
+                           ->  Seq Scan on products p (actual rows=100000 loops=1)
+                           ->  Hash (rows=33333)
+                                 ->  Seq Scan on electronics_props e
+                     ->  Hash (rows=33334)
+                           ->  Seq Scan on clothing_props c
+               ->  Hash (rows=33333)
+                     ->  Seq Scan on food_props f
+\end{lstlisting}
+\begin{center}
+\textbf{814 ms} --- Hash joins all 100k rows, \textit{then} sorts. \textbf{18$\times$ slower.}
+\end{center}
+\end{frame}
+
+\begin{frame}\frametitle{Regression Test Impact}
+% 8+ regression tests changed plans:
+% - join, incremental_sort, groupingsets, collate.icu.utf8,
+%   partition_aggregate, partition_join, partition_prune, tuplesort
+% + contrib: pg_overexplain, postgres_fdw
+%
+% Demonstrates the optimizer picks up the optimization in diverse real patterns.
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Future Work
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}\frametitle{Future Work}
+% - Extending to other path types (ForeignScan, Append)
+% - Interaction with parallel queries
+% - Cost model refinements
+% - Benchmarks on real-world workloads (1C:Enterprise, TPC-H)
+% - Community feedback and review status
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Closing
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+\vspace*{\fill}
+\begin{center}
+\huge{Questions ?}
+\end{center}
+\vspace*{\fill}
+\end{frame}
+
+\end{document}
