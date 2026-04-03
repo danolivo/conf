@@ -91,8 +91,6 @@ FROM products p
 ORDER BY p.popularity DESC
 LIMIT 10;
 
-SET enable_presorted_scan = 'off';
-
 /*
  Limit (actual time=43.924..44.176 rows=10.00 loops=1)
    Buffers: shared hit=940
@@ -165,6 +163,3 @@ SET enable_presorted_scan = 'off';
 (36 rows)
 
  */
-
-RESET enable_presorted_scan;
-

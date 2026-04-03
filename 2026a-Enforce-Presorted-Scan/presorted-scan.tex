@@ -10,6 +10,7 @@
 
 \usepackage{tikz}
 \usepackage{graphicx}
+\usepackage{qrcode}
 
 % Blocks settings
 \setbeamerfont{block title}{size=\tiny}
@@ -66,6 +67,35 @@ My projects:
   \item AQO, sr\_plan, SwitchJoin, re-optimisation ...
   \item Patches: GROUP-BY, Self-Join Removal, OR->ANY Optimisation ...
 \end{itemize}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Prior Discussion
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}\frametitle{Prior Discussion}
+The idea has been raised on the mailing lists before:
+\bigskip
+\begin{columns}[T]\begin{column}{0.7\textwidth}
+\begin{enumerate}
+  \item \textit{``Possible optimisation: push down SORT and LIMIT nodes''} --- pgsql-hackers, 2018.
+  Christopher Wilson proposed a sort-limit-finish node that could be pushed through joins.
+  \medskip
+  \item \textit{``Wasteful nested loop join when there is `limit' in the query''} --- pgsql-general, 2025.
+  A user report showing the planner joins all rows before applying LIMIT.
+\end{enumerate}
+\end{column}\begin{column}{0.3\textwidth}
+\begin{center}
+\qrcode[height=2cm]{https://www.postgresql.org/message-id/E9FA92C2921F31408041863B74EE4C2001AEF33492@CCPMAILDAG03.cantab.local}
+\vspace{3mm}
+{\tiny Thread 1}
+\vspace{5mm}
+
+\qrcode[height=2cm]{https://www.postgresql.org/message-id/CAAdwFAwm6HwXM_cuPWZBxrxX4E7pBdVg=KcVDSP6q9ume3hYpQ@mail.gmail.com}
+\vspace{3mm}
+{\tiny Thread 2}
+\end{center}
+\end{column}\end{columns}
 \end{frame}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -129,9 +159,11 @@ just to return \textbf{10}.
 \end{frame}
 
 \begin{frame}\frametitle{Background: The Gap}
-% The planner never generates Sort + SeqScan for a base relation
-% just because it might help a join higher in the plan tree.
-% No "lookahead" from base-relation planning to top-level ORDER BY.
+% match_unsorted_outer() already tries many combinations for the outer side,
+% but it never considers *pre-sorting* the outer relation on query_pathkeys
+% before the join, even when doing so would make the entire join output
+% emerge sorted and avoid a top-level Sort.
+% The gap: no "pre-sort the outer" candidate is ever generated at join time.
 \end{frame}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -194,49 +226,53 @@ a \textbf{bounded top-N heapsort} over the base table only.
 \end{center}\vspace*{\fill}
 \end{frame}
 
-\begin{frame}[fragile]\frametitle{generate\_presorted\_paths()}
-% Called from set_plain_rel_pathlist() for each base relation.
+\begin{frame}[fragile]\frametitle{match\_unsorted\_outer() -- new block}
+% Added at the end of match_unsorted_outer() in joinpath.c.
+% Triggered when: nestjoinOK AND root->query_pathkeys != NIL
+%                 AND enable_presorted_outer is on.
+%
 % Algorithm:
-% 1. Check enable_presorted_scan GUC and query_pathkeys existence
-% 2. Walk query_pathkeys prefix, check relation_can_be_sorted_early()
-% 3. If useful pathkeys found and no path with them exists yet:
-%    - copy_path_for_sort() the cheapest unsorted path
-%    - Wrap with create_sort_path()
-%    - add_path() to the relation's pathlist
+% 1. Walk query_pathkeys prefix; for each key call
+%    relation_can_be_sorted_early(root, outerrel, ec) -- stop at first failure.
+% 2. If useful prefix found AND outerrel has no path with those pathkeys yet
+%    (get_cheapest_path_for_pathkeys guard -- avoids redo for base rels):
+%    a. Take outerrel's cheapest total unparameterized path.
+%    b. Wrap with create_sort_path(... limit_tuples if LEFT JOIN, else -1.0).
+%    c. Call try_nestloop_path() with the sorted outer + each inner candidate
+%       (cheapest_parameterized_paths + memoize + materialize).
 \end{frame}
 
 \begin{frame}[fragile]\frametitle{relation\_can\_be\_sorted\_early()}
-% Safety gate -- same as used for FDW/custom-scan sorted paths.
+% Safety gate -- reused from get_useful_pathkeys_for_relation() (FDW paths).
 % Rejects:
-% - Volatile expressions
+% - Volatile equivalence classes (ec_has_volatile)
 % - Set-returning functions
 % - Expressions not computable from the relation's reltarget
 % - Non-parallel-safe expressions
-\end{frame}
-
-\begin{frame}[fragile]\frametitle{copy\_path\_for\_sort()}
-% Creates an independent shallow copy of the path.
-% Same technique as reparameterize_path().
-% Supports: SeqScan, SampleScan, IndexPath, BitmapHeapPath, TidPath, CustomPath.
-% Prevents the Sort subpath from sharing state with the original in pathlist.
+% Accepts join ECs: scans ec_members for a member whose relids match
+% outerrel exactly -- handles t1.x = t2.x style equalities correctly.
 \end{frame}
 
 \begin{frame}[fragile]\frametitle{Tuple Bound Propagation Through NestLoop}
-% ExecSetTupleBound() changes:
-% LEFT/ANTI joins -> propagate bound to OUTER side
-% RIGHT joins -> propagate bound to INNER side
-% These join types guarantee >= 1 output row per driving-side row,
-% so a LIMIT-derived bound safely applies -> enables top-N heapsort.
+% ExecSetTupleBound() extended in execProcnode.c:
 %
-% This is the EXECUTOR part of the feature -- it lives in ExecSetTupleBound(),
-% which no extension hook can reach.
+%  LEFT JOIN  -> recurse into OUTER side
+%    (every outer row produces >= 1 output row, NULLs if unmatched)
+%  RIGHT JOIN -> recurse into INNER side
+%    (same guarantee for inner rows)
+%
+%  INNER / ANTI / FULL: NOT propagated.
+%    INNER/ANTI can discard rows; FULL can expand both sides.
+%
+% This is the EXECUTOR part -- ExecSetTupleBound() has no extension hook,
+% making the feature impossible to ship as a standalone extension.
 \end{frame}
 
-\begin{frame}[fragile]\frametitle{The enable\_presorted\_scan GUC}
-% New boolean GUC, default true.
+\begin{frame}[fragile]\frametitle{The enable\_presorted\_outer GUC}
+% New boolean GUC, default on.
 % PGC_USERSET -- per-session control.
-% GUC_EXPLAIN flag -- visible in EXPLAIN output.
-% SET enable_presorted_scan = off; -- to disable
+% GUC_EXPLAIN flag -- appears in EXPLAIN output when set to off.
+% SET enable_presorted_outer = off; -- to disable
 \end{frame}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -262,19 +298,55 @@ a \textbf{bounded top-N heapsort} over the base table only.
 % relation_can_be_sorted_early() handles all of these.
 \end{frame}
 
-\begin{frame}\frametitle{Adding Sort Expressions to Pathtarget}
-% Initially refused to add expressions not already in the scan's pathtarget.
-% Too conservative -- disabled the optimization for most non-trivial ORDER BY.
-% SQL standard: expression evaluation order is implementation-dependent.
-% Core planner already does the same via resjunk injection.
+\begin{frame}\frametitle{INNER / SEMI / ANTI Joins}
+% The pre-sorted outer path is also tried for INNER, SEMI, and ANTI joins,
+% but with limit_tuples = -1.0 (conservative full-sort cost estimate).
+% Rationale: outer rows can be discarded by the join condition, so the
+% LIMIT bound does not safely translate to a bound on the outer sort.
+%
+% The sorted path is still submitted to try_nestloop_path() -- the cost
+% model decides whether it wins.  No separate special-casing needed.
+\end{frame}
+
+\begin{frame}\frametitle{Concern: Too Narrow for Core?}
+% Community concern: ORDER BY + LIMIT over LEFT JOIN with NestLoop
+% sounds like a very specific pattern. Is it worth the planner overhead
+% for all queries?
+%
+% Counter-arguments:
+% - The overhead is minimal: one extra candidate per NestLoop join attempt,
+%   only when query_pathkeys exist and the outer has no sorted path already.
+% - The pattern is common in real workloads: any "top-N with details"
+%   query over normalised schema hits it (sales, CRM, ERP, 1C:Enterprise).
+% - The path goes through try_nestloop_path() / add_path() -- if it's not
+%   cheaper, it's pruned. No regression for queries that don't benefit.
+% - enable_presorted_outer provides an escape hatch.
+\end{frame}
+
+\begin{frame}\frametitle{Concern: Cost Underestimation}
+% The Sort node is costed with an *estimated* tuple bound from LIMIT.
+% This makes the pre-sorted path look cheap in the planner.
+%
+% But at execution time the bound is only a hint:
+% - If cardinality estimation is off (join produces fewer rows than expected,
+%   or more duplicates), the Sort may have to process ALL tuples.
+% - The actual cost can be much higher than the estimate.
+%
+% This is a general problem with LIMIT-aware costing, not unique to this
+% feature -- but the pre-sorted path amplifies the risk because it relies
+% on the bound more heavily than a top-level Sort would.
+%
+% Mitigation: the planner still keeps the unsorted path as an alternative.
+% If the cost model gets it wrong, we lose one query but don't crash.
 \end{frame}
 
 \begin{frame}\frametitle{Why Core, Not an Extension?}
-% The planner part (generate_presorted_paths) could in theory use
-% the set_rel_pathlist_hook or custom path machinery.
+% The planner part (new block in match_unsorted_outer(), joinpath.c) could
+% in theory use the set_rel_pathlist_hook or custom path machinery.
 % But the feature has TWO parts:
 %
-% 1. Planner: generate pre-sorted paths (hookable, in principle)
+% 1. Planner: new block in match_unsorted_outer() tries a pre-sorted outer path
+%    (hookable in principle via set_rel_pathlist_hook)
 % 2. Executor: propagate tuple bound through NestLoop in ExecSetTupleBound()
 %
 % Without the executor change, LIMIT cannot be pushed down to the Sort node
@@ -294,7 +366,7 @@ a \textbf{bounded top-N heapsort} over the base table only.
 \end{center}\vspace*{\fill}
 \end{frame}
 
-\begin{frame}[fragile]\frametitle{Products Example -- enable\_presorted\_scan = on}
+\begin{frame}[fragile]\frametitle{Products Example -- enable\_presorted\_outer = on}
 % Actual EXPLAIN ANALYZE output from PG18 branch.
 \begin{lstlisting}[basicstyle=\tiny]
  Limit (actual time=43.924..44.176 rows=10 loops=1)
@@ -315,7 +387,7 @@ a \textbf{bounded top-N heapsort} over the base table only.
 \end{center}
 \end{frame}
 
-\begin{frame}[fragile]\frametitle{Products Example -- enable\_presorted\_scan = off}
+\begin{frame}[fragile]\frametitle{Products Example -- enable\_presorted\_outer = off}
 % Same query with the optimization disabled.
 \begin{lstlisting}[basicstyle=\tiny]
  Limit (actual time=813.491..813.495 rows=10 loops=1)
@@ -340,12 +412,16 @@ a \textbf{bounded top-N heapsort} over the base table only.
 \end{frame}
 
 \begin{frame}\frametitle{Regression Test Impact}
-% 8+ regression tests changed plans:
-% - join, incremental_sort, groupingsets, collate.icu.utf8,
-%   partition_aggregate, partition_join, partition_prune, tuplesort
-% + contrib: pg_overexplain, postgres_fdw
+% 11 regression test files changed (commit fbe6f5a0ec0):
+% Core tests:
+%   - join, incremental_sort, collate.icu.utf8,
+%     partition_join, create_am, pg_lsn,
+%     subselect, tablesample
+% Contrib:
+%   - postgres_fdw
 %
-% Demonstrates the optimizer picks up the optimization in diverse real patterns.
+% Demonstrates the optimizer picks up the optimization in diverse real patterns:
+% collations, partitioned tables, foreign tables, subqueries, sampling.
 \end{frame}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <!-- Spotlight gradient from above -->
+    <radialGradient id="spotlight" cx="50%" cy="20%" r="60%" fx="50%" fy="20%">
+      <stop offset="0%" stop-color="#FFD700" stop-opacity="0.35"/>
+      <stop offset="50%" stop-color="#FFD700" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#FFD700" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Glow for the highlighted node -->
+    <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF6B35" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#FF6B35" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Subtle shadow filter -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000" flood-opacity="0.15"/>
+    </filter>
+
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="400" rx="24" fill="#1a1a2e"/>
+
+  <!-- Spotlight cone (subtle, from top) -->
+  <polygon points="175,30 95,320 255,320" fill="url(#spotlight)" opacity="0.8"/>
+
+  <!--
+    Tree structure (now correct):
+
+            Hash Join (root)
+           /            \
+      Nested Loop       Sort        (level 2)
+       /     \            |
+     Scan   Scan*       IdxScan     (level 3 — leaves)
+             ^ problem node
+  -->
+
+  <!-- Tree edges — drawn first, behind nodes -->
+  <!-- Root to left child (Nested Loop) -->
+  <line x1="200" y1="100" x2="120" y2="190" stroke="#4a5568" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Root to right child (Sort) -->
+  <line x1="200" y1="100" x2="295" y2="190" stroke="#4a5568" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Nested Loop to left-left leaf (Scan) -->
+  <line x1="120" y1="190" x2="70" y2="280" stroke="#4a5568" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Nested Loop to left-right leaf (Scan — the problem node) -->
+  <line x1="120" y1="190" x2="170" y2="280" stroke="#FF6B35" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Sort to its single child (IdxScan) -->
+  <line x1="295" y1="190" x2="295" y2="280" stroke="#4a5568" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- === NODES === -->
+
+  <!-- Root node (Hash Join) -->
+  <circle cx="200" cy="100" r="18" fill="#336791" stroke="#4a8ab5" stroke-width="2" filter="url(#shadow)"/>
+  <text x="200" y="96" text-anchor="middle" fill="white" font-family="monospace" font-size="7">Hash</text>
+  <text x="200" y="108" text-anchor="middle" fill="white" font-family="monospace" font-size="7">Join</text>
+
+  <!-- Left child (Nested Loop) -->
+  <circle cx="120" cy="190" r="16" fill="#336791" stroke="#4a8ab5" stroke-width="2" filter="url(#shadow)"/>
+  <text x="120" y="186" text-anchor="middle" fill="white" font-family="monospace" font-size="7" font-weight="bold">Nested</text>
+  <text x="120" y="197" text-anchor="middle" fill="white" font-family="monospace" font-size="7" font-weight="bold">Loop</text>
+
+  <!-- Right child (Sort — single child operator) -->
+  <circle cx="295" cy="190" r="16" fill="#336791" stroke="#4a8ab5" stroke-width="2" filter="url(#shadow)"/>
+  <text x="295" y="194" text-anchor="middle" fill="white" font-family="monospace" font-size="9">Sort</text>
+
+  <!-- Left-left leaf (Scan, normal) -->
+  <circle cx="70" cy="280" r="14" fill="#2d3748" stroke="#4a5568" stroke-width="2" filter="url(#shadow)"/>
+  <text x="70" y="284" text-anchor="middle" fill="#a0aec0" font-family="monospace" font-size="8">Scan</text>
+
+  <!-- THE PROBLEM NODE — left-right leaf, highlighted -->
+  <circle cx="170" cy="280" r="22" fill="url(#nodeGlow)" opacity="0.5"/>
+  <circle cx="170" cy="280" r="14" fill="#FF6B35" stroke="#FFD700" stroke-width="2.5" filter="url(#glow)"/>
+  <text x="170" y="284" text-anchor="middle" fill="white" font-family="monospace" font-size="8" font-weight="bold">Scan</text>
+
+  <!-- Error indicator on problem node -->
+  <text x="196" y="272" fill="#FF6B35" font-family="monospace" font-size="10" font-weight="bold">×128</text>
+
+  <!-- Sort's single child (Index Scan) -->
+  <circle cx="295" cy="280" r="14" fill="#2d3748" stroke="#4a5568" stroke-width="2" filter="url(#shadow)"/>
+  <text x="295" y="284" text-anchor="middle" fill="#a0aec0" font-family="monospace" font-size="7">IdxScan</text>
+
+  <!-- Extension name -->
+  <text x="200" y="350" text-anchor="middle" fill="#e2e8f0" font-family="system-ui, sans-serif" font-size="16" font-weight="600" letter-spacing="1">pg_track_optimizer</text>
+  <text x="200" y="370" text-anchor="middle" fill="#718096" font-family="system-ui, sans-serif" font-size="10" letter-spacing="2">FIND THE BAD ESTIMATES</text>
+</svg>
