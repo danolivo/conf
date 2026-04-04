@@ -1,3 +1,4 @@
+BEGIN;
 
 /*
  * Extract and round the total execution time from "actual time=X..Y" format.
@@ -50,12 +51,12 @@ END; $$;
  * pretty_explain_text(). Exposed for flexibility but not part of the public API.
  */
 CREATE OR REPLACE FUNCTION _normalize_explain_line(
-  line text,
+  line               text,
   platform_dependent boolean DEFAULT false,
-  show_cost boolean DEFAULT false,
-  show_width boolean DEFAULT false,
-  show_loops boolean DEFAULT false,
-  show_details boolean DEFAULT false
+  show_details       boolean DEFAULT false,
+  show_cost          boolean DEFAULT false,
+  show_width         boolean DEFAULT false,
+  show_loops         boolean DEFAULT false
 )
 RETURNS text LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE
@@ -136,13 +137,13 @@ END; $$;
  * query so that actual-rows figures are available.
  */
 CREATE OR REPLACE FUNCTION pretty_explain_analyze(
-  query text,
-  params text DEFAULT 'ANALYZE, COSTS OFF, TIMING OFF, SUMMARY OFF, BUFFERS OFF',
+  query              text,
+  params             text DEFAULT 'ANALYZE, COSTS OFF, TIMING OFF, SUMMARY OFF, BUFFERS OFF',
   platform_dependent boolean DEFAULT false,
-  show_cost boolean DEFAULT false,
-  show_width boolean DEFAULT false,
-  show_loops boolean DEFAULT false,
-  show_details boolean DEFAULT false
+  show_details       boolean DEFAULT false,
+  show_cost          boolean DEFAULT false,
+  show_width         boolean DEFAULT false,
+  show_loops         boolean DEFAULT false
 )
 RETURNS TABLE (out_line text) LANGUAGE plpgsql AS $$
 DECLARE
@@ -183,12 +184,12 @@ END; $$;
  *     Memory Usage: 42kB$$);
  */
 CREATE OR REPLACE FUNCTION pretty_explain_text(
-  explain_text text,
+  explain_text       text,
   platform_dependent boolean DEFAULT false,
-  show_cost boolean DEFAULT false,
-  show_width boolean DEFAULT false,
-  show_loops boolean DEFAULT false,
-  show_details boolean DEFAULT false
+  show_details       boolean DEFAULT false,
+  show_cost          boolean DEFAULT false,
+  show_width         boolean DEFAULT false,
+  show_loops         boolean DEFAULT false
 )
 RETURNS TABLE (out_line text) LANGUAGE plpgsql AS $$
 DECLARE
@@ -233,3 +234,5 @@ COMMENT ON FUNCTION pretty_explain_text(text, boolean, boolean, boolean, boolean
   'When show_details=true, detail lines (Buffers, Workers, Buckets, Batches, Pre-sorted Groups, Heap Fetches, Sort Method, Cache Mode) are shown. '
   'Typical workflow: run EXPLAIN in psql, copy the output, then call: '
   'SELECT pretty_explain_text($$[paste EXPLAIN output here]$$);';
+
+COMMIT;
