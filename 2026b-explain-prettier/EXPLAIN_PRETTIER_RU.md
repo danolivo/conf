@@ -46,22 +46,65 @@ Sort (actual time=0.027..0.028 rows=1 loops=1)
 
 Значение `Memory: 25kB` зависит от платформы. На другой машине с другим аллокатором или выравниванием памяти вы получите `Memory: 26kB` или `Memory: 24kB`. И ведь в `EXPLAIN ANALYZE` нет никакой опции, чтобы подавить вывод этого поля — оно печатается всегда, когда узел Sort выполняется в памяти. То же касается узлов Hash, где появляются `Memory Usage`, `Buckets`, `Batches`. Вы не можете попросить PostgreSQL «покажи мне план без деталей памяти» — такой настройки просто не существует.
 
+Ещё один пример межверсионной нестабильности — именование SubPlan. В PostgreSQL 17 [изменился формат отображения](https://pganalyze.com/blog/5mins-postgres-17-explain-subplan) SubPlan и InitPlan узлов в выводе EXPLAIN. Раньше (PG 16 и ниже) InitPlan отображался с суффиксом `(returns $0)`, а ссылки на его результат выглядели как `$0`:
+
+```
+InitPlan 1 (returns $0)
+  ->  Result
+Output: $0, (sum(t.value))
+```
+
+Начиная с PG 17 суффикс `(returns $N)` исчез, а ссылки изменили формат на `(InitPlan N).colN`:
+
+```
+InitPlan 1
+  ->  Result
+Output: (InitPlan 1).col1, (sum(t.value))
+```
+
+С SubPlan ситуация аналогичная — суффикс `(returns $N)` тоже убран, ссылки на параметры переведены в формат `(SubPlan N).colN`. Но у SubPlan есть ещё одно изменение: в PG 16 строка фильтра показывала просто `(SubPlan 1)` без деталей сравнения, а в PG 17 стало видно полное выражение — оператор, ключевое слово ALL/ANY и конкретный столбец:
+
+```
+-- PG 16:
+Filter: (t.value < (SubPlan 1))
+
+-- PG 17:
+Filter: (t.value < ALL (SubPlan 1).col1)
+```
+
+Изменения разумные — стало понятнее, что происходит в плане. Но для тестов это катастрофа: один и тот же запрос на PG 16 и PG 17 даёт разный текстовый вывод. В `explain-prettier` решение напрашивается: нормализовать обе формы к единому виду — убрать `(returns $N)` из строки InitPlan/SubPlan, привести ссылки на параметры к стабильному формату и унифицировать отображение testexpr в фильтрах, чтобы результат не зависел от версии.
+
 ## Планы запросов для статей и документации
 
 Ну и наконец — литература. Демонстрируя читателю, например, преимущества BitmapScan, не обязательно загружать его сознание лишней информацией, такой как `loops` или `width`. К тому же пространство в книге физически ограничено форматом А5, и приходится уменьшать шрифт, чтобы вместить мало-мальски сложный план. Представьте: вы пишете статью о новой фиче оптимизатора запросов PostgreSQL и хотите показать планы до и после:
 
 ```
 До оптимизации:
-Hash Join (cost=1000..5000 rows=1000)
-  Buffers: shared hit=500 read=100
-  -> Seq Scan on customers (cost=0.00..500.00)
-       Memory Usage: 42kB
+Hash Join  (cost=230.48..564.12 rows=1120 width=44) (actual time=2.814..6.371 rows=1089 loops=1)
+  Hash Cond: (o.customer_id = c.id)
+  Buffers: shared hit=312 read=47
+  ->  Seq Scan on orders o  (cost=0.00..270.00 rows=5000 width=24) (actual time=0.018..1.241 rows=5000 loops=1)
+        Filter: (status = 'pending')
+        Rows Removed by Filter: 15000
+        Buffers: shared hit=170
+  ->  Hash  (cost=180.00..180.00 rows=4038 width=20) (actual time=2.673..2.674 rows=4038 loops=1)
+        Buckets: 4096  Batches: 1  Memory Usage: 227kB
+        ->  Seq Scan on customers c  (cost=0.00..180.00 rows=4038 width=20) (actual time=0.009..1.187 rows=4038 loops=1)
+              Filter: (region = 'EU')
+              Rows Removed by Filter: 5962
+              Buffers: shared hit=80 read=47
 
 После оптимизации:
-Nested Loop (cost=100..500 rows=1000)
-  Buffers: shared hit=50
-  -> Index Scan on customers_idx (cost=0.00..100.00)
-       Memory Usage: 8kB
+Nested Loop  (cost=0.57..1203.45 rows=1120 width=44) (actual time=0.038..3.142 rows=1089 loops=1)
+  Buffers: shared hit=4401
+  ->  Index Scan using idx_orders_status on orders o  (cost=0.29..582.03 rows=5000 width=24) (actual time=0.021..0.987 rows=5000 loops=1)
+        Index Cond: (status = 'pending')
+        Buffers: shared hit=1143
+  ->  Index Scan using idx_customers_pkey on customers c  (cost=0.29..0.12 rows=1 width=20) (actual time=0.003..0.003 rows=0 loops=5000)
+        Index Cond: (id = o.customer_id)
+        Filter: (region = 'EU')
+        Rows Removed by Filter: 1
+        Buffers: shared hit=3258
 ```
 
 Размеры памяти, буферы, оценки затрат — всё это загромождает картину и к тому же будет другим на машине читателя. А ведь важно здесь одно: как изменилась структура плана. Должно быть чисто, компактно. Читатель должен видеть суть оптимизации без лишнего шума.
@@ -105,44 +148,33 @@ SELECT pretty_explain_analyze('SELECT ...',
 
 ## Пример
 
-Давайте посмотрим, что даёт нам `explain prettier`. Отфильтруем следующий случайно выбранный EXPLAIN ANALYZE из документации Postgres:
+Давайте посмотрим, что даёт нам `explain prettier`. Отфильтруем приведённый выше пример EXPLAIN ANALYZE двух планов с `HashJoin` и `NestLoop`, пропустив их через пост-процессинг `explain-prettier`'a. Получим:
 
 ```sql
-  Aggregate  (cost=16.79..16.80 rows=1 width=0) (actual time=3.626..3.627 rows=1.00 loops=1)
-    ->  Hash Join  (cost=4.17..16.55 rows=92 width=0) (actual time=3.349..3.594 rows=92.00 loops=1)
-          Hash Cond: (pg_class.oid = pg_index.indrelid)
-          ->  Seq Scan on pg_class  (cost=0.00..9.55 rows=255 width=4) (actual time=0.016..0.140 rows=255.00 loops=1)
-          ->  Hash  (cost=3.02..3.02 rows=92 width=4) (actual time=3.238..3.238 rows=92.00 loops=1)
-                Buckets: 1024  Batches: 1  Memory Usage: 4kB
-                ->  Seq Scan on pg_index  (cost=0.00..3.02 rows=92 width=4) (actual time=0.008..3.187 rows=92.00 loops=1)
-                      Filter: indisunique
+ Hash Join  (rows=1120) (actual time=6 rows=1089)
+   Hash Cond: (o.customer_id = c.id)
+   ->  Seq Scan on orders o  (rows=5000) (actual time=1 rows=5000)
+         Filter: (status = 'pending')
+         Rows Removed by Filter: 15000
+   ->  Hash  (rows=4038)
+         (actual time=3 rows=4038)
+         ->  Seq Scan on customers c  
+               (rows=4038) (actual time=1 rows=4038)
+               Filter: (region = 'EU')
+               Rows Removed by Filter: 5962
 ```
 
-Пропустим его через пост-процессинг `explain-prettier`'a:
 
 ```sql
-SELECT pretty_explain_text($$
-  Aggregate  (cost=16.79..16.80 rows=1 width=0) (actual time=3.626..3.627 rows=1.00 loops=1)
-    ->  Hash Join  (cost=4.17..16.55 rows=92 width=0) (actual time=3.349..3.594 rows=92.00 loops=1)
-          Hash Cond: (pg_class.oid = pg_index.indrelid)
-          ->  Seq Scan on pg_class  (cost=0.00..9.55 rows=255 width=4) (actual time=0.016..0.140 rows=255.00 loops=1)
-          ->  Hash  (cost=3.02..3.02 rows=92 width=4) (actual time=3.238..3.238 rows=92.00 loops=1)
-                Buckets: 1024  Batches: 1  Memory Usage: 4kB
-                ->  Seq Scan on pg_index  (cost=0.00..3.02 rows=92 width=4) (actual time=0.008..3.187 rows=92.00 loops=1)
-                      Filter: indisunique
-						   $$);
-```
-
-Получаем:
-
-```sql
-   Aggregate  (rows=1) (actual time=4 rows=1)
-     ->  Hash Join  (rows=92) (actual time=4 rows=92)
-           Hash Cond: (pg_class.oid = pg_index.indrelid)
-           ->  Seq Scan on pg_class  (rows=255) (actual time=0 rows=255)
-           ->  Hash  (rows=92) (actual time=3 rows=92)
-                 ->  Seq Scan on pg_index  (rows=92) (actual time=3 rows=92)
-                       Filter: indisunique
+ Nested Loop  (rows=1120) (actual time=3 rows=1089)
+   ->  Index Scan using idx_orders_status on orders o 
+         (rows=5000) (actual time=1 rows=5000)
+         Index Cond: (status = 'pending')
+   ->  Index Scan using idx_customers_pkey on customers c 
+         (rows=1) (actual time=0 rows=0)
+         Index Cond: (id = o.customer_id)
+         Filter: (region = 'EU')
+         Rows Removed by Filter: 1
 ```
 
 Выглядит попроще, не так ли?
