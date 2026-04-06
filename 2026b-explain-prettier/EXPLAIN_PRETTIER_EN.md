@@ -1,5 +1,7 @@
 # EXPLAIN Prettier, or Post-Processing Query Plans in Postgres
 
+![Banner](banner.jpg)
+
 This story started with a book gifted by a colleague. Reading Jimmy Angelakos' [«PostgreSQL Mistakes and How to Avoid Them»](https://www.amazon.com/PostgreSQL-Mistakes-How-Avoid-Them/dp/163343687X), I realized something that had been bugging me — in Postgres, the EXPLAIN command produces far too much information. The examples that authors typically present when discussing various aspects of database systems make it harder to analyze the problem at hand and scatter the reader's attention. That's how the idea of a post-processing for EXPLAIN output was born — to make query plans more readable and problem-focused.
 
 ## Information Overload
