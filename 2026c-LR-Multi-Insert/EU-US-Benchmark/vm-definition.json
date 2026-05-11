@@ -1,0 +1,162 @@
+{
+  "canIpForward": false,
+  "confidentialInstanceConfig": {
+    "enableConfidentialCompute": false
+  },
+  "cpuPlatform": "Intel Cascade Lake",
+  "creationTimestamp": "2026-04-13T06:26:41.924-07:00",
+  "deletionProtection": false,
+  "description": "",
+  "disks": [
+    {
+      "architecture": "X86_64",
+      "guestOsFeatures": [
+        {
+          "type": "UEFI_COMPATIBLE"
+        },
+        {
+          "type": "VIRTIO_SCSI_MULTIQUEUE"
+        },
+        {
+          "type": "GVNIC"
+        },
+        {
+          "type": "SEV_CAPABLE"
+        },
+        {
+          "type": "SEV_LIVE_MIGRATABLE_V2"
+        }
+      ],
+      "type": "PERSISTENT",
+      "licenses": [
+        "projects/debian-cloud/global/licenses/debian-12-bookworm"
+      ],
+      "deviceName": "danolivo-eu",
+      "autoDelete": true,
+      "source": "projects/andrei-dev/zones/europe-west1-d/disks/danolivo-eu",
+      "index": 0,
+      "boot": true,
+      "kind": "compute#attachedDisk",
+      "mode": "READ_WRITE",
+      "interface": "SCSI",
+      "diskSizeGb": "120"
+    },
+    {
+      "type": "PERSISTENT",
+      "deviceName": "disk-eu",
+      "autoDelete": false,
+      "source": "projects/andrei-dev/zones/europe-west1-d/disks/disk-eu",
+      "index": 1,
+      "boot": false,
+      "kind": "compute#attachedDisk",
+      "mode": "READ_WRITE",
+      "interface": "SCSI",
+      "diskSizeGb": "100"
+    }
+  ],
+  "displayDevice": {
+    "enableDisplay": false
+  },
+  "fingerprint": "srOOcoUJKYE=",
+  "id": "1782912713730642431",
+  "keyRevocationActionType": "NONE",
+  "kind": "compute#instance",
+  "labelFingerprint": "u1i0GMcZHVI=",
+  "labels": {
+    "goog-ops-agent-policy": "v2-template-1-7-0"
+  },
+  "lastStartTimestamp": "2026-05-09T01:08:09.113-07:00",
+  "lastStopTimestamp": "2026-05-08T23:38:55.334-07:00",
+  "machineType": "projects/andrei-dev/zones/europe-west1-d/machineTypes/c2-standard-4",
+  "metadata": {
+    "fingerprint": "h0dTQcg-mj8=",
+    "kind": "compute#metadata",
+    "items": [
+      {
+        "value": "TRUE",
+        "key": "enable-osconfig"
+      },
+      {
+        "value": "andrei_lepikhov:ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDD95uOU/DFXF1Wht5gt7qmukgOxqnHdvjSBygCkmrTGlqvadSPU7GtQnroSxVy+yUENdEJlsJpPK7HeLwCJUjk= google-ssh {\"userName\":\"andrei.lepikhov@pgedge.com\",\"expireOn\":\"2026-05-07T11:42:39+0000\"}\nandrei_lepikhov:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCLIza3yJRQaiAQ8poH+O+VIhysGpzgMS25bot8ksy57p0FZH06IOjHBokaF4VnDQaKuRlX+iL96lY8ns3mKWSPSJVnPcxYuE3E/0AxRUxMd4CPtIUSLOmYaG4of/fpHliSOHz7/3h+gzGF+KR/D/9ppEcMLC7u0Ow51q0SwLxZlqWG7tV3+koM980/Hk2gAggG9y+1HBb+HIRRrLn6Ar/7iaAuwTs90SL3TuUCLRMMtVRnV9qWcqsjDGVjZs6SMUaAo64JvEnSdobA9v/W0wV4SjNsNeVtcJvr24u0PSbYpTw6O/beqRj1RgOFsnnv+bLfqw6fLkuIHmyni4YSS6qR google-ssh {\"userName\":\"andrei.lepikhov@pgedge.com\",\"expireOn\":\"2026-05-07T11:42:41+0000\"}",
+        "key": "ssh-keys"
+      }
+    ]
+  },
+  "name": "danolivo-eu",
+  "networkInterfaces": [
+    {
+      "stackType": "IPV4_ONLY",
+      "name": "nic0",
+      "network": "projects/andrei-dev/global/networks/default",
+      "accessConfigs": [
+        {
+          "name": "External NAT",
+          "type": "ONE_TO_ONE_NAT",
+          "natIP": "35.241.194.75",
+          "kind": "compute#accessConfig",
+          "networkTier": "PREMIUM"
+        }
+      ],
+      "subnetwork": "projects/andrei-dev/regions/europe-west1/subnetworks/default",
+      "networkIP": "10.132.0.3",
+      "fingerprint": "vtGpRNHczZw=",
+      "kind": "compute#networkInterface"
+    }
+  ],
+  "reservationAffinity": {
+    "consumeReservationType": "ANY_RESERVATION"
+  },
+  "resourceStatus": {
+    "scheduling": {},
+    "effectiveInstanceMetadata": {
+      "vmDnsSettingMetadataValue": "ZonalOnly",
+      "enableOsconfigMetadataValue": true
+    }
+  },
+  "satisfiesPzi": true,
+  "scheduling": {
+    "onHostMaintenance": "MIGRATE",
+    "provisioningModel": "STANDARD",
+    "automaticRestart": true,
+    "preemptible": false
+  },
+  "selfLink": "projects/andrei-dev/zones/europe-west1-d/instances/danolivo-eu",
+  "serviceAccounts": [
+    {
+      "email": "252306205880-compute@developer.gserviceaccount.com",
+      "scopes": [
+        "https://www.googleapis.com/auth/devstorage.read_only",
+        "https://www.googleapis.com/auth/logging.write",
+        "https://www.googleapis.com/auth/monitoring.write",
+        "https://www.googleapis.com/auth/service.management.readonly",
+        "https://www.googleapis.com/auth/servicecontrol",
+        "https://www.googleapis.com/auth/trace.append"
+      ]
+    }
+  ],
+  "shieldedInstanceConfig": {
+    "enableSecureBoot": false,
+    "enableVtpm": false,
+    "enableIntegrityMonitoring": false
+  },
+  "shieldedInstanceIntegrityPolicy": {
+    "updateAutoLearnPolicy": true
+  },
+  "shieldedVmConfig": {
+    "enableSecureBoot": false,
+    "enableVtpm": false,
+    "enableIntegrityMonitoring": false
+  },
+  "shieldedVmIntegrityPolicy": {
+    "updateAutoLearnPolicy": true
+  },
+  "startRestricted": false,
+  "status": "RUNNING",
+  "tags": {
+    "items": [
+      "https-server"
+    ],
+    "fingerprint": "nNZ0SA7CJyk="
+  },
+  "zone": "projects/andrei-dev/zones/europe-west1-d"
+}

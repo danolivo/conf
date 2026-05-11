@@ -1,0 +1,190 @@
+=============================================
+ Round 1 (multi_insert = true)
+=============================================
+Timing is on.
+COPY 1000000
+Time: 7190.585 ms (00:07.191)
+  Publisher WAL generated: 133 MB
+  Publisher table size:    111 MB
+  Replication catch-up: 10522 ms (1000000 rows on subscriber)
+  Subscriber WAL generated: 134 MB
+  Subscriber table size:    110 MB
+
+=============================================
+ Round 2 (multi_insert = false)
+=============================================
+Timing is on.
+COPY 1000000
+Time: 7029.370 ms (00:07.029)
+  Publisher WAL generated: 133 MB
+  Publisher table size:    111 MB
+  Replication catch-up: 19911 ms (1000000 rows on subscriber)
+  Subscriber WAL generated: 186 MB
+  Subscriber table size:    110 MB
+
+========== DONE ==========
+
+--- Replication status ---
+  subname  | received_lsn | latest_end_lsn |        latest_end_time        
+-----------+--------------+----------------+-------------------------------
+ bench_sub | 0/65D42558   | 0/65D42558     | 2026-05-09 06:14:20.027045+00
+ 
+################################################################################
+ 
+ =============================================
+ Round 1 (multi_insert = true)
+=============================================
+Timing is on.
+COPY 10000000
+Time: 85863.626 ms (01:25.864)
+  Publisher WAL generated: 2246 MB
+  Publisher table size:    1103 MB
+  Replication catch-up: 139193 ms (10000000 rows on subscriber)
+  Subscriber WAL generated: 2223 MB
+  Subscriber table size:    1102 MB
+
+=============================================
+ Round 2 (multi_insert = false)
+=============================================
+COPY 10000000
+Time: 77885.759 ms (01:17.886)
+  Publisher WAL generated: 1329 MB
+  Publisher table size:    1103 MB
+  Replication catch-up: 222952 ms (10000000 rows on subscriber)
+  Subscriber WAL generated: 2753 MB
+  Subscriber table size:    1102 MB
+
+========== DONE ==========
+
+--- Replication status ---
+  subname  | received_lsn | latest_end_lsn |        latest_end_time        
+-----------+--------------+----------------+-------------------------------
+ bench_sub | 1/FDF92E28   | 1/FDF92E28     | 2026-05-09 06:26:27.508061+00
+(1 row)
+
+################################################################################
+
+=============================================
+ Round 1 (multi_insert = true)
+=============================================
+COPY 100000000
+Time: 822020.715 ms (13:42.021)
+  Publisher WAL generated: 13 GB
+  Publisher table size:    11 GB
+  Replication catch-up: 1306476 ms (100000000 rows on subscriber)
+  Subscriber WAL generated: 13 GB
+  Subscriber table size:    11 GB
+
+=============================================
+ Round 2 (multi_insert = false)
+=============================================
+COPY 100000000
+Time: 809818.283 ms (13:29.818)
+  Publisher WAL generated: 13 GB
+  Publisher table size:    11 GB
+  Replication catch-up: 2775987 ms (100000000 rows on subscriber)
+  Subscriber WAL generated: 18 GB
+  Subscriber table size:    11 GB
+
+========== DONE ==========
+
+--- Replication status ---
+  subname  | received_lsn | latest_end_lsn |        latest_end_time        
+-----------+--------------+----------------+-------------------------------
+ bench_sub | F/585D17B0   | F/585D17B0     | 2026-05-09 11:00:33.978109+00
+(1 row)
+
+
+
+================================================================================
+=
+= NO-PK
+=
+================================================================================
+
+=============================================
+ Round 1 (multi_insert = true)
+=============================================
+COPY 1000000
+Time: 3085.667 ms (00:03.086)
+  Publisher WAL generated: 70 MB
+  Publisher table size:    89 MB
+  Replication catch-up: 13445 ms (1000000 rows on subscriber)
+  Subscriber WAL generated: 70 MB
+  Subscriber table size:    89 MB
+
+=============================================
+ Round 2 (multi_insert = false)
+=============================================
+COPY 1000000
+Time: 3029.172 ms (00:03.029)
+  Publisher WAL generated: 70 MB
+  Publisher table size:    89 MB
+  Replication catch-up: 14041 ms (1000000 rows on subscriber)
+  Subscriber WAL generated: 123 MB
+  Subscriber table size:    89 MB
+
+========== DONE ==========
+
+--- Replication status ---
+  subname  | received_lsn | latest_end_lsn |       latest_end_time        
+-----------+--------------+----------------+------------------------------
+ bench_sub | 0/11A33208   | 0/11A33208     | 2026-05-09 14:50:49.10139+00
+
+=============================================
+ Round 1 (multi_insert = true)
+=============================================
+COPY 10000000
+Time: 34208.366 ms (00:34.208)
+  Publisher WAL generated: 697 MB
+  Publisher table size:    888 MB
+  Replication catch-up: 77742 ms (10000000 rows on subscriber)
+  Subscriber WAL generated: 701 MB
+  Subscriber table size:    888 MB
+
+=============================================
+ Round 2 (multi_insert = false)
+=============================================
+COPY 10000000
+Time: 34112.806 ms (00:34.113)
+  Publisher WAL generated: 697 MB
+  Publisher table size:    888 MB
+  Replication catch-up: 125766 ms (10000000 rows on subscriber)
+  Subscriber WAL generated: 1232 MB
+  Subscriber table size:    888 MB
+
+========== DONE ==========
+
+--- Replication status ---
+  subname  | received_lsn | latest_end_lsn |        latest_end_time        
+-----------+--------------+----------------+-------------------------------
+ bench_sub | 0/B0813820   | 0/B0813820     | 2026-05-09 21:05:49.193966+00
+
+=============================================
+ Round 1 (multi_insert = true)
+=============================================
+COPY 100000000
+Time: 357373.205 ms (05:57.373)
+  Publisher WAL generated: 6968 MB
+  Publisher table size:    8880 MB
+  Replication catch-up: 920813 ms (100000000 rows on subscriber)
+  Subscriber WAL generated: 7021 MB
+  Subscriber table size:    8880 MB
+
+=============================================
+ Round 2 (multi_insert = false)
+=============================================
+COPY 100000000
+Time: 357193.873 ms (05:57.194)
+  Publisher WAL generated: 6968 MB
+  Publisher table size:    8880 MB
+  Replication catch-up: 1625914 ms (100000000 rows on subscriber)
+  Subscriber WAL generated: 12 GB
+  Subscriber table size:    8880 MB
+
+========== DONE ==========
+
+--- Replication status ---
+  subname  | received_lsn | latest_end_lsn |        latest_end_time        
+-----------+--------------+----------------+-------------------------------
+ bench_sub | 6/E4E347B8   | 6/E4E347B8     | 2026-05-09 22:19:39.466395+00
