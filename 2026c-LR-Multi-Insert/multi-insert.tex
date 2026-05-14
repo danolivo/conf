@@ -18,6 +18,7 @@
 
 % Blocks settings
 \setbeamerfont{block title}{size=\tiny}
+\setbeamertemplate{navigation symbols}{}
 
 %Information to be included in the title page:
 \title{Multi-Insert in Logical Replication}
@@ -84,6 +85,10 @@ The apply worker must handle millions of INSERTs at wire speed.
 Multi-cloud and cross-continent logical replication runs over
 constrained links. Every extra byte of WAL on the subscriber is
 wasted disk I/O \textit{and} wasted recovery time when the link catches up.
+
+\bigskip
+{\small\textit{Today the subscriber can write significantly more WAL than the publisher
+for the same COPY --- pure overhead.}}
 \end{frame}
 
 % The most important part is potential specialisation of the Spock on multi-region loads that might need more sophisticated tools to reduce network consumption.
@@ -144,7 +149,7 @@ wasted disk I/O \textit{and} wasted recovery time when the link catches up.
 \end{center}
 \end{frame}
 
-\begin{frame}[fragile]\frametitle{How the Apply Worker Inserts (Before)}
+\begin{frame}[fragile]\frametitle{Without Batching, Subscriber WAL Exceeds Publisher}
 \begin{center}
 \begin{tikzpicture}[
   box/.style={draw, rounded corners, minimum height=0.7cm,
@@ -210,13 +215,7 @@ WAL amplification on subscriber. Slow catch-up. Wasted I/O.
 % The Idea
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{frame}
-\vspace*{\fill}\begin{center}
-\huge{The Idea}
-\end{center}\vspace*{\fill}
-\end{frame}
-
-\begin{frame}[fragile]\frametitle{Batch Inserts in the Apply Worker}
+\begin{frame}[fragile]\frametitle{The Fix: Batch Inserts in the Apply Worker}
 \begin{center}
 \begin{tikzpicture}[
   box/.style={draw, rounded corners, minimum height=0.7cm,
@@ -404,7 +403,7 @@ no protocol changes.}
 %   - Volatile WHERE clause (N/A in LR context)
 %   - Foreign tables without FDW batching support (excluded by relkind in LR)
 %
-\begin{frame}\frametitle{Table Eligibility --- Who Gets Batched?}
+\begin{frame}\frametitle{Not Every Table Qualifies for Batching}
 A table is eligible for multi-insert if it has \textbf{none} of:
 \bigskip
 
@@ -438,12 +437,6 @@ so constraints that COPY validates at runtime must be rejected statically.}
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Benchmarks
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\begin{frame}
-\vspace*{\fill}\begin{center}
-\huge{Benchmarks}
-\end{center}\vspace*{\fill}
-\end{frame}
 
 \begin{frame}\frametitle{Benchmark Setup}
 \begin{center}
@@ -492,7 +485,7 @@ so constraints that COPY validates at runtime must be rejected statically.}
 \end{itemize}
 \end{frame}
 
-\begin{frame}\frametitle{Replication Catch-Up Time}
+\begin{frame}\frametitle{Multi-insert halves replication catch-up}
 \begin{center}
 \begin{tikzpicture}
 \begin{axis}[
@@ -505,14 +498,18 @@ so constraints that COPY validates at runtime must be rejected statically.}
     xtick=data,
     xlabel={Rows loaded via COPY},
     ymin=0,
-    legend style={at={(0.02,0.98)}, anchor=north west, font=\small},
+    axis x line=bottom,
+    axis y line=left,
     nodes near coords,
     nodes near coords style={font=\tiny, above},
     enlarge x limits=0.25,
 ]
-\addplot[fill=red!60] coordinates {(1M,19.9) (10M,223.0) (100M,2776.0)};
-\addplot[fill=green!60] coordinates {(1M,10.5) (10M,139.2) (100M,1306.5)};
-\legend{multi\_insert = off, multi\_insert = on}
+\addplot[fill=pgblue!50] coordinates {(1M,19.9) (10M,223.0) (100M,2776.0)};
+\addplot[fill=pgorange!60] coordinates {(1M,10.5) (10M,139.2) (100M,1306.5)};
+% Direct labels — top-left annotation
+\node[font=\small, anchor=north west, align=left] at (axis cs:1M,2700)
+  {{\color{pgblue}\rule{8pt}{8pt}} off\quad
+   {\color{pgorange}\rule{8pt}{8pt}} on};
 \end{axis}
 \end{tikzpicture}
 \end{center}
@@ -521,7 +518,7 @@ so constraints that COPY validates at runtime must be rejected statically.}
 \end{center}
 \end{frame}
 
-\begin{frame}\frametitle{Subscriber WAL Generated}
+\begin{frame}\frametitle{Multi-insert cuts subscriber WAL by 19--28\%}
 \begin{center}
 \begin{tikzpicture}
 \begin{axis}[
@@ -535,33 +532,54 @@ so constraints that COPY validates at runtime must be rejected statically.}
     xlabel={Rows loaded via COPY},
     ymin=0,
     ymax=20000,
-    legend style={at={(0.02,0.98)}, anchor=north west, font=\small},
+    axis x line=bottom,
+    axis y line=left,
     nodes near coords,
     nodes near coords style={font=\tiny, above},
     enlarge x limits=0.25,
 ]
-\addplot[fill=red!60] coordinates {(1M,186) (10M,2753) (100M,18432)};
-\addplot[fill=green!60] coordinates {(1M,134) (10M,2223) (100M,13312)};
-\legend{multi\_insert = off, multi\_insert = on}
+\addplot[fill=pgblue!50] coordinates {(1M,186) (10M,2753) (100M,18432)};
+\addplot[fill=pgorange!60] coordinates {(1M,134) (10M,2223) (100M,13312)};
+% Direct labels — top-left annotation
+\node[font=\small, anchor=north west, align=left] at (axis cs:1M,19500)
+  {{\color{pgblue}\rule{8pt}{8pt}} off\quad
+   {\color{pgorange}\rule{8pt}{8pt}} on};
 \end{axis}
 \end{tikzpicture}
 \end{center}
 \begin{center}
-\textbf{19\% -- 28\% less WAL} on the subscriber. At 100M rows: 18\,GB $\to$ 13\,GB.
+At 100M rows: 18\,GB $\to$ 13\,GB.
 \end{center}
+\end{frame}
+
+\begin{frame}\frametitle{The Numbers at a Glance}
+\begin{center}
+\begin{tabular}{l rr rr}
+  \toprule
+  & \multicolumn{2}{c}{\textbf{Catch-up (s)}}
+  & \multicolumn{2}{c}{\textbf{Subscriber WAL}} \\
+  \cmidrule(lr){2-3}\cmidrule(lr){4-5}
+  \textbf{Rows} & off & on & off & on \\
+  \midrule
+  1M   & 19.9   & 10.5   & 186\,MB  & 134\,MB \\
+  10M  & 223.0  & 139.2  & 2.7\,GB  & 2.2\,GB \\
+  100M & 2\,776 & 1\,307 & 18\,GB   & 13\,GB  \\
+  \midrule
+  \textbf{Speedup} & \multicolumn{2}{c}{\textbf{1.6--2.1$\times$}}
+                    & \multicolumn{2}{c}{\textbf{$-$19\% to $-$28\%}} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+\bigskip
+Publisher COPY time and publisher WAL are \textbf{unchanged} ---
+the optimisation is purely subscriber-side.
 \end{frame}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Challenges
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{frame}
-\vspace*{\fill}\begin{center}
-\huge{Challenges}
-\end{center}\vspace*{\fill}
-\end{frame}
-
-\begin{frame}\frametitle{Challenges \& Limitations}
+\begin{frame}\frametitle{Current Limitations and Open Problems}
 \begin{itemize}
   \item \textbf{Conflicts and errors cause fallback to single-insert.}\\
         {\small A unique violation or other error during batch flush aborts
@@ -587,7 +605,7 @@ so constraints that COPY validates at runtime must be rejected statically.}
 % Future Work
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{frame}\frametitle{Future: MULTI\_INSERT Protocol Message}
+\begin{frame}\frametitle{Future: publisher-side batching}
 \begin{center}
 \begin{tikzpicture}[
   box/.style={draw, rounded corners, minimum height=0.7cm,
@@ -681,7 +699,6 @@ so constraints that COPY validates at runtime must be rejected statically.}
 \end{columns}
 \end{center}
 \end{frame}
-
 \begin{frame}
 \vspace*{\fill}
 \begin{center}
@@ -691,5 +708,58 @@ so constraints that COPY validates at runtime must be rejected statically.}
 \end{center}
 \vspace*{\fill}
 \end{frame}
+
+
+\begin{frame}\frametitle{Publisher Side: Many Writers, Few Senders, One WAL}
+\begin{center}
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, minimum height=0.7cm,
+              align=center, font=\scriptsize, inner sep=4pt},
+  arr/.style={->, thick, >=stealth},
+  lbl/.style={font=\tiny, text=gray},
+  phase/.style={font=\footnotesize\bfseries},
+]
+
+% ---- Backends ----
+\node[box, fill=pgblue!15, minimum width=1.4cm] (b1) at (-3.2, 1.8) {Backend 1};
+\node[box, fill=pgblue!15, minimum width=1.4cm] (b2) at (-1.2, 1.8) {Backend 2};
+\node[box, fill=pgblue!15, minimum width=1.4cm] (b3) at (0.8, 1.8)  {Backend 3};
+\node[font=\scriptsize, text=gray] at (2.2, 1.8) {\ldots};
+\node[box, fill=pgblue!15, minimum width=1.4cm] (bn) at (3.5, 1.8)  {Backend $N$};
+
+% ---- WAL ----
+\node[box, fill=yellow!25, minimum width=8.2cm, minimum height=0.9cm,
+      thick, draw=yellow!50!black] (wal) at (0.15, 0)
+  {\textbf{WAL}};
+
+\draw[arr] (b1.south) -- (wal.north -| b1.south);
+\draw[arr] (b2.south) -- (wal.north -| b2.south);
+\draw[arr] (b3.south) -- (wal.north -| b3.south);
+\draw[arr] (bn.south) -- (wal.north -| bn.south);
+
+% ---- Walsenders ----
+\node[box, fill=pgorange!20, minimum width=2.2cm, minimum height=0.9cm,
+      thick, draw=pgorange!60] (ws1) at (-1.8, -1.8)
+  {Walsender\\{\tiny logical decode}};
+\node[box, fill=pgorange!20, minimum width=2.2cm, minimum height=0.9cm,
+      thick, draw=pgorange!60] (ws2) at (2.1, -1.8)
+  {Walsender\\{\tiny logical decode}};
+
+\draw[arr, pgorange] (wal.south -| ws1.north) -- (ws1.north);
+\draw[arr, pgorange] (wal.south -| ws2.north) -- (ws2.north);
+
+% ---- Subscribers ----
+\node[box, fill=lightlightgray, minimum width=2.0cm] (sub1) at (-1.8, -3.4)
+  {Subscriber A};
+\node[box, fill=lightlightgray, minimum width=2.0cm] (sub2) at (2.1, -3.4)
+  {Subscriber B};
+
+\draw[arr, red!70] (ws1) -- node[right, lbl] {per-tuple} (sub1);
+\draw[arr, red!70] (ws2) -- node[right, lbl] {per-tuple} (sub2);
+
+\end{tikzpicture}
+\end{center}
+\end{frame}
+
 
 \end{document}
