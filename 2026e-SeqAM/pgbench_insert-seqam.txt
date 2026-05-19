@@ -1,0 +1,53 @@
+pgbench (19devel)
+progress: 5.0 s, 24715.8 tps, lat 0.040 ms stddev 0.003, 0 failed
+progress: 10.0 s, 24803.2 tps, lat 0.040 ms stddev 0.003, 0 failed
+progress: 15.0 s, 24714.2 tps, lat 0.040 ms stddev 0.003, 0 failed
+progress: 20.0 s, 24853.0 tps, lat 0.040 ms stddev 0.003, 0 failed
+progress: 25.0 s, 24823.4 tps, lat 0.040 ms stddev 0.003, 0 failed
+progress: 30.0 s, 24929.2 tps, lat 0.040 ms stddev 0.003, 0 failed
+progress: 35.0 s, 24813.2 tps, lat 0.040 ms stddev 0.003, 0 failed
+progress: 40.0 s, 24681.2 tps, lat 0.040 ms stddev 0.004, 0 failed
+progress: 45.0 s, 24921.0 tps, lat 0.040 ms stddev 0.003, 0 failed
+progress: 50.0 s, 24975.6 tps, lat 0.040 ms stddev 0.003, 0 failed
+progress: 55.0 s, 24942.0 tps, lat 0.040 ms stddev 0.003, 0 failed
+progress: 60.0 s, 24875.6 tps, lat 0.040 ms stddev 0.003, 0 failed
+progress: 65.0 s, 25088.2 tps, lat 0.040 ms stddev 0.003, 0 failed
+progress: 70.0 s, 25441.1 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 75.0 s, 25320.4 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 80.0 s, 25599.8 tps, lat 0.039 ms stddev 0.007, 0 failed
+progress: 85.0 s, 25522.8 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 90.0 s, 25420.6 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 95.0 s, 25427.8 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 100.0 s, 25526.0 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 105.0 s, 25537.8 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 110.0 s, 25402.9 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 115.0 s, 25473.5 tps, lat 0.039 ms stddev 0.010, 0 failed
+progress: 120.0 s, 25086.4 tps, lat 0.040 ms stddev 0.004, 0 failed
+progress: 125.0 s, 25022.4 tps, lat 0.040 ms stddev 0.004, 0 failed
+progress: 130.0 s, 25066.8 tps, lat 0.040 ms stddev 0.004, 0 failed
+progress: 135.0 s, 25597.0 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 140.0 s, 25547.0 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 145.0 s, 25316.6 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 150.0 s, 25450.0 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 155.0 s, 25470.4 tps, lat 0.039 ms stddev 0.005, 0 failed
+progress: 160.0 s, 25305.6 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 165.0 s, 24833.8 tps, lat 0.040 ms stddev 0.003, 0 failed
+progress: 170.0 s, 25060.8 tps, lat 0.040 ms stddev 0.004, 0 failed
+progress: 175.0 s, 25283.6 tps, lat 0.040 ms stddev 0.004, 0 failed
+progress: 180.0 s, 25323.4 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 185.0 s, 25536.0 tps, lat 0.039 ms stddev 0.005, 0 failed
+progress: 190.0 s, 25571.8 tps, lat 0.039 ms stddev 0.004, 0 failed
+progress: 195.0 s, 25326.4 tps, lat 0.039 ms stddev 0.004, 0 failed
+transaction type: /tmp/bench_insert.sql
+scaling factor: 1
+query mode: simple
+number of clients: 1
+number of threads: 1
+maximum number of tries: 1
+number of transactions per client: 5000000
+number of transactions actually processed: 5000000/5000000
+number of failed transactions: 0 (0.000%)
+latency average = 0.040 ms
+latency stddev = 0.004 ms
+initial connection time = 2.024 ms
+tps = 25192.288074 (without initial connection time)
