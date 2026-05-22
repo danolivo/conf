@@ -144,7 +144,7 @@
 % categories so the heterogeneity is visible at a glance — that
 % heterogeneity is exactly what forces the LEFT JOIN to every candidate.
 
-\begin{frame}\frametitle{A typical front page of an App}
+\begin{frame}\frametitle{A front page of an App}
 \vspace{-2mm}
 \begin{center}
 \begin{tikzpicture}[
@@ -260,6 +260,40 @@ bottleneck.}
 \end{columns}
 \end{frame}
 
+\begin{frame}[fragile]\frametitle{The Query}
+% The whole SQL boxed in a pale orange "this is the focus" frame:
+% lstlisting's own frame=single around the listing, with backgroundcolor
+% filling the inside.  No per-line highlights -- the box itself signals
+% that this query is the central object of the talk.
+\begin{lstlisting}[%
+  frame=single,
+  framerule=0.5pt,
+  rulecolor=\color{pgorange!50},
+  backgroundcolor=\color{pgorange!10},
+  framexleftmargin=4pt,
+  framexrightmargin=4pt,
+  framextopmargin=4pt,
+  framexbottommargin=4pt,
+]
+SELECT
+    ol.id,
+    COALESCE(p.name, g.name, s.name) AS item_name
+FROM order_lines ol
+  LEFT JOIN products p
+    ON ol.item_type = 'product' AND ol.item_id = p.id
+  LEFT JOIN gift_cards g
+    ON ol.item_type = 'gift_card' AND ol.item_id = g.id
+  LEFT JOIN subscriptions s
+    ON ol.item_type = 'subscription' AND ol.item_id = s.id
+WHERE EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.id = ol.order_id AND o.placed_at >= 2024/01/01)
+ORDER BY ol.popularity
+LIMIT 100
+\end{lstlisting}
+\end{frame}
+
+
 % PER-ROW MISMATCH SLIDE
 %
 % Origin #2 of the polymorphic blow-up: the discriminator picks exactly
@@ -335,31 +369,6 @@ The planner picks one probe order for \emph{all} rows.}
   {wasted: $(N{-}1)/N$ per row};
 \end{tikzpicture}
 \end{center}
-
-\vspace{2mm}
-{\small The discriminator's mutual-exclusion structure is invisible to
-the planner.  Every row pays for all $N$ probes — the diagonal is the
-only useful work; the off-diagonal is forced waste.}
-\end{frame}
-
-\begin{frame}[fragile]\frametitle{The Query}
-\begin{lstlisting}
-SELECT
-    ol.id,
-    COALESCE(p.name, g.name, s.name) AS item_name
-FROM order_lines ol
-  LEFT JOIN products p
-    ON ol.item_type = 'product' AND ol.item_id = p.id
-  LEFT JOIN gift_cards g
-    ON ol.item_type = 'gift_card' AND ol.item_id = g.id
-  LEFT JOIN subscriptions s
-    ON ol.item_type = 'subscription' AND ol.item_id = s.id
-WHERE EXISTS (
-  SELECT 1 FROM orders o
-  WHERE o.id = ol.order_id AND o.placed_at >= 2024\−01\−01)
-ORDER BY ol.popularity
-LIMIT 100
-\end{lstlisting}
 \end{frame}
 
 % THEORETICAL BACKGROUND: Execution cost amplifiers
@@ -654,7 +663,6 @@ LIMIT 100
 {\small Every edge carries $M$ rows. Doubling $M$ doubles number of probes on the inner side.}
 \end{frame}
 
-
 % From pgsql-hackers thread (Dec 2024):
 % "Do not scan index in right table if condition for left join
 %  evaluates to false using columns in left table"
@@ -889,6 +897,9 @@ Each row probes only the matching table: $M_1\!+\!M_2\!+\!M_3 = M$.}
     When no index covers the inner side, the executor would fall back to a
     sequential scan \emph{per outer row}.  The guard lets it skip the scan
     entirely for non-matching rows.
+
+  \item \textbf{Limiting price of a new LEFT JOIN.}\;
+    Each new category in the model means one more LEFT JOIN at each query. With a guard clause, such new JOIN operator adds to the executor only strictly necessary actions without recursion into the inner subtree.
 \end{itemize}
 
 \end{frame}
@@ -1273,4 +1284,300 @@ $M \times 3 \;\to\; {\sim}N \times 3$ probes.}
 {\small Push Sort below the joins: base rows sorted once ($M \log M$),
 but only ${\sim}N$ enter the join chain.  Probes: $M \times 3 \;\to\; {\sim}N \times 3$.}
 \end{frame}
+
+% SECTION DIVIDER -- SubLink pull-up topic
+%
+% Transition slide between the Sort Pushdown material above and the
+% SubLink/EXISTS amplifier material that follows.  Plain frame, no
+% theme decoration -- big centred title in the deck's blue, with a
+% short italic teaser of what's coming.
+
+{
+\setbeamertemplate{footline}{}
+\begin{frame}[plain]
+\vspace*{\fill}
+\begin{center}
+{\Huge\bfseries\color{pgblue!85!black} The SubLink pull-up problem}\\[10mm]
+{\large\itshape EXISTS, the \texttt{join\_collapse\_limit} cliff,\\and what happens between them}
+\end{center}
+\vspace*{\fill}
+\end{frame}
+}
+
+% N-DEEP TREE SLIDE (SubLink setup)
+%
+% Visual cousin of "Amplifier: Base Table Growth" but parameterised by
+% N rather than fixing N=3.  Three LEFT JOINs shown explicitly at the
+% bottom (LJ_1, LJ_2, LJ_3 with their targets T_1...T_3), then a
+% dotted edge upward to LJ_N at the top -- the dotted edge stands for
+% the omitted intermediate joins.  Sets the visual stage for the
+% SubLink/EXISTS interaction discussed on the next slides: when N
+% exceeds join_collapse_limit the planner cannot push EXISTS down.
+
+\begin{frame}\frametitle{An $N$-deep query tree}
+\vspace{-2mm}
+\begin{center}
+\begin{tikzpicture}[scale=0.9, every node/.append style={transform shape},
+  joinnode/.style={draw=pgorange!70, rounded corners=3pt, fill=pgorange!12,
+               minimum height=0.6cm, minimum width=1.9cm,
+               align=center, font=\sffamily\small},
+  tbl/.style={draw=pgblue!70, rounded corners=3pt, fill=pgblue!10,
+              minimum height=0.6cm, minimum width=1.6cm,
+              align=center, font=\sffamily\small},
+  hot/.style={very thick, -Latex, black!80},
+  dotedge/.style={thick, dotted, -Latex, black!80, line width=1.4pt},
+]
+
+% Background highlight for the LJ_M subtree (drawn first so it sits
+% behind every node and edge that follows).
+\path[fill=yellow!18, draw=yellow!45, rounded corners=5pt, line width=0.6pt]
+  (-7.2, -6.10) rectangle (0.25, -1.55);
+
+% Row 0: Left Join N (top)
+\node[joinnode] (ljN) at (0, 0) {\textbf{Left Join}$_N$};
+
+% Row 1: Left Join M + T_N (inner side of LJ_N).
+% Spine step from LJ_N down to LJ_M is (-2.4, -2.0) -- 30% bigger than
+% the solid step, so the dotted "omitted joins" edge reads visually as
+% a clear gap rather than an adjacent jump.
+\node[joinnode] (ljM) at (-2.4, -2.0) {\textbf{Left Join}$_M$};
+\node[tbl] (tN) at (1.6, -1.2) {$T_N$};
+
+% Row 2: Left Join 1 + T_M.  Spine step from LJ_M to LJ_1 is (-2.4, -2.0)
+% again -- symmetric dotted gap below.
+\node[joinnode] (lj1) at (-4.8, -4.0) {\textbf{Left Join}$_1$};
+\node[tbl] (tM) at (-0.8, -3.2) {$T_M$};
+
+% Row 3: base + T_1.  EXISTS clause attached to order_lines as a tight
+% second line of the node label.
+\node[tbl, draw=red!70, fill=red!8, align=center] (base) at (-6.2, -5.4)
+  {order\_lines\\[-2pt]{\tiny\textsf{+ EXISTS(orders)}}};
+\node[tbl] (t1) at (-3.4, -5.4) {$T_1$};
+
+% Solid edges -- leaf attachments
+\draw[hot] (base) -- (lj1);
+
+% Solid edges -- inner side
+\draw[hot] (t1) -- (lj1);
+\draw[hot] (tM) -- (ljM);
+\draw[hot] (tN) -- (ljN);
+
+% Dotted edges -- omitted intermediate joins on both segments of the spine
+\draw[dotedge] (lj1) -- (ljM);
+\draw[dotedge] (ljM) -- (ljN);
+
+% Brace below the LJ_M subtree -- the join_collapse_limit = M region.
+\draw[decorate, decoration={brace, amplitude=7pt, mirror},
+      thick, black!70]
+  (-7.10, -6.05) -- (0.15, -6.05);
+\node[font=\small, anchor=north, align=center] at (-3.5, -6.55)
+  {\texttt{join\_collapse\_limit} $= M$};
+
+\end{tikzpicture}
+\end{center}
+\end{frame}
+
+% AFTER-PULL-UP SLIDE
+%
+% Twin of the N-deep tree slide above.  The query is the same, but
+% the planner has pulled EXISTS up into a Semi Join sitting at the
+% top of the join tree.  Crucially the Semi Join lands OUTSIDE the
+% yellow join_collapse_limit box -- the EXISTS predicate that used to
+% sit on order_lines can no longer be evaluated at the base, because
+% the planner's join-reordering search treats the M-deep block as one
+% indivisible unit and the Semi Join as a separate level above it.
+
+\begin{frame}\frametitle{An $N$-deep query tree after EXISTS pull-up}
+\vspace{-2mm}
+\begin{center}
+\begin{tikzpicture}[scale=0.85, every node/.append style={transform shape},
+  joinnode/.style={draw=pgorange!70, rounded corners=3pt, fill=pgorange!12,
+               minimum height=0.6cm, minimum width=1.9cm,
+               align=center, font=\sffamily\small},
+  tbl/.style={draw=pgblue!70, rounded corners=3pt, fill=pgblue!10,
+              minimum height=0.6cm, minimum width=1.6cm,
+              align=center, font=\sffamily\small},
+  hot/.style={very thick, -Latex, black!80},
+  dotedge/.style={thick, dotted, -Latex, black!80, line width=1.4pt},
+]
+
+% Background highlight for the LJ_M subtree (join_collapse_limit = M
+% block; same coordinates as the BEFORE slide so the two slides line
+% up visually for direct comparison).
+\path[fill=yellow!18, draw=yellow!45, rounded corners=5pt, line width=0.6pt]
+  (-7.2, -6.10) rectangle (0.25, -1.55);
+
+% Background highlight for the upper search problem (Semi Join, LJ_N,
+% T_N, orders).  Abuts the lower box at y=-1.55 so the two share a
+% boundary -- visually they read as two adjacent search problems split
+% by the join_collapse_limit cliff.
+\path[fill=yellow!18, draw=yellow!45, rounded corners=5pt, line width=0.6pt]
+  (-1.10, -1.55) rectangle (4.15, 1.65);
+
+% Semi Join (pulled up from EXISTS) sits ABOVE LJ_N -- outside the box.
+% Position chosen so the spine continues its diagonal up-right pattern.
+\node[joinnode] (sj) at (1.6, 1.2) {\textbf{Semi Join}};
+% orders is the inner side of the Semi Join, placed at LJ_N's row to
+% the right -- consistent with the inner-side-at-row-below convention
+% used elsewhere on the slide.
+\node[tbl] (orders) at (3.2, 0) {orders};
+
+% Row 0: Left Join N
+\node[joinnode] (ljN) at (0, 0) {\textbf{Left Join}$_N$};
+
+% Row 1: Left Join M + T_N (inner side of LJ_N)
+\node[joinnode] (ljM) at (-2.4, -2.0) {\textbf{Left Join}$_M$};
+\node[tbl] (tN) at (1.6, -1.2) {$T_N$};
+
+% Row 2: Left Join 1 + T_M
+\node[joinnode] (lj1) at (-4.8, -4.0) {\textbf{Left Join}$_1$};
+\node[tbl] (tM) at (-0.8, -3.2) {$T_M$};
+
+% Row 3: base + T_1.  No EXISTS annotation -- EXISTS has been pulled
+% up into the Semi Join above.
+\node[tbl, draw=red!70, fill=red!8, align=center] (base) at (-6.2, -5.4)
+  {order\_lines};
+\node[tbl] (t1) at (-3.4, -5.4) {$T_1$};
+
+% Solid edges -- leaf attachments
+\draw[hot] (base) -- (lj1);
+
+% Solid edges -- inner side of each join
+\draw[hot] (t1) -- (lj1);
+\draw[hot] (tM) -- (ljM);
+\draw[hot] (tN) -- (ljN);
+\draw[hot] (orders) -- (sj);
+
+% Solid edge -- Semi Join outer side (LJ_N feeds into the Semi Join)
+\draw[hot] (ljN) -- (sj);
+
+% Dotted edges -- omitted intermediate joins on both segments of the spine
+\draw[dotedge] (lj1) -- (ljM);
+\draw[dotedge] (ljM) -- (ljN);
+
+% Brace below the LJ_M subtree (identical to BEFORE slide)
+\draw[decorate, decoration={brace, amplitude=7pt, mirror},
+      thick, black!70]
+  (-7.10, -6.05) -- (0.15, -6.05);
+\node[font=\small, anchor=north, align=center] at (-3.5, -6.55)
+  {\texttt{join\_collapse\_limit} $= M$};
+
+% Labels inside each yellow box identifying the two search problems
+% the planner sees: the M-deep block (bottom) and the Semi Join level
+% (top).  Positioned in the open top-right area of each box.
+% Sized down to \scriptsize so the upper label doesn't reach into the
+% Semi Join node.
+\node[font=\scriptsize\itshape, align=center, anchor=center,
+      text=black!70]
+  at (-0.55, -2.05) {join search\\problem 1};
+\node[font=\scriptsize\itshape, align=center, anchor=center,
+      text=black!70]
+  at (3.5, 1.0) {join search\\problem 2};
+
+\end{tikzpicture}
+\end{center}
+\end{frame}
+
+% SUBLINK RELOCATION SLIDE
+%
+% The fix proposed in the pgsql-hackers thread "Subquery pull-up
+% increases jointree search space" (Andrei Lepikhov, May 2026):
+% after pull-up, the resulting SemiJoin is not left at the top of the
+% jointree.  Instead, the planner descends to the minimum safe subtree
+% that contains the relations referenced by the EXISTS predicate and
+% splices the SemiJoin there.
+%
+% In our running example, the EXISTS predicate references only
+% order_lines, so the minimum subtree is the {order_lines} singleton
+% and the SemiJoin lands right next to order_lines -- deep inside the
+% M-block where it can filter the base table early.
+%
+% Visual conventions follow the attached "Relocating Pulled-Up
+% SemiJoin/ANTI Joins" PDF: the spliced-in SemiJoin and its new inner
+% side (orders) get red borders to mark them as the relocation's
+% additions.  The yellow box covers the M-block, which now contains
+% the SemiJoin.
+
+\begin{frame}\frametitle{An $N$-deep query tree after SubLink relocation}
+\vspace{-2mm}
+\begin{center}
+\begin{tikzpicture}[scale=0.85, every node/.append style={transform shape},
+  joinnode/.style={draw=pgorange!70, rounded corners=3pt, fill=pgorange!12,
+               minimum height=0.6cm, minimum width=1.9cm,
+               align=center, font=\sffamily\small},
+  tbl/.style={draw=pgblue!70, rounded corners=3pt, fill=pgblue!10,
+              minimum height=0.6cm, minimum width=1.6cm,
+              align=center, font=\sffamily\small},
+  % Highlighted "spliced-in" nodes -- mirror the PDF "Relocating
+  % Pulled-Up SemiJoin/ANTI Joins" red-border treatment.
+  semihl/.style={draw=red!70, line width=1.2pt, rounded corners=3pt,
+                 fill=pgorange!12, minimum height=0.6cm,
+                 minimum width=1.9cm, align=center,
+                 font=\sffamily\small},
+  tblhl/.style={draw=red!70, line width=1.2pt, rounded corners=3pt,
+                fill=pgblue!10, minimum height=0.6cm,
+                minimum width=1.6cm, align=center,
+                font=\sffamily\small},
+  hot/.style={very thick, -Latex, black!80},
+  dotedge/.style={thick, dotted, -Latex, black!80, line width=1.4pt},
+]
+
+% Single yellow box: the M-block now SUBSUMES the SemiJoin.  Compare
+% to the after-pull-up slide, where the SemiJoin sat in a separate
+% upper box -- here it has been pushed down into the same search
+% problem as the LEFT JOINs that filter order_lines.
+\path[fill=yellow!18, draw=yellow!45, rounded corners=5pt, line width=0.6pt]
+  (-8.15, -6.65) rectangle (0.35, -1.40);
+
+% Row 0: Left Join N (top, outside the box)
+\node[joinnode] (ljN) at (0, 0) {\textbf{Left Join}$_N$};
+
+% Row 1: Left Join M + T_N (inner side of LJ_N)
+\node[joinnode] (ljM) at (-2.2, -1.7) {\textbf{Left Join}$_M$};
+\node[tbl] (tN) at (1.6, -1.2) {$T_N$};
+
+% Row 2: Left Join 1 + T_M
+\node[joinnode] (lj1) at (-4.4, -3.4) {\textbf{Left Join}$_1$};
+\node[tbl] (tM) at (-0.6, -2.9) {$T_M$};
+
+% Row 3: Semi Join (NEW -- spliced in by the relocation) + T_1
+\node[semihl] (sj) at (-5.8, -4.8) {\textbf{Semi Join}};
+\node[tbl] (t1) at (-2.5, -4.8) {$T_1$};
+
+% Row 4: order_lines (still the focal base) + orders (NEW -- pulled
+% in from the EXISTS subquery as the SemiJoin's inner side)
+\node[tbl, draw=red!70, fill=red!8, align=center] (base) at (-7.2, -6.2)
+  {order\_lines};
+\node[tblhl] (orders) at (-4.4, -6.2) {orders};
+
+% Solid edges -- left spine and inner sides
+\draw[hot] (sj) -- (lj1);
+\draw[hot] (base) -- (sj);
+\draw[hot] (orders) -- (sj);
+\draw[hot] (t1) -- (lj1);
+\draw[hot] (tM) -- (ljM);
+\draw[hot] (tN) -- (ljN);
+
+% Dotted edges -- omitted intermediate joins
+\draw[dotedge] (lj1) -- (ljM);
+\draw[dotedge] (ljM) -- (ljN);
+
+% Brace below the (now larger) M-block
+\draw[decorate, decoration={brace, amplitude=7pt, mirror},
+      thick, black!70]
+  (-8.05, -6.95) -- (0.25, -6.95);
+\node[font=\small, anchor=north, align=center] at (-3.9, -7.45)
+  {\texttt{join\_collapse\_limit} $= M$};
+
+% QR code to the pgsql-hackers thread that proposes the relocation.
+% Positioned in the empty area to the right of the tree, below T_N.
+\node[anchor=center] (qr) at (2.0, -3.5) {%
+  \qrcode[height=1.8cm]{https://www.postgresql.org/message-id/54aa2de9-dd13-4147-a847-6c095861d34b@gmail.com}};
+\node[font=\scriptsize, anchor=north, yshift=-1mm, text=black!70]
+  at (qr.south) {pgsql-hackers thread};
+
+\end{tikzpicture}
+\end{center}
+\end{frame}
+
 \end{document}
