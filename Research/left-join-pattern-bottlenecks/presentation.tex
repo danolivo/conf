@@ -135,31 +135,96 @@
 %
 % Reference: https://habr.com/ru/companies/tantor/articles/1036274/
 
-\begin{frame}\frametitle{The polymorphic menagerie}
-\framesubtitle{Class hierarchies, relationally caged}
+% SCENE / HOOK SLIDE
+%
+% Bridge from the artistic cover into the technical body.  A stylised
+% mockup of a catalog homepage (the kind of page everyone has seen)
+% on the left, the motivating sentence and the talk's central question
+% on the right.  The mockup uses 4 product cards in 4 different
+% categories so the heterogeneity is visible at a glance — that
+% heterogeneity is exactly what forces the LEFT JOIN to every candidate.
+
+\begin{frame}\frametitle{A typical front page of an App}
+\vspace{-2mm}
+\begin{center}
+\begin{tikzpicture}[
+  page/.style={draw=black!35, line width=0.5pt, fill=white,
+               rounded corners=2pt},
+  header/.style={draw=pgblue!50, line width=0.4pt, fill=pgblue!12,
+                 rounded corners=1pt},
+  card/.style={draw=black!30, line width=0.4pt, rounded corners=1pt,
+               fill=white},
+  imgbox/.style={draw=black!18, fill=black!4, rounded corners=0.5pt},
+  tag/.style={draw=pgorange!55, fill=pgorange!16, rounded corners=1pt,
+              font=\sffamily\tiny, inner sep=1pt,
+              text=pgorange!45!black},
+  prodname/.style={font=\sffamily\tiny, align=center, text=black!75},
+  ord/.style={font=\ttfamily\tiny, text=pgblue!75!black},
+  brand/.style={font=\sffamily\small\bfseries, text=pgblue!85!black},
+  heading/.style={font=\sffamily\footnotesize\bfseries, text=black!85},
+]
+% Full-width page outline (~11 cm × 6.8 cm)
+\path[page] (-5.5, -3.4) rectangle (5.5, 3.4);
+
+% Header bar
+\path[header] (-5.5, 2.95) rectangle (5.5, 3.4);
+\node[brand, anchor=west] at (-5.35, 3.17) {ShopName};
+\node[font=\sffamily\footnotesize, anchor=east, text=black!60]
+  at (5.35, 3.17) {search \;|\; cart\,(0)};
+
+% Section heading
+\node[heading, anchor=west] at (-5.35, 2.45) {Top products};
+
+% 12 product cards in a 4-column × 3-row grid.
+% Categories chosen so the audience sees genuine heterogeneity at a
+% glance, and so the categories used in later slides
+% (electronics_props, clothing_props, food_props, gift_cards,
+% subscriptions) are visible here as concrete items.
+\foreach \i/\j/\cat/\name in {%
+    0/0/electronics/Air fryer,
+    1/0/pharmacy/Magnesium,
+    2/0/food/Brownies,
+    3/0/gift card/Gift card,
+    0/1/clothing/T-shirt,
+    1/1/books/Novel,
+    2/1/subscription/News+,
+    3/1/digital/E-book,
+    0/2/beauty/Lotion,
+    1/2/toys/Lego set,
+    2/2/sports/Yoga mat,
+    3/2/home/Kettle}
+{
+  \pgfmathsetmacro{\xpos}{-3.75 + \i*2.50}
+  \pgfmathsetmacro{\ypos}{1.45 - \j*1.70}
+  \path[card]   (\xpos-1.12, \ypos-0.78) rectangle (\xpos+1.12, \ypos+0.78);
+  \path[imgbox] (\xpos-0.95, \ypos-0.05) rectangle (\xpos+0.95, \ypos+0.65);
+  \node[tag, anchor=north west] at (\xpos-0.95, \ypos-0.13) {\cat};
+  \node[prodname, anchor=north, text width=2.0cm] at (\xpos, \ypos-0.40)
+    {\name};
+}
+
+\end{tikzpicture}
+\end{center}
+\end{frame}
+
+\begin{frame}\frametitle{Specimens in the wild}
 \begin{columns}[T]
 
 \begin{column}{0.62\textwidth}
-\textbf{A scene you've seen before.}\;
-The front page of any catalog-driven application: a top-$N$ ranking
-of items shown together with their per-category details ---
-an air fryer, a vitamin supplement, protein brownies --- each
-row resolving to its own subtype table.
-
-\vspace{3mm}
-\textbf{The same query shape elsewhere:}
+\textbf{The menagerie's three habitats.}
 \begin{itemize}\small
-  \item \textbf{ORMs.}\; Rails \emph{polymorphic associations},
-        Django \emph{polymorphic models}, Hibernate
-        \texttt{@Inheritance(JOINED)}
-  \item \textbf{CRM.}\; Salesforce \texttt{WhoId} / \texttt{WhatId}
-        polymorphic lookups
-  \item \textbf{1C platform.}\; virtually every catalog-shaped
-        configuration in production
+  \item \textbf{Catalogs} --- e-commerce front pages, 1C Trade,
+        ERP item registers
+  \item \textbf{Activity / audit} --- Salesforce
+        \texttt{WhoId}/\texttt{WhatId}, Jira, audit logs
+  \item \textbf{Documents / workflow} --- SAP, Hibernate
+        \texttt{@Inheritance(JOINED)}, BPM tasks
 \end{itemize}
 
-\vspace{2mm}
-{\small Same shape $\Rightarrow$ same bottleneck.}
+\vspace{3mm}
+{\small Generated reflexively by ORMs (Rails, Django, Hibernate) and
+deliberately by platforms (Salesforce, 1C).  Same query shape, same
+bottleneck.}
 \end{column}
 
 \begin{column}{0.32\textwidth}
