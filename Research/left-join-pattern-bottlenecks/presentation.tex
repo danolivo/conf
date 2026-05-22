@@ -23,11 +23,45 @@
 \setbeamertemplate{navigation symbols}{}
 
 %Information to be included in the title page:
-\title{Polymorphic Reference Resolution}
-\subtitle{Bottlenecks in N-Way LEFT JOIN Queries}
+% Short forms (in brackets) are used in headers/footers; long forms (in
+% braces) appear on the title page itself.  This lets the cover carry
+% the "polymorphic menagerie" framing while the footers stay formal.
+\title[Polymorphic Reference Resolution]{The polymorphic menagerie}
+\subtitle[Bottlenecks in N-Way LEFT JOIN Queries]{Class hierarchies, relationally caged}
 \author{Andrei Lepikhov}
 \institute{pgEdge}
 \date{2026}
+\titlegraphic{\includegraphics[height=6.5cm, keepaspectratio]{banner.png}}
+
+% Side-by-side title-page template: title / subtitle / author / institute
+% / date stack vertically in the left column; the title graphic occupies
+% the right column.  All typography pulled from the active Beamer theme
+% via \usebeamerfont{} and \usebeamercolor{}, so visually the slide stays
+% Copenhagen-styled; only the geometry changes.
+\setbeamertemplate{title page}{
+  \vspace*{0.4cm}
+  \begin{columns}[c]
+    \begin{column}{0.55\textwidth}
+      % Title block in the theme's blue beamercolorbox (matches Copenhagen).
+      \begin{beamercolorbox}[wd=\linewidth, sep=10pt, center, rounded=true]{title}
+        {\usebeamerfont{title}\inserttitle\par}
+        \vspace{1mm}
+        {\usebeamerfont{subtitle}\insertsubtitle}
+      \end{beamercolorbox}
+      \vspace{12mm}
+      \centering
+      {\usebeamerfont{author}\insertauthor\par}
+      \vspace{3mm}
+      {\usebeamerfont{institute}\insertinstitute\par}
+      \vspace{3mm}
+      {\usebeamerfont{date}\insertdate\par}
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \centering
+      \inserttitlegraphic
+    \end{column}
+  \end{columns}
+}
 
 % Add page numbers in the footnote
 \expandafter\def\expandafter\insertshorttitle\expandafter{%
@@ -52,6 +86,17 @@
 % -----------------------------
 
 \begin{document}
+
+% COVER / TITLE SLIDE
+%
+% Uses Beamer's standard \titlepage template so the Copenhagen theme
+% renders the title bar, author block, and footer in its native style.
+% The banner artwork is supplied via \titlegraphic{} in the preamble,
+% so the theme decides positioning.
+
+\begin{frame}
+  \titlepage
+\end{frame}
 
 % THEORETICAL BACKGROUND (not shown on slides):
 %
@@ -80,6 +125,157 @@
 %   1. Mutual exclusion: discriminator predicates are pairwise disjoint
 %   2. Inner-key uniqueness: join key on each target is PK/unique
 %   3. Column-usage constraint: target columns only appear inside COALESCE/CASE
+
+% INTRODUCTORY FRAME
+%
+% Sets up the talk by anchoring the abstract pattern to a familiar
+% scene (e-commerce front page), then surveys the frameworks and
+% systems where the same query shape appears.  The QR code on the
+% right points back to the Habr article that motivates the deck.
+%
+% Reference: https://habr.com/ru/companies/tantor/articles/1036274/
+
+\begin{frame}\frametitle{The polymorphic menagerie}
+\framesubtitle{Class hierarchies, relationally caged}
+\begin{columns}[T]
+
+\begin{column}{0.62\textwidth}
+\textbf{A scene you've seen before.}\;
+The front page of any catalog-driven application: a top-$N$ ranking
+of items shown together with their per-category details ---
+an air fryer, a vitamin supplement, protein brownies --- each
+row resolving to its own subtype table.
+
+\vspace{3mm}
+\textbf{The same query shape elsewhere:}
+\begin{itemize}\small
+  \item \textbf{ORMs.}\; Rails \emph{polymorphic associations},
+        Django \emph{polymorphic models}, Hibernate
+        \texttt{@Inheritance(JOINED)}
+  \item \textbf{CRM.}\; Salesforce \texttt{WhoId} / \texttt{WhatId}
+        polymorphic lookups
+  \item \textbf{1C platform.}\; virtually every catalog-shaped
+        configuration in production
+\end{itemize}
+
+\vspace{2mm}
+{\small Same shape $\Rightarrow$ same bottleneck.}
+\end{column}
+
+\begin{column}{0.32\textwidth}
+\centering
+% Schema impedance: one polymorphic ref points to N candidate tables.
+% This is origin #1 — the relational model has no native multi-target
+% FK, so the application encodes the reference as (discriminator, id)
+% and the resolver query must LEFT JOIN every candidate.
+\begin{tikzpicture}[
+  basetbl/.style={draw=pgblue!70, rounded corners=3pt, fill=pgblue!10,
+                  align=center, font=\sffamily\tiny, inner sep=3pt,
+                  text width=2.5cm},
+  candtbl/.style={draw=pgblue!50, rounded corners=2pt, fill=pgblue!8,
+                  minimum width=1.3cm, minimum height=0.45cm,
+                  align=center, font=\sffamily\tiny, inner sep=1pt},
+  poly/.style={->, thick, red!60, shorten >=1pt},
+]
+\node[basetbl] (ol) at (0, 0)
+  {\textbf{order\_lines}\\[1pt]
+   \texttt{(item\_type, item\_id)}};
+\node[candtbl] (p) at (-1.3, -1.6)  {products};
+\node[candtbl] (g) at (0,    -1.6)  {gift\_cards};
+\node[candtbl] (s) at (1.3,  -1.6)  {subscriptions};
+\draw[poly] (ol.south) -- (p.north);
+\draw[poly] (ol.south) -- (g.north);
+\draw[poly] (ol.south) -- (s.north);
+\node[font=\sffamily\tiny, text=red!70, align=center, text width=3.4cm]
+  at (0, -2.3)
+  {No FK spans multiple targets\\$\Rightarrow$ encoding workaround};
+\end{tikzpicture}
+\end{column}
+
+\end{columns}
+\end{frame}
+
+% PER-ROW MISMATCH SLIDE
+%
+% Origin #2 of the polymorphic blow-up: the discriminator picks exactly
+% one matching target per row, but the planner picks ONE probe order for
+% ALL rows.  The matrix below makes that structural fact visible:
+%
+%   - Rows = three concrete discriminator values
+%   - Columns = the three probed target tables
+%   - Diagonal cells (hit) = useful probes
+%   - Off-diagonal cells (miss) = guaranteed-wasted probes
+%
+% For every row, the executor runs the full row of the matrix:
+% one hit, (N-1) guaranteed misses.  The discriminator's mutual-exclusion
+% structure is invisible to the planner — it cannot route each row to
+% its matching target.
+%
+% Tufte: high data-ink, no chartjunk, diagonal-of-truth structure carries
+% the entire argument.  jvns: chronological per-row trace, hidden waste
+% made visible, single knowledge gap (per-row plan commitment) addressed.
+
+\begin{frame}\frametitle{Why it blows up: the per-row mismatch}
+\vspace{-2mm}
+\begin{center}
+{\small The discriminator picks one target per row.\\
+The planner picks one probe order for \emph{all} rows.}
+\end{center}
+
+\vspace{3mm}
+
+\begin{center}
+\begin{tikzpicture}[
+  cell/.style={draw=black!25, minimum width=1.9cm, minimum height=0.8cm,
+               align=center, font=\sffamily\small},
+  hit/.style={fill=green!18, draw=green!55!black, very thick,
+              text=green!40!black, font=\sffamily\bfseries\small},
+  miss/.style={fill=red!7, draw=red!25,
+               text=red!60!black, font=\sffamily\small},
+  hdr/.style={font=\sffamily\bfseries\small, align=center},
+  rowlabel/.style={font=\sffamily\small, align=right},
+]
+% Column headers (probed target tables)
+\node[hdr] at (0,    0.55)  {products};
+\node[hdr] at (2.0,  0.55)  {gift\_cards};
+\node[hdr] at (4.0,  0.55)  {subscriptions};
+
+% Row 1
+\node[rowlabel, anchor=east] at (-1.1, -0.4)
+  {\texttt{item\_type=}\textsf{`product'}};
+\node[cell, hit]  at (0,   -0.4) {\checkmark};
+\node[cell, miss] at (2.0, -0.4) {$\times$};
+\node[cell, miss] at (4.0, -0.4) {$\times$};
+
+% Row 2
+\node[rowlabel, anchor=east] at (-1.1, -1.3)
+  {\texttt{item\_type=}\textsf{`gift\_card'}};
+\node[cell, miss] at (0,   -1.3) {$\times$};
+\node[cell, hit]  at (2.0, -1.3) {\checkmark};
+\node[cell, miss] at (4.0, -1.3) {$\times$};
+
+% Row 3
+\node[rowlabel, anchor=east] at (-1.1, -2.2)
+  {\texttt{item\_type=}\textsf{`subscription'}};
+\node[cell, miss] at (0,   -2.2) {$\times$};
+\node[cell, miss] at (2.0, -2.2) {$\times$};
+\node[cell, hit]  at (4.0, -2.2) {\checkmark};
+
+% Annotations: useful diagonal vs. wasted off-diagonal
+\node[font=\sffamily\tiny\bfseries, text=green!45!black,
+      anchor=west] at (5.1, -1.3)
+  {useful: $1/N$};
+\node[font=\sffamily\tiny\bfseries, text=red!55!black,
+      anchor=north, align=center] at (2.0, -2.85)
+  {wasted: $(N{-}1)/N$ per row};
+\end{tikzpicture}
+\end{center}
+
+\vspace{2mm}
+{\small The discriminator's mutual-exclusion structure is invisible to
+the planner.  Every row pays for all $N$ probes — the diagonal is the
+only useful work; the off-diagonal is forced waste.}
+\end{frame}
 
 \begin{frame}[fragile]\frametitle{The Query}
 \begin{lstlisting}
@@ -266,8 +462,14 @@ LIMIT 100
 
 % THEORY: Query plan structure and amplifier mapping
 %
-% The plan tree below represents the "bad" case -- what the planner produces
-% when join_collapse_limit is exceeded and no index covers the ORDER BY column.
+% NOTE: The slides now separate concerns.  The "Amplifier: Base Table
+% Growth" slide shows ONLY the LEFT JOIN chain (no Limit / Order By),
+% isolating the growth effect.  The ORDER BY + LIMIT interaction is
+% covered on its own dedicated slide ("Sort Pushdown").
+%
+% The full plan tree below is kept for reference -- it shows the "bad"
+% case: what the planner produces when join_collapse_limit is exceeded
+% and no index covers the ORDER BY column.
 %
 % Plan tree (bottom-up execution):
 %
@@ -318,6 +520,9 @@ LIMIT 100
 
 % THEORY: Base-table growth amplifier
 %
+% This slide isolates the LEFT JOIN chain to show the growth amplifier
+% in its purest form — no ORDER BY or LIMIT to distract.
+%
 % When the base table grows from M to M', every edge on the left spine
 % of the plan tree carries proportionally more rows.  Each Left Join is
 % a nested loop: for every outer row it probes the inner side.  The inner
@@ -328,16 +533,16 @@ LIMIT 100
 %   base -> LJ1: M rows
 %   LJ1 -> LJ2: M rows (LEFT JOIN preserves all outer rows)
 %   LJ2 -> LJ3: M rows
-%   LJ3 -> Order By: M rows
-%   Order By -> Limit: M rows (blocking: must consume all before emitting)
 %
 % Each Left Join also drives M probes into its inner (right) child.
 % With N=3 joins, total inner-side probes = 3*M.
 % Useful probes (matching) = M.  Fruitless probes = (N-1)*M = 2*M.
 %
-% Doubling M doubles every number on every edge.
+% Doubling M doubles every number on every edge.  The waste ratio
+% (N-1)/1 stays constant, but the absolute cost matters: at M = 10^8
+% with N = 10, that's 9 * 10^8 wasted B-tree lookups.
 
-\begin{frame}\frametitle{Worst case: base table growth + no index scan}
+\begin{frame}\frametitle{Amplifier: Base Table Growth}
 \vspace{-2mm}
 \begin{center}
 \begin{tikzpicture}[
@@ -347,49 +552,36 @@ LIMIT 100
   tbl/.style={draw=pgblue!70, rounded corners=3pt, fill=pgblue!10,
               minimum height=0.6cm, minimum width=1.6cm,
               align=center, font=\sffamily\small},
-  op/.style={draw=black!40, rounded corners=3pt, fill=black!5,
-             minimum height=0.6cm, minimum width=1.6cm,
-             align=center, font=\sffamily\small},
   edge/.style={thick, -Latex, gray!70},
   hot/.style={very thick, -Latex, red!70},
   rows/.style={font=\sffamily\tiny\bfseries, text=red!70},
 ]
 
-% Row 0: Limit
-\node[op] (limit) at (0, 0) {\textbf{Limit $N$}};
+% Row 0: Left Join 3
+\node[joinnode] (lj3) at (0, 0) {\textbf{Left Join}};
 
-% Row 1: Order By (show sort attribute — key to this amplifier)
-\node[op] (orderby) at (0, -1.2) {\textbf{Order By}\\[-2pt]{\tiny popularity}};
+% Row 1: Left Join 2 + subscriptions
+\node[joinnode] (lj2) at (-1.8, -1.4) {\textbf{Left Join}};
+\node[tbl] (t3) at (1.8, -1.4) {subscriptions};
 
-% Row 2: Left Join 3
-\node[joinnode] (lj3) at (0, -2.6) {\textbf{Left Join}};
+% Row 2: Left Join 1 + gift_cards
+\node[joinnode] (lj1) at (-3.6, -2.8) {\textbf{Left Join}};
+\node[tbl] (t2) at (0, -2.8) {gift\_cards};
 
-% Row 3: Left Join 2 + subscriptions
-\node[joinnode] (lj2) at (-1.8, -3.8) {\textbf{Left Join}};
-\node[tbl] (t3) at (1.8, -3.8) {subscriptions};
-
-% Row 4: Left Join 1 + gift_cards
-\node[joinnode] (lj1) at (-3.6, -5.0) {\textbf{Left Join}};
-\node[tbl] (t2) at (0, -5.0) {gift\_cards};
-
-% Row 5: order_lines (highlighted) + products
-\node[tbl, draw=red!70, fill=red!8, align=center] (base) at (-5.0, -6.2)
+% Row 3: order_lines (highlighted) + products
+\node[tbl, draw=red!70, fill=red!8, align=center] (base) at (-5.0, -4.2)
   {order\_lines};
-\node[tbl] (t1) at (-2.2, -6.2) {products};
+\node[tbl] (t1) at (-2.2, -4.2) {products};
 
 % Hot edges (left spine -- all carry M rows)
 \draw[hot] (base) -- node[rows, left, pos=0.5] {$M$} (lj1);
 \draw[hot] (lj1) -- node[rows, left, pos=0.5] {$M$} (lj2);
 \draw[hot] (lj2) -- node[rows, left, pos=0.5] {$M$} (lj3);
-\draw[hot] (lj3) -- node[rows, left, pos=0.5] {$M$} (orderby);
-\draw[hot] (orderby) -- node[rows, left, pos=0.5] {$M$} (limit);
 
 % Inner-side edges (each probed M times)
 \draw[hot] (t1) -- node[rows, right, pos=0.5] {$M$} (lj1);
 \draw[hot] (t2) -- node[rows, right, pos=0.5] {$M$} (lj2);
 \draw[hot] (t3) -- node[rows, left, pos=0.5] {$M$} (lj3);
-
-% Cold edges -- none; all edges are affected
 
 \end{tikzpicture}
 \end{center}
@@ -520,6 +712,10 @@ If false $\to$ returns $\emptyset$; inner scan \emph{never launched}.}
 
 % THEORY: One-sided clause guard (from pgsql-hackers thread, Dec 2024)
 %
+% This slide shows only the LEFT JOIN chain (matching the "Amplifier"
+% slide), with guard badges on each inner-side path.  No Limit or
+% Order By — the ORDER BY + LIMIT interaction is on its own slide.
+%
 % Each LEFT JOIN's ON clause contains a discriminator predicate that
 % depends ONLY on the outer (left) table:
 %   LEFT JOIN products p ON ol.item_type = 'product' AND ol.item_id = p.id
@@ -548,18 +744,15 @@ If false $\to$ returns $\emptyset$; inner scan \emph{never launched}.}
 % at the executor level.
 
 \begin{frame}\frametitle{One-Sided Clause Guard}
-\vspace{-3mm}
+\vspace{-2mm}
 \begin{center}
 \begin{tikzpicture}[
   joinnode/.style={draw=pgorange!70, rounded corners=3pt, fill=pgorange!12,
-               minimum height=0.55cm, minimum width=1.5cm,
-               align=center, font=\sffamily\footnotesize},
+               minimum height=0.6cm, minimum width=1.6cm,
+               align=center, font=\sffamily\small},
   tbl/.style={draw=pgblue!70, rounded corners=3pt, fill=pgblue!10,
-              minimum height=0.55cm, minimum width=1.5cm,
-              align=center, font=\sffamily\footnotesize},
-  op/.style={draw=black!40, rounded corners=3pt, fill=black!5,
-             minimum height=0.55cm, minimum width=1.5cm,
-             align=center, font=\sffamily\footnotesize},
+              minimum height=0.6cm, minimum width=1.6cm,
+              align=center, font=\sffamily\small},
   edge/.style={thick, -Latex, gray!70},
   hot/.style={very thick, -Latex, red!70},
   cool/.style={thick, dashed, -Latex, green!50!black},
@@ -572,39 +765,30 @@ If false $\to$ returns $\emptyset$; inner scan \emph{never launched}.}
   condline/.style={thin, dashed, black!40},
 ]
 
-% Row 0: Limit
-\node[op] (limit) at (0, 0) {\textbf{Limit $N$}};
+% Row 0: Left Join 3
+\node[joinnode] (lj3) at (0, 0) {\textbf{Left Join}};
 
-% Row 1: Order By (consistent with "Worst case" slide)
-\node[op] (orderby) at (0, -1.1) {\textbf{Order By}\\[-2pt]{\tiny popularity}};
+% Row 1: Left Join 2 + subscriptions
+\node[joinnode] (lj2) at (-1.8, -1.4) {\textbf{Left Join}};
+\node[tbl] (t3) at (1.8, -1.4) {subscriptions};
 
-% Row 2: Left Join 3
-\node[joinnode] (lj3) at (0, -2.4) {\textbf{Left Join}};
+% Row 2: Left Join 1 + gift_cards
+\node[joinnode] (lj1) at (-3.6, -2.8) {\textbf{Left Join}};
+\node[tbl] (t2) at (0, -2.8) {gift\_cards};
 
-% Row 3: Left Join 2 + subscriptions
-\node[joinnode] (lj2) at (-1.8, -3.5) {\textbf{Left Join}};
-\node[tbl] (t3) at (1.8, -3.5) {subscriptions};
-
-% Row 4: Left Join 1 + gift_cards
-\node[joinnode] (lj1) at (-3.6, -4.6) {\textbf{Left Join}};
-\node[tbl] (t2) at (0, -4.6) {gift\_cards};
-
-% Row 5: order_lines (red boundary, consistent with "Worst case" slide) + products
-\node[tbl, draw=red!70, fill=red!8, align=center] (base) at (-5.0, -5.7)
+% Row 3: order_lines (red boundary) + products
+\node[tbl, draw=red!70, fill=red!8, align=center] (base) at (-5.0, -4.2)
   {order\_lines};
-\node[tbl] (t1) at (-2.2, -5.7) {products};
+\node[tbl] (t1) at (-2.2, -4.2) {products};
 
 % Left spine -- still carries M rows (unchanged)
 \draw[hot] (base) -- node[rows, left, pos=0.5] {$M$} (lj1);
 \draw[hot] (lj1) -- node[rows, left, pos=0.5] {$M$} (lj2);
 \draw[hot] (lj2) -- node[rows, left, pos=0.5] {$M$} (lj3);
-\draw[hot] (lj3) -- node[rows, left, pos=0.5] {$M$} (orderby);
-\draw[hot] (orderby) -- node[rows, left, pos=0.5] {$M$} (limit);
 
 % Inner-side paths: Join --dashed--> [guard badge] <--green-- target table
-% The badge sits ON the path as a gate between the join and the inner scan
 
-% Path 1: lj1 --M_1--> [type='product'] <-- products
+% Path 1: lj1 --> [type='product'] <-- products
 \node[cond] (c1) at ($(lj1.south east)!0.45!(t1.north west)$)
   {type\,=\,'product'};
 \draw[condline] (lj1.south east) -- (c1);
@@ -624,7 +808,7 @@ If false $\to$ returns $\emptyset$; inner scan \emph{never launched}.}
 
 \end{tikzpicture}
 \end{center}
-\vspace{-3mm}
+\vspace{-2mm}
 {\small Guard checks discriminator \emph{before} probing inner side.
 Each row probes only the matching table: $M_1\!+\!M_2\!+\!M_3 = M$.}
 \end{frame}
@@ -639,10 +823,389 @@ Each row probes only the matching table: $M_1\!+\!M_2\!+\!M_3 = M$.}
   \item \textbf{Safety net for missing indexes.}\;
     When no index covers the inner side, the executor would fall back to a
     sequential scan \emph{per outer row}.  The guard lets it skip the scan
-    entirely for non-matching rows --- turning an $O(M \times N \times |T_k|)$
-    catastrophe into $O(M \times |T_k|)$.
+    entirely for non-matching rows.
 \end{itemize}
 
 \end{frame}
 
+
+% THEORY: Sort pushdown into index scan
+%
+% This slide shows two plan trees side by side.
+%
+%   Left tree (red, "before"):
+%     Limit N → Order By (popularity) → 3 LEFT JOINs → Seq Scan
+%     All M rows flow through every edge.  The Order By node is colored
+%     red to flag it as the blocking operator: it must consume ALL M
+%     rows before Limit can emit anything.  LIMIT is useless here.
+%
+%   Right tree (green, "after"):
+%     Limit N → 3 LEFT JOINs → Index Scan (idx: popularity)
+%     The Order By node is GONE — the index delivers rows pre-sorted.
+%     Without the blocking operator, the pipeline becomes fully
+%     streaming: Limit halts execution after ~N rows.  Only ~N rows
+%     enter the LEFT JOIN chain.
+%
+%   Arrow between trees: "index on popularity" — that's the enabler.
+%
+% When ORDER BY targets a column of the base table and an index covers
+% that column, the planner can replace:
+%   Limit → Sort → LEFT JOIN chain → Seq Scan(order_lines)
+% with:
+%   Limit → LEFT JOIN chain → Index Scan(order_lines, ordered by popularity)
+%
+% Row-count effect on the LEFT JOIN chain:
+%   Before: Seq Scan emits all M rows → Sort must consume all M →
+%           every LEFT JOIN processes M outer rows → M×3 probes.
+%   After:  Index Scan emits rows one-by-one in order → each row
+%           passes through the LJ chain → Limit stops after ~N rows.
+%           Only ~N rows ever enter the chain → ~N×3 probes.
+%
+% Speaker notes:
+%   - Key point: the blocking Sort is the real villain here.
+%   - Even LIMIT 100 on a 10M-row table changes nothing if Sort
+%     must consume all 10M rows first.
+%   - The index on the ORDER BY column is what lets the Sort disappear.
+%   - Combined with the Result Filter guard from the previous slide,
+%     the total work drops from M×3 to ~N×1 (guard + index together).
+
+\begin{frame}\frametitle{ORDER BY + LIMIT: Effect of Proper Index}
+\vspace{-2mm}
+\begin{center}
+\begin{tikzpicture}[scale=0.80, every node/.append style={transform shape},
+  joinnode/.style={draw=pgorange!70, rounded corners=3pt, fill=pgorange!12,
+               minimum height=0.6cm, minimum width=1.6cm,
+               align=center, font=\sffamily\small},
+  tbl/.style={draw=pgblue!70, rounded corners=3pt, fill=pgblue!10,
+              minimum height=0.6cm, minimum width=1.6cm,
+              align=center, font=\sffamily\small},
+  op/.style={draw=black!40, rounded corners=3pt, fill=black!5,
+             minimum height=0.6cm, minimum width=1.6cm,
+             align=center, font=\sffamily\small},
+  edge/.style={thick, -Latex, gray!70},
+  hot/.style={very thick, -Latex, red!70},
+  cool/.style={very thick, -Latex, green!50!black},
+  rows/.style={font=\sffamily\tiny\bfseries, text=red!70},
+  saved/.style={font=\sffamily\tiny\bfseries, text=green!50!black},
+  transform/.style={-Latex, very thick, black!60, shorten <=3mm, shorten >=3mm},
+]
+
+% === LEFT TREE: blocking Order By ===
+\begin{scope}[shift={(-3.2, 0)}]
+  % Row 0: Limit
+  \node[op] (Llimit) at (0, 0) {\textbf{Limit $N$}};
+
+  % Row 1: Order By (op style matching slide 3; red border flags blocking)
+  \node[op, draw=red!50, fill=red!8] (Lsort) at (0, -1.2)
+    {\textbf{Order By}\\[-2pt]{\tiny popularity}};
+
+  % Row 2: Left Join 3
+  \node[joinnode] (Llj3) at (0, -2.6) {\textbf{Left Join}};
+
+  % Row 3: Left Join 2 + subscriptions
+  \node[joinnode] (Llj2) at (-1.4, -3.8) {\textbf{Left Join}};
+  \node[tbl] (Lt3) at (1.4, -3.8) {subscriptions};
+
+  % Row 4: Left Join 1 + gift_cards
+  \node[joinnode] (Llj1) at (-2.8, -5.0) {\textbf{Left Join}};
+  \node[tbl] (Lt2) at (0, -5.0) {gift\_cards};
+
+  % Row 5: order_lines + products
+  \node[tbl, draw=red!70, fill=red!8] (Lbase) at (-3.8, -6.2) {order\_lines};
+  \node[tbl] (Lt1) at (-1.4, -6.2) {products};
+
+  % Hot edges (all carry M rows)
+  \draw[hot] (Lbase) -- node[rows, left, pos=0.5] {$M$} (Llj1);
+  \draw[hot] (Lt1) -- node[rows, right, pos=0.5] {$M$} (Llj1);
+  \draw[hot] (Llj1) -- node[rows, left, pos=0.5] {$M$} (Llj2);
+  \draw[hot] (Lt2) -- node[rows, right, pos=0.5] {$M$} (Llj2);
+  \draw[hot] (Llj2) -- node[rows, left, pos=0.5] {$M$} (Llj3);
+  \draw[hot] (Lt3) -- node[rows, left, pos=0.5] {$M$} (Llj3);
+  \draw[hot] (Llj3) -- node[rows, left, pos=0.5] {$M$} (Lsort);
+  \draw[hot] (Lsort) -- node[rows, left, pos=0.5] {$M$} (Llimit);
+\end{scope}
+
+% === ARROW (placed in clear space between Limit nodes) ===
+\draw[transform] (-1.0, -0.6) --
+  node[above, font=\sffamily\small] {index on popularity}
+  (1.6, -0.6);
+
+% === RIGHT TREE: Index Scan replaces Sort ===
+\begin{scope}[shift={(3.8, 0)}]
+  % Row 0: Limit
+  \node[op] (Rlimit) at (0, 0) {\textbf{Limit $N$}};
+
+  % No Order By — index provides order
+
+  % Row 1: Left Join 3
+  \node[joinnode] (Rlj3) at (0, -1.4) {\textbf{Left Join}};
+
+  % Row 2: Left Join 2 + subscriptions
+  \node[joinnode] (Rlj2) at (-1.4, -2.8) {\textbf{Left Join}};
+  \node[tbl] (Rt3) at (1.4, -2.8) {subscriptions};
+
+  % Row 3: Left Join 1 + gift_cards
+  \node[joinnode] (Rlj1) at (-2.8, -4.2) {\textbf{Left Join}};
+  \node[tbl] (Rt2) at (0, -4.2) {gift\_cards};
+
+  % Row 4: order_lines (index scan) + products
+  \node[tbl, draw=green!50!black, fill=green!8, align=center] (Rbase)
+    at (-3.8, -5.6) {order\_lines\\[-2pt]{\tiny\textsf{idx: popularity}}};
+  \node[tbl] (Rt1) at (-1.4, -5.6) {products};
+
+  % Cool edges (carry only ~N rows)
+  \draw[cool] (Rbase) -- node[saved, left, pos=0.5] {${\sim}N$} (Rlj1);
+  \draw[cool] (Rt1) -- node[saved, right, pos=0.5] {${\sim}N$} (Rlj1);
+  \draw[cool] (Rlj1) -- node[saved, left, pos=0.5] {${\sim}N$} (Rlj2);
+  \draw[cool] (Rt2) -- node[saved, right, pos=0.5] {${\sim}N$} (Rlj2);
+  \draw[cool] (Rlj2) -- node[saved, left, pos=0.5] {${\sim}N$} (Rlj3);
+  \draw[cool] (Rt3) -- node[saved, left, pos=0.5] {${\sim}N$} (Rlj3);
+  \draw[cool] (Rlj3) -- node[saved, right, pos=0.5] {$N$} (Rlimit);
+\end{scope}
+
+\end{tikzpicture}
+\end{center}
+\vspace{-2mm}
+{\small $N = \mathit{LIMIT}$.\; Index-ordered scan eliminates the blocking
+Order~By. Limit stops the entire LEFT~JOIN chain after $N$~rows:
+$M \times 3 \;\to\; {\sim}N \times 3$ probes.}
+\end{frame}
+
+% THEORY: What if there is no covering index? — single LEFT JOIN warm-up
+%
+% Bridge slide between the "proper index" case (previous slide) and the
+% N-way pushdown (next slide).  Strips the picture down to ONE LEFT JOIN
+% so the mechanism is obvious: it is the JOIN that becomes cheap, not the
+% Sort.
+%
+% Setup: same ORDER BY ol.popularity LIMIT N, but no index covers
+% popularity, so the planner must materialise the ordering with a Sort.
+%
+% Left tree (red, blocking — Sort above the join):
+%   Limit N → Sort(popularity) → Left Join → Seq Scan(order_lines), products
+%   The Left Join emits M rows (LEFT JOIN preserves the outer cardinality).
+%   Sort is a pipeline breaker: it consumes all M rows before emitting any.
+%   Limit can only fire after Sort completes — useless.  Join probes: M.
+%
+% Right tree (green, streaming — Sort pushed below the join):
+%   Limit N → Left Join → Sort(popularity) → Seq Scan(order_lines), products
+%   Sort still consumes M base rows (cost stays Θ(M log M)), but it now
+%   feeds the Left Join one ordered tuple at a time.  Limit can stop the
+%   pipeline after ~N rows pass through the join.  Only ~N rows ever
+%   enter the join.  Join probes: ~N.
+%
+% Teaching point: the Sort itself does NOT get cheaper.  What gets cheaper
+% is everything BETWEEN the Sort and the Limit — the join probes collapse
+% from M to ~N because the blocking operator no longer sits above the
+% join.  Intermediate tuple count drops at the JOIN edge, earlier in the
+% pipeline.
+
+\begin{frame}\frametitle{What if no proper index exists?}
+\vspace{-2mm}
+\begin{center}
+\begin{tikzpicture}[scale=0.85, every node/.append style={transform shape},
+  joinnode/.style={draw=pgorange!70, rounded corners=3pt, fill=pgorange!12,
+               minimum height=0.6cm, minimum width=1.6cm,
+               align=center, font=\sffamily\small},
+  tbl/.style={draw=pgblue!70, rounded corners=3pt, fill=pgblue!10,
+              minimum height=0.6cm, minimum width=1.6cm,
+              align=center, font=\sffamily\small},
+  op/.style={draw=black!40, rounded corners=3pt, fill=black!5,
+             minimum height=0.6cm, minimum width=1.6cm,
+             align=center, font=\sffamily\small},
+  edge/.style={thick, -Latex, gray!70},
+  hot/.style={very thick, -Latex, red!70},
+  cool/.style={very thick, -Latex, green!50!black},
+  rows/.style={font=\sffamily\tiny\bfseries, text=red!70},
+  saved/.style={font=\sffamily\tiny\bfseries, text=green!50!black},
+  transform/.style={-Latex, very thick, black!60, shorten <=3mm, shorten >=3mm},
+]
+
+% === LEFT TREE: Sort ABOVE a single Left Join — blocking ===
+\begin{scope}[shift={(-3.0, 0)}]
+  \node[op] (Llimit) at (0, 0) {\textbf{Limit $N$}};
+  \node[op, draw=red!50, fill=red!8] (Lsort) at (0, -1.2)
+    {\textbf{Sort}\\[-2pt]{\tiny popularity}};
+  \node[joinnode] (Llj) at (0, -2.6) {\textbf{Left Join}};
+  \node[tbl] (Lbase) at (-1.4, -3.8) {order\_lines};
+  \node[tbl] (Lt1) at (1.4, -3.8) {products};
+
+  \draw[hot] (Lbase) -- node[rows, left, pos=0.5] {$M$} (Llj);
+  \draw[hot] (Lt1) -- node[rows, right, pos=0.5] {$M$} (Llj);
+  \draw[hot] (Llj) -- node[rows, left, pos=0.5] {$M$} (Lsort);
+  \draw[hot] (Lsort) -- node[rows, left, pos=0.5] {$M$} (Llimit);
+
+  \node[font=\sffamily\tiny, text=red!70, anchor=west] at (0.9, -1.2)
+    {blocks!};
+\end{scope}
+
+% === ARROW ===
+\draw[transform] (-1.0, -0.6) --
+  node[above, font=\sffamily\small] {sort pushdown}
+  (1.6, -0.6);
+
+% === RIGHT TREE: Sort BELOW the join — streaming ===
+\begin{scope}[shift={(3.6, 0)}]
+  \node[op] (Rlimit) at (0, 0) {\textbf{Limit $N$}};
+  \node[joinnode] (Rlj) at (0, -1.4) {\textbf{Left Join}};
+  \node[op, draw=green!50!black, fill=green!8] (Rsort) at (-1.4, -2.8)
+    {\textbf{Sort}\\[-2pt]{\tiny popularity}};
+  \node[tbl] (Rt1) at (1.4, -2.8) {products};
+  \node[tbl] (Rbase) at (-1.4, -4.2) {order\_lines};
+
+  \draw[hot]  (Rbase) -- node[rows,  left,  pos=0.5] {$M$}        (Rsort);
+  \draw[cool] (Rsort) -- node[saved, left,  pos=0.5] {${\sim}N$}  (Rlj);
+  \draw[cool] (Rt1)   -- node[saved, right, pos=0.5] {${\sim}N$}  (Rlj);
+  \draw[cool] (Rlj)   -- node[saved, left,  pos=0.5] {${\sim}N$}  (Rlimit);
+
+  \node[font=\sffamily\tiny, text=green!50!black, anchor=west] at (0.9, -1.4)
+    {streaming};
+\end{scope}
+
+% === QR code: pgsql-hackers thread reference ===
+% Sized to fit the middle gap between the two trees; transform shape on the
+% picture scales the qrcode along with everything else.
+\node[anchor=center] (qr) at (0.3, -2.6) {%
+  \qrcode[height=1.3cm]{https://www.postgresql.org/message-id/flat/19a9265c-c441-4a43-bc0d-dac533438da0@gmail.com}};
+\node[font=\sffamily\tiny, text=black!70, anchor=north, yshift=-1mm] at (qr.south)
+  {pgsql-hackers thread};
+
+\end{tikzpicture}
+\end{center}
+\end{frame}
+
+% THEORY: Sort pushdown — presorted outer path
+%
+% This slide answers: "What if there is no index on the ORDER BY column?"
+% The key insight from the pgsql-hackers thread "Try a presorted outer
+% path when referenced by an ORDER BY prefix" (Ilya Zharkov et al.):
+% push the Sort node BELOW the LEFT JOIN chain instead of above it.
+%
+% Visual: side-by-side plan trees.
+%
+%   Left tree (red, "Sort above joins — blocking"):
+%     Limit N → Sort (popularity) → 3 LEFT JOINs → Seq Scan
+%     Sort sits above the join chain.  It BLOCKS: must consume ALL
+%     M rows flowing out of the joins before emitting the first sorted
+%     row to Limit.  Limit is useless — the entire pipeline runs to
+%     completion.  Every LEFT JOIN processes M outer rows.
+%     Total inner probes: M × 3.
+%
+%   Right tree (green, "Sort pushed below joins — streaming"):
+%     Limit N → 3 LEFT JOINs → Sort (popularity) → Seq Scan
+%     Sort is pushed below the join chain, right above the base scan.
+%     It still blocks at that level (sorts all M base rows), BUT the
+%     LEFT JOIN chain above is now fully streaming (NestLoop + inner
+%     index scans).  Limit stops the pipeline after ~N sorted rows
+%     pass through the joins.  Only ~N rows enter the chain.
+%     Total inner probes: ~N × 3.
+%
+% The Sort itself still costs O(M log M) — that does NOT change.
+% What changes is HOW MANY ROWS flow through the expensive join chain.
+% M × 3  →  N × 3  — a factor of M/N improvement.
+%
+% Speaker notes:
+%   - This is the scenario when no index covers the ORDER BY column
+%     (e.g., popularity, score, created_at).
+%   - The planner can recognise that ORDER BY targets the outer table
+%     and push Sort below all the joins.
+%   - Sort cost stays O(M log M), but the join probe cost collapses
+%     from M×3 to N×3 because Limit can now stop early.
+%   - At M = 10^7, N = 10: join probes drop from 30M to 30.
+%   - Combined with an index (next slide), Sort disappears entirely.
+
+\begin{frame}\frametitle{Sort Pushdown: Presorted Outer Path}
+\vspace{-2mm}
+\begin{center}
+\begin{tikzpicture}[scale=0.80, every node/.append style={transform shape},
+  joinnode/.style={draw=pgorange!70, rounded corners=3pt, fill=pgorange!12,
+               minimum height=0.6cm, minimum width=1.6cm,
+               align=center, font=\sffamily\small},
+  tbl/.style={draw=pgblue!70, rounded corners=3pt, fill=pgblue!10,
+              minimum height=0.6cm, minimum width=1.6cm,
+              align=center, font=\sffamily\small},
+  op/.style={draw=black!40, rounded corners=3pt, fill=black!5,
+             minimum height=0.6cm, minimum width=1.6cm,
+             align=center, font=\sffamily\small},
+  edge/.style={thick, -Latex, gray!70},
+  hot/.style={very thick, -Latex, red!70},
+  cool/.style={very thick, -Latex, green!50!black},
+  rows/.style={font=\sffamily\tiny\bfseries, text=red!70},
+  saved/.style={font=\sffamily\tiny\bfseries, text=green!50!black},
+  transform/.style={-Latex, very thick, black!60, shorten <=3mm, shorten >=3mm},
+]
+
+% === LEFT TREE: Sort ABOVE joins — blocking ===
+\begin{scope}[shift={(-3.2, 0)}]
+  \node[op] (Llimit) at (0, 0) {\textbf{Limit $N$}};
+  \node[op, draw=red!50, fill=red!8] (Lsort) at (0, -1.2)
+    {\textbf{Sort}\\[-2pt]{\tiny popularity}};
+  \node[joinnode] (Llj3) at (0, -2.6) {\textbf{Left Join}};
+  \node[joinnode] (Llj2) at (-1.4, -3.8) {\textbf{Left Join}};
+  \node[tbl] (Lt3) at (1.4, -3.8) {subscriptions};
+  \node[joinnode] (Llj1) at (-2.8, -5.0) {\textbf{Left Join}};
+  \node[tbl] (Lt2) at (0, -5.0) {gift\_cards};
+  \node[tbl] (Lbase) at (-3.8, -6.2) {order\_lines};
+  \node[tbl] (Lt1) at (-1.4, -6.2) {products};
+
+  % Left spine — all M rows everywhere
+  \draw[hot] (Lbase) -- node[rows, left, pos=0.5] {$M$} (Llj1);
+  \draw[hot] (Llj1) -- node[rows, left, pos=0.5] {$M$} (Llj2);
+  \draw[hot] (Llj2) -- node[rows, left, pos=0.5] {$M$} (Llj3);
+  \draw[hot] (Llj3) -- node[rows, left, pos=0.5] {$M$} (Lsort);
+  \draw[hot] (Lsort) -- node[rows, left, pos=0.5] {$M$} (Llimit);
+
+  % Inner edges — each probed M times
+  \draw[hot] (Lt1) -- node[rows, right, pos=0.5] {$M$} (Llj1);
+  \draw[hot] (Lt2) -- node[rows, right, pos=0.5] {$M$} (Llj2);
+  \draw[hot] (Lt3) -- node[rows, left, pos=0.5] {$M$} (Llj3);
+
+  % Blocking annotation
+  \node[font=\sffamily\tiny, text=red!70, anchor=west] at (0.9, -1.2)
+    {blocks!};
+\end{scope}
+
+% === ARROW ===
+\draw[transform] (-0.8, -0.6) --
+  node[above, font=\sffamily\small] {sort pushdown}
+  (1.6, -0.6);
+
+% === RIGHT TREE: Sort BELOW joins — streaming ===
+\begin{scope}[shift={(3.8, 0)}]
+  \node[op] (Rlimit) at (0, 0) {\textbf{Limit $N$}};
+  \node[joinnode] (Rlj3) at (0, -1.2) {\textbf{Left Join}};
+  \node[joinnode] (Rlj2) at (-1.4, -2.4) {\textbf{Left Join}};
+  \node[tbl] (Rt3) at (1.4, -2.4) {subscriptions};
+  \node[joinnode] (Rlj1) at (-2.8, -3.6) {\textbf{Left Join}};
+  \node[tbl] (Rt2) at (0, -3.6) {gift\_cards};
+  \node[op, draw=green!50!black, fill=green!8] (Rsort) at (-3.8, -4.8)
+    {\textbf{Sort}\\[-2pt]{\tiny popularity}};
+  \node[tbl] (Rt1) at (-1.4, -4.8) {products};
+  \node[tbl] (Rbase) at (-3.8, -6.2) {order\_lines};
+
+  % Base → Sort: still M (Sort consumes all base rows)
+  \draw[hot] (Rbase) -- node[rows, left, pos=0.5] {$M$} (Rsort);
+
+  % Sort → LJ chain: streaming, Limit stops after ~N
+  \draw[cool] (Rsort) -- node[saved, left, pos=0.5] {${\sim}N$} (Rlj1);
+  \draw[cool] (Rlj1) -- node[saved, left, pos=0.5] {${\sim}N$} (Rlj2);
+  \draw[cool] (Rlj2) -- node[saved, left, pos=0.5] {${\sim}N$} (Rlj3);
+  \draw[cool] (Rlj3) -- node[saved, left, pos=0.5] {${\sim}N$} (Rlimit);
+
+  % Inner edges — only ~N probes each
+  \draw[cool] (Rt1) -- node[saved, right, pos=0.3] {${\sim}N$} (Rlj1);
+  \draw[cool] (Rt2) -- node[saved, right, pos=0.3] {${\sim}N$} (Rlj2);
+  \draw[cool] (Rt3) -- node[saved, left, pos=0.3] {${\sim}N$} (Rlj3);
+
+  % Streaming annotation
+  \node[font=\sffamily\tiny, text=green!50!black, anchor=west] at (0.9, -1.2)
+    {streaming};
+\end{scope}
+
+\end{tikzpicture}
+\end{center}
+\vspace{-2mm}
+{\small Push Sort below the joins: base rows sorted once ($M \log M$),
+but only ${\sim}N$ enter the join chain.  Probes: $M \times 3 \;\to\; {\sim}N \times 3$.}
+\end{frame}
 \end{document}
