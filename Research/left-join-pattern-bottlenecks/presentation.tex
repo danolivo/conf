@@ -144,7 +144,7 @@
 % categories so the heterogeneity is visible at a glance — that
 % heterogeneity is exactly what forces the LEFT JOIN to every candidate.
 
-\begin{frame}\frametitle{A front page of an App}
+\begin{frame}\frametitle{A page you've already seen}
 \vspace{-2mm}
 \begin{center}
 \begin{tikzpicture}[
@@ -260,6 +260,123 @@ bottleneck.}
 \end{columns}
 \end{frame}
 
+% SCHEMA GRAPH SLIDE -- the real 1C query as a graph.
+%
+% Parsed from a production 1C report query (305 lines, 29 table
+% aliases, 28 joins -- 26 LEFT OUTER, 2 INNER, 0 EXISTS).
+%
+% Layout: T1 (the temp base table) at top-left, T2 (the polymorphic
+% hub) just below it, T2's 10 direct children below T2.  Children
+% with their own subtrees get a small "+N" annotation showing how
+% many grandchildren they hide.  Inner joins solid; left outer joins
+% dashed.  Caption at the bottom gives the raw stats.
+
+\begin{frame}\frametitle{What 1C actually generates}
+\vspace{-2mm}
+\begin{center}
+\begin{tikzpicture}[scale=0.85, every node/.append style={transform shape},
+  base/.style={draw=red!70, fill=red!8, line width=1.0pt,
+               rounded corners=2pt, minimum width=0.9cm,
+               minimum height=0.5cm, font=\sffamily\small,
+               align=center},
+  hub/.style={draw=pgorange!80, fill=pgorange!18, line width=1.2pt,
+              rounded corners=2pt, minimum width=0.9cm,
+              minimum height=0.5cm, font=\sffamily\bfseries\small,
+              align=center},
+  tbl/.style={draw=pgblue!60, fill=pgblue!10, rounded corners=2pt,
+              minimum width=0.7cm, minimum height=0.45cm,
+              font=\sffamily\footnotesize, align=center},
+  inner/.style={very thick, -Latex, black!85},
+  leftj/.style={thick, dashed, -Latex, black!60},
+  more/.style={font=\sffamily\tiny\bfseries, text=pgorange!60!black},
+]
+
+% T1 -- base table (temp).
+\node[base] (T1) at (-5.5, 2.0) {$T_1$};
+
+% T2 -- the polymorphic hub.
+\node[hub] (T2) at (0, 2.0) {$T_2$};
+\node[font=\sffamily\tiny\itshape, text=black!60, anchor=west]
+  at (0.7, 2.0) {hub};
+
+% T2's 10 direct children, spread horizontally below T2.
+\node[tbl] (T3)  at (-5.5,  0) {$T_3$};
+\node[tbl] (T4)  at (-4.2,  0) {$T_4$};
+\node[tbl] (T5)  at (-2.9,  0) {$T_5$};
+\node[tbl] (T7)  at (-1.6,  0) {$T_7$};
+\node[tbl] (T9)  at (-0.3,  0) {$T_9$};
+\node[tbl] (T10) at ( 1.0,  0) {$T_{10}$};
+\node[tbl] (T24) at ( 2.3,  0) {$T_{24}$};
+\node[tbl] (T27) at ( 3.6,  0) {$T_{27}$};
+\node[tbl] (T28) at ( 4.9,  0) {$T_{28}$};
+\node[tbl] (T29) at ( 6.2,  0) {$T_{29}$};
+
+% Grandchild-count annotations next to children with subtrees.
+\node[more, anchor=south] at (T3.north  east) {+2};
+\node[more, anchor=south] at (T4.north  east) {+2};
+\node[more, anchor=south] at (T5.north  east) {+5};
+\node[more, anchor=south] at (T7.north  east) {+5};
+\node[more, anchor=south] at (T10.north east) {+1};
+\node[more, anchor=south] at (T24.north east) {+2};
+
+% Edges.  T1 -> T2 is INNER (solid).
+\draw[inner] (T1) -- (T2);
+% T2 -> T5 is INNER (solid).  All others are LEFT OUTER (dashed).
+\draw[inner] (T2) -- (T5);
+\draw[leftj] (T2) -- (T3);
+\draw[leftj] (T2) -- (T4);
+\draw[leftj] (T2) -- (T7);
+\draw[leftj] (T2) -- (T9);
+\draw[leftj] (T2) -- (T10);
+\draw[leftj] (T2) -- (T24);
+\draw[leftj] (T2) -- (T27);
+\draw[leftj] (T2) -- (T28);
+\draw[leftj] (T2) -- (T29);
+
+% Tiny grandchild stubs to suggest the hidden subtrees.
+\foreach \parent/\count/\xa/\xb in {%
+    T3/2/-0.4/0.4,
+    T4/2/-0.4/0.4,
+    T5/5/-1.0/1.0,
+    T7/5/-1.0/1.0,
+    T10/1/0/0,
+    T24/2/-0.4/0.4}{
+  \begin{scope}
+    \pgfmathsetmacro{\px}{0}
+  \end{scope}
+}
+\foreach \parent/\nx in {T3/-5.5, T4/-4.2, T5/-2.9, T7/-1.6,
+                        T10/1.0, T24/2.3}{
+  \draw[leftj, line width=0.7pt] (\nx, -0.25) -- (\nx-0.3, -1.0);
+  \draw[leftj, line width=0.7pt] (\nx, -0.25) -- (\nx+0.3, -1.0);
+}
+
+% Legend (compact, lower-right).
+\node[font=\sffamily\scriptsize, anchor=north west, align=left,
+      text=black!75]
+  at (-7.0, -1.5)
+  {\textbf{Legend:} \\[1pt]
+   \tikz[baseline=-0.5ex] \draw[inner] (0,0) -- (0.6,0); \;
+     \texttt{INNER JOIN} (2 of them) \\[2pt]
+   \tikz[baseline=-0.5ex] \draw[leftj] (0,0) -- (0.6,0); \;
+     \texttt{LEFT OUTER JOIN} (26 of them)};
+
+% Stats caption.
+\node[font=\sffamily\footnotesize\bfseries, anchor=north,
+      text=black!85]
+  at (1.5, -1.65)
+  {305 lines $\cdot$ 29 aliases $\cdot$ 28 joins $\cdot$ 0 EXISTS};
+\node[font=\sffamily\scriptsize\itshape, anchor=north,
+      text=black!65, text width=8cm, align=center]
+  at (1.5, -2.15)
+  {(\textbf{+N} = grandchildren hidden;
+   actual table types repeat --- e.g. \texttt{\_Reference189}
+   appears 5 times)};
+
+\end{tikzpicture}
+\end{center}
+\end{frame}
+
 \begin{frame}[fragile]\frametitle{The Query}
 % The whole SQL boxed in a pale orange "this is the focus" frame:
 % lstlisting's own frame=single around the listing, with backgroundcolor
@@ -291,6 +408,9 @@ WHERE EXISTS (
 ORDER BY ol.popularity
 LIMIT 100
 \end{lstlisting}
+
+\vspace{2mm}
+{\footnotesize\itshape \textcolor{black!70}{12 categories on the front page $\Rightarrow$ 12 candidate target tables in the schema; we trace 3 here.}}
 \end{frame}
 
 
@@ -467,13 +587,6 @@ The planner picks one probe order for \emph{all} rows.}
 %   joins, the benefit would be largest for the dominant type: 95% of rows
 %   would skip 9 joins, saving 0.95 * M * 9 probes.
 
-\begin{frame}\frametitle{Typical optimiser choices}
-\begin{itemize}
-  \item NestLoop LEFT JOIN type because of PK index scan on the inner side
-\end{itemize}
-\end{frame}
-
-
 \begin{frame}\frametitle{Query Plan Tree}
 \begin{center}
 \begin{tikzpicture}[
@@ -521,6 +634,14 @@ The planner picks one probe order for \emph{all} rows.}
 \draw[edge] (base) -- (lj1);
 \draw[edge] (t1) -- (lj1);
 
+% Short note (yellow box), moved here from the former
+% "Typical optimiser choices" slide.  Mirrors the yellow-highlight
+% box style used on the N-deep slides to emphasise a subtree.
+\node[fill=yellow!18, draw=yellow!45, rounded corners=3pt,
+      line width=0.6pt, align=center, font=\scriptsize\itshape,
+      inner sep=4pt, text width=3cm, text=black!80]
+  at (4.0, -2.7) {NestLoop LEFT JOIN type\\(PK index scan on the inner side)};
+
 \end{tikzpicture}
 \end{center}
 \end{frame}
@@ -528,9 +649,9 @@ The planner picks one probe order for \emph{all} rows.}
 \begin{frame}\frametitle{Main Execution Cost Amplifiers}
 \begin{itemize}
   \item Base table (\texttt{order\_lines}) growth
-  \item Ordering/grouping column of the base table not covered by an index
-  \item Growth in the number of LEFT JOINs (target types)
-  \item Unstable placement of the EXISTS filter
+  \item Growth in the number of LEFT JOINs
+  \item Ordering column of the base table not covered by an index
+  \item EXISTS pull-up displaces the filter outside the optimisable block
 \end{itemize}
 \end{frame}
 
@@ -616,6 +737,21 @@ The planner picks one probe order for \emph{all} rows.}
 % (N-1)/1 stays constant, but the absolute cost matters: at M = 10^8
 % with N = 10, that's 9 * 10^8 wasted B-tree lookups.
 
+% SECTION DIVIDER -- Base Table Growth topic.  Same style as the
+% SubLink pull-up divider: plain frame, no footer, large blue title,
+% italic subtitle.
+{
+\setbeamertemplate{footline}{}
+\begin{frame}[plain]
+\vspace*{\fill}
+\begin{center}
+{\Huge\bfseries\color{pgblue!85!black} Base Table Growth}\\[10mm]
+{\large\itshape When $M$ doubles, every probe count\\doubles with it}
+\end{center}
+\vspace*{\fill}
+\end{frame}
+}
+
 \begin{frame}\frametitle{Amplifier: Base Table Growth}
 \vspace{-2mm}
 \begin{center}
@@ -660,7 +796,7 @@ The planner picks one probe order for \emph{all} rows.}
 \end{tikzpicture}
 \end{center}
 \vspace{-2mm}
-{\small Every edge carries $M$ rows. Doubling $M$ doubles number of probes on the inner side.}
+{\small Every edge carries $M$ rows. Doubling $M$ doubles the number of probes on the inner side.}
 \end{frame}
 
 % From pgsql-hackers thread (Dec 2024):
@@ -691,7 +827,7 @@ The planner picks one probe order for \emph{all} rows.}
 %     → Result                       ← one-time filter: p.dtype = 'B'
 %       → Index Scan child (inner)   ← skipped when Result filter is false
 
-\begin{frame}\frametitle{Concept: Result Filter (from pgsql-hackers)}
+\begin{frame}\frametitle{Concept: Result Filter}
 \vspace{-1mm}
 \begin{columns}[T]
 
@@ -944,6 +1080,21 @@ Each row probes only the matching table: $M_1\!+\!M_2\!+\!M_3 = M$.}
 %   - The index on the ORDER BY column is what lets the Sort disappear.
 %   - Combined with the Result Filter guard from the previous slide,
 %     the total work drops from M×3 to ~N×1 (guard + index together).
+
+% SECTION DIVIDER -- Aggregated Result (ORDER BY + LIMIT).  Same style
+% as the SubLink pull-up divider: plain frame, no footer, large blue
+% title, italic subtitle.
+{
+\setbeamertemplate{footline}{}
+\begin{frame}[plain]
+\vspace*{\fill}
+\begin{center}
+{\Huge\bfseries\color{pgblue!85!black} Aggregated Result}\\[10mm]
+{\large\itshape \texttt{ORDER BY} + \texttt{LIMIT},\\and the blocking Sort that gets in their way}
+\end{center}
+\vspace*{\fill}
+\end{frame}
+}
 
 \begin{frame}\frametitle{ORDER BY + LIMIT: Effect of Proper Index}
 \vspace{-2mm}
@@ -1341,7 +1492,7 @@ but only ${\sim}N$ enter the join chain.  Probes: $M \times 3 \;\to\; {\sim}N \t
 % the solid step, so the dotted "omitted joins" edge reads visually as
 % a clear gap rather than an adjacent jump.
 \node[joinnode] (ljM) at (-2.4, -2.0) {\textbf{Left Join}$_M$};
-\node[tbl] (tN) at (1.6, -1.2) {$T_N$};
+\node[tbl] (tN) at (1.6, -0.9) {$T_N$};
 
 % Row 2: Left Join 1 + T_M.  Spine step from LJ_M to LJ_1 is (-2.4, -2.0)
 % again -- symmetric dotted gap below.
@@ -1375,6 +1526,9 @@ but only ${\sim}N$ enter the join chain.  Probes: $M \times 3 \;\to\; {\sim}N \t
 
 \end{tikzpicture}
 \end{center}
+\vspace{-2mm}
+{\small\itshape One problem --- EXISTS lives on \texttt{order\_lines},
+inside the M-block.}
 \end{frame}
 
 % AFTER-PULL-UP SLIDE
@@ -1402,17 +1556,17 @@ but only ${\sim}N$ enter the join chain.  Probes: $M \times 3 \;\to\; {\sim}N \t
 ]
 
 % Background highlight for the LJ_M subtree (join_collapse_limit = M
-% block; same coordinates as the BEFORE slide so the two slides line
-% up visually for direct comparison).
+% block).  Top edge at -1.65 instead of -1.55 to open a visible gap
+% above LJ_M and below the upper search-problem box.
 \path[fill=yellow!18, draw=yellow!45, rounded corners=5pt, line width=0.6pt]
-  (-7.2, -6.10) rectangle (0.25, -1.55);
+  (-7.2, -6.10) rectangle (0.25, -1.65);
 
 % Background highlight for the upper search problem (Semi Join, LJ_N,
-% T_N, orders).  Abuts the lower box at y=-1.55 so the two share a
-% boundary -- visually they read as two adjacent search problems split
-% by the join_collapse_limit cliff.
+% T_N, orders).  Bottom edge raised to -1.30 (with T_N moved up to
+% y=-0.9) so the two boxes don't touch -- a 0.35-unit gap between them
+% reads as "two distinct search problems".
 \path[fill=yellow!18, draw=yellow!45, rounded corners=5pt, line width=0.6pt]
-  (-1.10, -1.55) rectangle (4.15, 1.65);
+  (-1.10, -1.30) rectangle (4.15, 1.65);
 
 % Semi Join (pulled up from EXISTS) sits ABOVE LJ_N -- outside the box.
 % Position chosen so the spine continues its diagonal up-right pattern.
@@ -1427,7 +1581,7 @@ but only ${\sim}N$ enter the join chain.  Probes: $M \times 3 \;\to\; {\sim}N \t
 
 % Row 1: Left Join M + T_N (inner side of LJ_N)
 \node[joinnode] (ljM) at (-2.4, -2.0) {\textbf{Left Join}$_M$};
-\node[tbl] (tN) at (1.6, -1.2) {$T_N$};
+\node[tbl] (tN) at (1.6, -0.9) {$T_N$};
 
 % Row 2: Left Join 1 + T_M
 \node[joinnode] (lj1) at (-4.8, -4.0) {\textbf{Left Join}$_1$};
@@ -1473,6 +1627,15 @@ but only ${\sim}N$ enter the join chain.  Probes: $M \times 3 \;\to\; {\sim}N \t
 \node[font=\scriptsize\itshape, align=center, anchor=center,
       text=black!70]
   at (3.5, 1.0) {join search\\problem 2};
+
+% Short annotation in the bottom-right empty area: states the
+% optimiser-level consequence -- the two search problems share no
+% rels, so the planner never considers a direct orders/order_lines
+% join, no matter what order it tries.
+\node[font=\scriptsize\itshape, align=center, anchor=center,
+      text=black!75]
+  at (2.7, -3.5)
+  {\textbf{orders} never meets\\\textbf{order\_lines}\\in a single join search problem};
 
 \end{tikzpicture}
 \end{center}
@@ -1522,23 +1685,34 @@ but only ${\sim}N$ enter the join chain.  Probes: $M \times 3 \;\to\; {\sim}N \t
   dotedge/.style={thick, dotted, -Latex, black!80, line width=1.4pt},
 ]
 
-% Single yellow box: the M-block now SUBSUMES the SemiJoin.  Compare
-% to the after-pull-up slide, where the SemiJoin sat in a separate
-% upper box -- here it has been pushed down into the same search
-% problem as the LEFT JOINs that filter order_lines.
+% Lower yellow box -- the M-block.  After relocation it SUBSUMES the
+% SemiJoin (compare to the after-pull-up slide where the SemiJoin sat
+% in a separate upper box).
 \path[fill=yellow!18, draw=yellow!45, rounded corners=5pt, line width=0.6pt]
   (-8.15, -6.65) rectangle (0.35, -1.40);
+
+% Upper yellow box -- the residual search problem 2.  After the
+% SemiJoin moved down to problem 1, problem 2 contains only LJ_N and
+% its inner-side T_N (plus any joins omitted in the dotted gap above
+% LJ_{M-1}).  Mirrors slide 19's two-box structure for direct
+% comparison.
+\path[fill=yellow!18, draw=yellow!45, rounded corners=5pt, line width=0.6pt]
+  (-1.10, -1.25) rectangle (2.75, 0.45);
 
 % Row 0: Left Join N (top, outside the box)
 \node[joinnode] (ljN) at (0, 0) {\textbf{Left Join}$_N$};
 
-% Row 1: Left Join M + T_N (inner side of LJ_N)
-\node[joinnode] (ljM) at (-2.2, -1.7) {\textbf{Left Join}$_M$};
-\node[tbl] (tN) at (1.6, -1.2) {$T_N$};
+% Row 1: Left Join (M-1) + T_N (inner side of LJ_N).  The topmost
+% LEFT JOIN inside the yellow box drops from index M to M-1 because
+% the SemiJoin now occupies one of the M slots inside the M-block --
+% so the box holds 1 SemiJoin + (M-1) LEFT JOINs = M joins total.
+% LJ_M itself has been bumped out into the omitted joins above.
+\node[joinnode] (ljM) at (-2.2, -1.7) {\textbf{Left Join}$_{M-1}$};
+\node[tbl] (tN) at (1.6, -0.9) {$T_N$};
 
-% Row 2: Left Join 1 + T_M
+% Row 2: Left Join 1 + T_{M-1} (inner side of the renamed top join)
 \node[joinnode] (lj1) at (-4.4, -3.4) {\textbf{Left Join}$_1$};
-\node[tbl] (tM) at (-0.6, -2.9) {$T_M$};
+\node[tbl] (tM) at (-0.6, -2.9) {$T_{M-1}$};
 
 % Row 3: Semi Join (NEW -- spliced in by the relocation) + T_1
 \node[semihl] (sj) at (-5.8, -4.8) {\textbf{Semi Join}};
@@ -1568,6 +1742,16 @@ but only ${\sim}N$ enter the join chain.  Probes: $M \times 3 \;\to\; {\sim}N \t
   (-8.05, -6.95) -- (0.25, -6.95);
 \node[font=\small, anchor=north, align=center] at (-3.9, -7.45)
   {\texttt{join\_collapse\_limit} $= M$};
+
+% Labels inside each yellow box identifying the two search problems
+% the planner sees -- same convention as on slide 19, for direct
+% comparison.
+\node[font=\scriptsize\itshape, align=center, anchor=center,
+      text=black!70]
+  at (-0.45, -2.3) {join search\\problem 1};
+\node[font=\scriptsize\itshape, align=center, anchor=center,
+      text=black!70]
+  at (2.0, 0.1) {join search\\problem 2};
 
 % QR code to the pgsql-hackers thread that proposes the relocation.
 % Positioned in the empty area to the right of the tree, below T_N.
