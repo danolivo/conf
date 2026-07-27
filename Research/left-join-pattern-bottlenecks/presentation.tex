@@ -22,6 +22,12 @@
 \setbeamerfont{block title}{size=\tiny}
 \setbeamertemplate{navigation symbols}{}
 
+% Make the slide canvas transparent.  With this in place, exporting
+% slides via "pdftocairo -png -transp presentation.pdf slide" produces
+% PNGs with a transparent slide body (the blue title bar and footer
+% remain opaque since those are foreground elements, not background).
+\setbeamertemplate{background canvas}{}
+
 %Information to be included in the title page:
 % Short forms (in brackets) are used in headers/footers; long forms (in
 % braces) appear on the title page itself.  This lets the cover carry
@@ -148,13 +154,17 @@
 \vspace{-2mm}
 \begin{center}
 \begin{tikzpicture}[
-  page/.style={draw=black!35, line width=0.5pt, fill=white,
+  % Three levels of fill so the mockup reads on a transparent slide:
+  %   page  = light grey  (separates "the website" from the slide)
+  %   card  = white       (cards pop against the page)
+  %   imgbox= medium grey (image placeholder visible inside the card)
+  page/.style={draw=black!35, line width=0.5pt, fill=black!6,
                rounded corners=2pt},
-  header/.style={draw=pgblue!50, line width=0.4pt, fill=pgblue!12,
+  header/.style={draw=pgblue!50, line width=0.4pt, fill=pgblue!18,
                  rounded corners=1pt},
   card/.style={draw=black!30, line width=0.4pt, rounded corners=1pt,
-               fill=white},
-  imgbox/.style={draw=black!18, fill=black!4, rounded corners=0.5pt},
+               fill=pgblue!5},
+  imgbox/.style={draw=black!22, fill=black!12, rounded corners=0.5pt},
   tag/.style={draw=pgorange!55, fill=pgorange!16, rounded corners=1pt,
               font=\sffamily\tiny, inner sep=1pt,
               text=pgorange!45!black},
@@ -222,6 +232,16 @@
 \end{itemize}
 
 \vspace{3mm}
+% CAVEAT AUDIT [tech-presenter skill] -- Specimens in the wild.
+% Claim: the reflexive-vs-deliberate dichotomy below is asserted, not
+% defended. ORMs (Rails, Django, Hibernate) emit the pattern as a
+% byproduct of their inheritance mapping; Salesforce and 1C ship it
+% as an intentional product feature. Whether that counts as
+% "reflexive vs deliberate" is a reading, not a fact.
+% Proposed fix: justify in one phrase, OR soften with a parenthetical
+% such as "(my reading -- push back if yours differs)" appended to
+% the line below.
+
 {\small Generated reflexively by ORMs (Rails, Django, Hibernate) and
 deliberately by platforms (Salesforce, 1C).  Same query shape, same
 bottleneck.}
@@ -244,7 +264,7 @@ bottleneck.}
 ]
 \node[basetbl] (ol) at (0, 0)
   {\textbf{order\_lines}\\[1pt]
-   \texttt{(item\_type, item\_id)}};
+   \texttt{(type, id)}};
 \node[candtbl] (p) at (-1.3, -1.6)  {products};
 \node[candtbl] (g) at (0,    -1.6)  {gift\_cards};
 \node[candtbl] (s) at (1.3,  -1.6)  {subscriptions};
@@ -397,14 +417,14 @@ SELECT
     COALESCE(p.name, g.name, s.name) AS item_name
 FROM order_lines ol
   LEFT JOIN products p
-    ON ol.item_type = 'product' AND ol.item_id = p.id
+    ON ol.type = 'product' AND ol.id = p.id
   LEFT JOIN gift_cards g
-    ON ol.item_type = 'gift_card' AND ol.item_id = g.id
+    ON ol.type = 'gift_card' AND ol.id = g.id
   LEFT JOIN subscriptions s
-    ON ol.item_type = 'subscription' AND ol.item_id = s.id
+    ON ol.type = 'subscription' AND ol.id = s.id
 WHERE EXISTS (
   SELECT 1 FROM orders o
-  WHERE o.id = ol.order_id AND o.placed_at >= 2024/01/01)
+  WHERE o.id = ol.id AND o.placed_at >= 2024/01/01)
 ORDER BY ol.popularity
 LIMIT 100
 \end{lstlisting}
@@ -437,6 +457,14 @@ LIMIT 100
 \begin{frame}\frametitle{Why it blows up: the per-row mismatch}
 \vspace{-2mm}
 \begin{center}
+% CAVEAT AUDIT [tech-presenter skill] -- Why it blows up: per-row mismatch.
+% Claim: "The planner picks one probe order for all rows" -- true in
+% the general case, but the Result Filter / One-Sided Clause Guard
+% slides two sections down show a partial exception: the planner can
+% short-circuit specific inner-side scans per row.
+% Proposed fix: append a parenthetical to acknowledge the partial
+% exception the deck itself is about to introduce:
+%   "(modulo the per-row guards we'll see two slides later)"
 {\small The discriminator picks one target per row.\\
 The planner picks one probe order for \emph{all} rows.}
 \end{center}
@@ -461,21 +489,21 @@ The planner picks one probe order for \emph{all} rows.}
 
 % Row 1
 \node[rowlabel, anchor=east] at (-1.1, -0.4)
-  {\texttt{item\_type=}\textsf{`product'}};
+  {\texttt{type=}\textsf{`product'}};
 \node[cell, hit]  at (0,   -0.4) {\checkmark};
 \node[cell, miss] at (2.0, -0.4) {$\times$};
 \node[cell, miss] at (4.0, -0.4) {$\times$};
 
 % Row 2
 \node[rowlabel, anchor=east] at (-1.1, -1.3)
-  {\texttt{item\_type=}\textsf{`gift\_card'}};
+  {\texttt{type=}\textsf{`gift\_card'}};
 \node[cell, miss] at (0,   -1.3) {$\times$};
 \node[cell, hit]  at (2.0, -1.3) {\checkmark};
 \node[cell, miss] at (4.0, -1.3) {$\times$};
 
 % Row 3
 \node[rowlabel, anchor=east] at (-1.1, -2.2)
-  {\texttt{item\_type=}\textsf{`subscription'}};
+  {\texttt{type=}\textsf{`subscription'}};
 \node[cell, miss] at (0,   -2.2) {$\times$};
 \node[cell, miss] at (2.0, -2.2) {$\times$};
 \node[cell, hit]  at (4.0, -2.2) {\checkmark};
@@ -796,6 +824,15 @@ The planner picks one probe order for \emph{all} rows.}
 \end{tikzpicture}
 \end{center}
 \vspace{-2mm}
+% CAVEAT AUDIT [tech-presenter skill] -- Amplifier: Base Table Growth.
+% Claim: "Doubling M doubles the number of probes on the inner side."
+% True only when each LEFT JOIN matches at most one inner row -- which
+% holds here because each candidate target table has the join key as
+% its PK. Weaken that assumption (non-unique inner side) and the math
+% becomes M * average-match-count, not M.
+% Proposed fix: append a parenthetical to lock the assumption in:
+%   "(when each LEFT JOIN matches at most one inner row -- guaranteed
+%   here by PK uniqueness on the candidate targets)"
 {\small Every edge carries $M$ rows. Doubling $M$ doubles the number of probes on the inner side.}
 \end{frame}
 
@@ -817,14 +854,14 @@ The planner picks one probe order for \emph{all} rows.}
 %
 % Current behavior:
 %   NestLoop Left Join
-%     Join Filter: (p.dtype = 'B')   ← evaluated AFTER inner scan
+%     Join Filter: (ol.item_type = 'product')  ← evaluated AFTER inner scan
 %     → parent (outer)
 %     → Index Scan child (inner)     ← always executed
 %
 % Andres's proposed behavior:
 %   NestLoop Left Join
 %     → parent (outer)
-%     → Result                       ← one-time filter: p.dtype = 'B'
+%     → Result                       ← one-time filter: ol.item_type = 'product'
 %       → Index Scan child (inner)   ← skipped when Result filter is false
 
 \begin{frame}\frametitle{Concept: Result Filter}
@@ -861,7 +898,7 @@ The planner picks one probe order for \emph{all} rows.}
 \node[draw=red!50, rounded corners=2pt, fill=red!8,
       font=\ttfamily\tiny, text=red!70, inner sep=2pt,
       anchor=north] (jf) at (0, 0.55)
-  {Join Filter: p.dtype = 'B'};
+  {Join Filter: ol.type = 'product'};
 \draw[thin, red!40] (lj.north) -- (jf.south);
 
 \end{tikzpicture}
@@ -902,7 +939,7 @@ Filter rejects result \emph{after} the probe.}
 
 % Result node injected above inner scan on the inner side
 \node[resultnode] (result) at (1.3, -1.6)
-  {\textbf{Result}\\[-2pt]{\tiny\texttt{p.dtype = 'B'}}};
+  {\textbf{Result}\\[-2pt]{\tiny\texttt{ol.type = 'product'}}};
 \node[tbl] (inner) at (1.3, -3.0) {inner};
 
 \draw[edge] (outer) -- (lj);
@@ -997,19 +1034,19 @@ If false $\to$ returns $\emptyset$; inner scan \emph{never launched}.}
 
 % Inner-side paths: Join --dashed--> [guard badge] <--green-- target table
 
-% Path 1: lj1 --> [type='product'] <-- products
+% Path 1: lj1 --> [item_type='product'] <-- products
 \node[cond] (c1) at ($(lj1.south east)!0.45!(t1.north west)$)
   {type\,=\,'product'};
 \draw[condline] (lj1.south east) -- (c1);
 \draw[cool] (t1) -- (c1);
 
-% Path 2: lj2 --> [type='gift_card'] <-- gift_cards
+% Path 2: lj2 --> [item_type='gift_card'] <-- gift_cards
 \node[cond] (c2) at ($(lj2.south east)!0.45!(t2.north west)$)
   {type\,=\,'gift\_card'};
 \draw[condline] (lj2.south east) -- (c2);
 \draw[cool] (t2) -- (c2);
 
-% Path 3: lj3 --> [type='subscription'] <-- subscriptions
+% Path 3: lj3 --> [item_type='subscription'] <-- subscriptions
 \node[cond] (c3) at ($(lj3.east)!0.45!(t3.west)$)
   {type\,=\,'subscription'};
 \draw[condline] (lj3.east) -- (c3);
@@ -1635,6 +1672,15 @@ inside the M-block.}
 \node[font=\scriptsize\itshape, align=center, anchor=center,
       text=black!75]
   at (2.7, -3.5)
+  % CAVEAT AUDIT [tech-presenter skill] -- After EXISTS pull-up annotation.
+  % Claim: "orders never meets order_lines [...] in a single join search
+  % problem". True for THIS query layout -- an EXISTS subquery that
+  % references only one base-table column. An EXISTS that references
+  % multiple base columns, or carries its own JOIN tree, would relocate
+  % differently (or not at all).
+  % Proposed fix: scope the claim with a parenthetical or footnote:
+  %   "(for this layout -- EXISTS subqueries that reference multiple
+  %   columns or carry their own JOINs would relocate differently)"
   {\textbf{orders} never meets\\\textbf{order\_lines}\\in a single join search problem};
 
 \end{tikzpicture}
@@ -1762,6 +1808,215 @@ inside the M-block.}
 
 \end{tikzpicture}
 \end{center}
+\end{frame}
+
+% --- Adjacent problem: join cardinality ----------------------
+% Transition between the three planner-level fixes (Result Filter,
+% Sort Pushdown, SubLink relocation) and the closing material.
+% This section frames a complementary issue: even when the planner
+% sees the right shape, it costs the shape with row-count estimates
+% that are routinely wrong by orders of magnitude.  The Huinker /
+% Wang proposal (pgsql-hackers, Dec 2025 onwards) gives the planner
+% real join statistics rather than the independence assumption.
+
+{
+\setbeamertemplate{footline}{}
+\begin{frame}[plain]
+\vspace*{\fill}
+\begin{center}
+{\Huge\bfseries\color{pgblue!85!black} How many rows, really?}\\[10mm]
+{\large\itshape An adjacent problem ---\\join cardinality across $N$ joins}
+\end{center}
+\vspace*{\fill}
+\end{frame}
+}
+
+% CARDINALITY PROBLEM SLIDE
+%
+% The three patches reshape the tree; this slide says: the planner
+% still has to *cost* the reshaped tree, and the cost depends on
+% row-count estimates that get worse multiplicatively at every join.
+
+\begin{frame}\frametitle{The estimates the planner trusts}
+\vspace{-1mm}
+
+PostgreSQL costs each join under the \textbf{independence
+assumption}: $|A \bowtie B| \approx |A| \cdot |B| \cdot
+\text{sel}(A.x = B.y)$, where the selectivity is read from
+single-column statistics on each side.
+
+\vspace{2mm}
+
+\begin{itemize}\small
+  \item Leis et al.\ (VLDB 2015) measured these estimates on the
+        JOB benchmark:\\
+        \textbf{errors compound} --- the median 4-way join estimate
+        is off by 10$\times$, the worst by $\geq$1000$\times$.
+  \item For our polymorphic shape this hits twice over:
+        \begin{itemize}\scriptsize
+          \item the join column distribution is \emph{conditional}
+                on the discriminator;
+          \item the per-row mismatch (slide 6) means only one branch
+                contributes, but the planner does not see that
+                until execution.
+        \end{itemize}
+  \item Consequence: even when Result Filter, Sort Pushdown, and
+        SubLink relocation produce the right \emph{shape}, the
+        planner may still pick the wrong join order because the
+        \emph{cost} of that shape is wrong.
+\end{itemize}
+
+\vspace{1mm}
+\begin{center}\small\itshape
+The planner is solving the right problem with the wrong numbers.
+\end{center}
+\end{frame}
+
+% JOIN STATISTICS PROPOSAL SLIDE (with QR code)
+%
+% Corey Huinker started the thread "Is there value in having
+% optimizer stats for joins/foreignkeys?" on pgsql-hackers in
+% Dec 2025.  Alexandra Wang posted patches.  Participants include
+% Tomas Vondra, Tom Lane, Andrei Lepikhov, jian he, Chengpeng Yan.
+% QR points to the canonical message-id thread.
+
+\begin{frame}\frametitle{Optimizer statistics for joins}
+\vspace{-1mm}
+
+\begin{columns}[T]
+\begin{column}{0.62\textwidth}
+\small
+\textbf{The proposal} (Huinker, Wang; pgsql-hackers, Dec~2025--):
+collect statistics \emph{about the join itself} --- not just about
+each side independently.
+
+\vspace{1.5mm}
+For a frequently joined pair $(A.x, B.y)$, store:
+\begin{itemize}\scriptsize
+  \item the matching row count,
+  \item the join-key distribution in the result,
+  \item optionally, per-discriminator breakdowns.
+\end{itemize}
+
+\vspace{1.5mm}
+\textbf{Where it comes from:}
+\begin{itemize}\scriptsize
+  \item declared FKs $\to$ exact upper bound, for free;
+  \item \texttt{ANALYZE} can sample joins like it samples tables;
+  \item extended statistics is the natural plug-in point.
+\end{itemize}
+\end{column}
+\begin{column}{0.36\textwidth}
+\centering
+\vspace{2mm}
+\qrcode[height=2.4cm]{https://www.postgresql.org/message-id/CADkLM\%3DcUwMftPLFq0iD6-qKRyNiRM2HZGYVp6\%3D0noxA8GfuEtA\%40mail.gmail.com}\\[1.5mm]
+{\scriptsize\bfseries pgsql-hackers thread}\\[0.5mm]
+{\scriptsize\itshape ``Is there value in having\\optimizer stats for\\joins/foreignkeys?''}\\[1mm]
+{\scriptsize C.~Huinker, A.~Wang, et al.\\Dec~2025--}
+\end{column}
+\end{columns}
+\end{frame}
+
+% HOW IT HELPS POLYMORPHIC RESOLUTION SLIDE
+%
+% Tie back to the three patches: join statistics give them better
+% costing, which is what they need to be picked by the planner in
+% the first place.
+
+\begin{frame}\frametitle{Why this matters for polymorphic shapes}
+\vspace{-1mm}
+
+\begin{itemize}\small
+  \item \textbf{Result Filter} is only chosen if the planner
+        believes the filter is selective.  Today the selectivity of
+        \texttt{ol.type = 'product'} on the joined side is a
+        guess; join-level stats turn it into a measurement.
+  \item \textbf{Sort Pushdown} is only chosen if the planner
+        believes the presorted path is cheap enough.  Join-level
+        stats give a real row-count for the sort input, instead of
+        the product of two unconditional marginals.
+  \item \textbf{SubLink relocation} reshapes the tree across
+        $\geq$$M$ joins.  The whole point is that the planner gets
+        to compare alternatives --- it can only do that if the
+        alternatives are costed correctly.
+\end{itemize}
+
+\vspace{2mm}
+\begin{center}\small
+\begin{tikzpicture}[node distance=4mm]
+\node[draw=pgblue!70, rounded corners=3pt, fill=pgblue!8,
+      inner sep=2mm, font=\scriptsize, align=center]
+      (shape) {Three patches\\(\emph{shape})};
+\node[draw=pgorange!70, rounded corners=3pt, fill=pgorange!12,
+      inner sep=2mm, font=\scriptsize, align=center, right=of shape]
+      (cost) {Join statistics\\(\emph{cost})};
+\node[font=\scriptsize, right=of cost, align=center]
+      (out)  {$\Rightarrow$ planner picks\\the right plan};
+\draw[->, thick, pgblue!70] (shape) -- (cost);
+\draw[->, thick, pgorange!70] (cost) -- (out);
+\end{tikzpicture}
+\end{center}
+
+\vspace{1mm}
+{\scriptsize\itshape The three patches and join statistics are
+complementary: shape without cost is a lottery; cost without shape
+is precision aimed at the wrong target.}
+\end{frame}
+
+% --- Q & A ----------------------------------------------------
+
+{
+\setbeamertemplate{footline}{}
+\begin{frame}[plain]
+\vspace*{\fill}
+\begin{center}
+{\Huge\bfseries\color{pgblue!85!black} Q \& A}
+\end{center}
+\vspace*{\fill}
+\end{frame}
+}
+
+% --- References ----------------------------------------------
+% Three pgsql-hackers thread QRs across the top, literature
+% anchors below.
+
+\begin{frame}\frametitle{References}
+\vspace{-2mm}
+\begin{center}
+{\small\bfseries Patches on \texttt{pgsql-hackers}}
+\end{center}
+
+\begin{columns}[T]
+\begin{column}{0.32\textwidth}
+\centering
+\qrcode[height=2.0cm]{https://www.mail-archive.com/pgsql-hackers@lists.postgresql.org/msg184706.html}\\[1mm]
+{\scriptsize One-sided clause guard\\(Dec 2024)}
+\end{column}
+\begin{column}{0.32\textwidth}
+\centering
+\qrcode[height=2.0cm]{https://www.postgresql.org/message-id/19a9265c-c441-4a43-bc0d-dac533438da0@gmail.com}\\[1mm]
+{\scriptsize Presorted outer path\\(Apr 2026)}
+\end{column}
+\begin{column}{0.32\textwidth}
+\centering
+\qrcode[height=2.0cm]{https://www.postgresql.org/message-id/54aa2de9-dd13-4147-a847-6c095861d34b@gmail.com}\\[1mm]
+{\scriptsize SubLink relocation\\(May 2026)}
+\end{column}
+\end{columns}
+
+\vspace{3mm}
+{\small\bfseries In the literature}
+\begin{itemize}\scriptsize
+  \item M.~Fowler, \textit{Patterns of Enterprise Application
+        Architecture}, Addison-Wesley, 2002
+  \item B.~Karwin, \textit{SQL Antipatterns}, Pragmatic Bookshelf,
+        2010 --- ch.\ ``Polymorphic Associations''
+  \item V.~Leis et al., \textit{How Good Are Query Optimizers,
+        Really?}, VLDB 2015
+  \item Rails Guides, Salesforce SOQL \texttt{TYPEOF},
+        GitLab handbook (polymorphic associations banned),
+        django-polymorphic
+\end{itemize}
 \end{frame}
 
 \end{document}
