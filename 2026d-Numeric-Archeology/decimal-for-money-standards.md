@@ -3,66 +3,29 @@
 Тип `numeric` является важным числовым типом используемым платформой 1С. Учитывая, что операции с этим типом значительно медленнее стандартных `int`/`bigint`/`real` или `double precision`, то встаёт вопрос: а действительно ли есть необходимость в такой точности? Можно же хранить денежные величины с точностью до копеек и округлять по стандартному правилу. - это бы могло прилично сэкономить вычислительные ресурсы наших серверов баз данных, разве нет?
 
 Так что здесь я буду искать ответ на вопрос: правда ли,
-что `NUMERIC`/`DECIMAL` — стандарт (пусть даже и де-факто) для финансовых приложений, оправдано ли его применение, или это инженерный фольклор?
+что `numeric` — стандарт (пусть даже и де-факто) для финансовых приложений, оправдано ли его применение, или это инженерный фольклор?
 
-Короткий ответ: **формального требования «используйте NUMERIC для денег» не существует нигде** — ни в ISO SQL, ни в законодательстве. Но существуют четыре независимых слоя требований, которым двоичная плавающая точка не удовлетворяет по построению.
+Короткий ответ: формального требования «используйте numeric для денег» не существует нигде — ни в ISO SQL, ни в законодательстве. Но существуют четыре независимых слоя требований, которым двоичная плавающая точка не удовлетворяет по построению.
 
 ---
 
-## 1. Чего в стандартах нет
+## Что имеется в стандарте SQL SO/IEC 9075-2:2023
 
-### 1.1. В ISO SQL нет типа MONEY
+В ISO SQL нет ни типа MONEY. Нет не только типа — в стандарте языка SQL вообще отсутствует понятие валюты. `money` в PostgreSQL и `money`/`smallmoney` в SQL Server — вендорские расширения, а не реализация стандарта.
 
-Проверено по грамматике SQL:2016 Foundation
-([извлечение Джейка Уита из ISO/IEC 9075-2:2016](https://jakewheat.github.io/sql-overview/sql-2016-foundation-grammar.html)):
-токен `MONEY` в грамматике не встречается. То же самое по публичному тексту SQL-92
-([ANSI draft, зеркало CMU](https://www.contrib.andrew.cmu.edu/~shadow/sql/sql1992.txt)).
+Имеется три категории числовых типов:
 
-`money` в PostgreSQL и `money`/`smallmoney` в SQL Server — вендорские расширения, а не
-реализация стандарта.
+- Exact numeric types: `NUMERIC`, `DECIMAL`, `SMALLINT`, `INTEGER`, `BIGINT`.
+- Approximate numeric types: `FLOAT`, `REAL`, `DOUBLE PRECISION`.
+- The decimal floating-point type: `DECFLOAT`.
 
-**Вывод:** стандарт даёт категорию «точный числовой тип», но нигде не говорит, чем
-хранить деньги.
+У типов `Numeric` и `Decimal` есть небольшая семантическая разница.
 
-### 1.2. Что стандарт всё-таки говорит
+Подраздел 6.1 «<data type>», Syntax Rules 28 и 29:
+> 28) NUMERIC specifies the data type exact numeric, with the decimal precision and scale specified by the <precision> and <scale>.
+> 29) DECIMAL specifies the data type exact numeric, with the decimal scale specified by the <scale> and the implementation-defined (ID063) decimal precision equal to or greater than the value of the specified <precision>.
 
-SQL-92, подраздел 4.4 «Numbers»
-([текст](https://www.contrib.andrew.cmu.edu/~shadow/sql/sql1992.txt)):
-
-> «The data types NUMERIC, DECIMAL, INTEGER, and SMALLINT are collectively referred to as
-> exact numeric types.»
-
-Разница между `NUMERIC` и `DECIMAL` — цитата стандарта, приведённая Томом Лейном в
-pgsql-hackers ещё в 2000 году
-([message-id `20835.948044134@sss.pgh.pa.us`](https://www.postgresql.org/message-id/20835.948044134%40sss.pgh.pa.us)),
-и независимо у [datacadamia](https://datacadamia.com/sql/decimal):
-
-> «NUMERIC specifies the data type exact numeric, with the decimal precision and scale
-> specified by the \<precision\> and \<scale\>.»
->
-> «DECIMAL specifies the data type exact numeric, with the decimal scale specified by the
-> \<scale\> and the implementation-defined decimal precision **equal to or greater than**
-> the value of the specified \<precision\>.»
-
-То же у Гулуцана и Пельцера, [«SQL-99 Complete, Really», гл. 3](https://sql-99.readthedocs.io/en/latest/chapters/03.html).
-
-**Практическое следствие:** `NUMERIC(15,2)` — контракт на ровно 15 цифр, `DECIMAL(15,2)` —
-на «не меньше 15». В PostgreSQL это синонимы, но переносимость кода это затрагивает.
-
-В SQL:2016 появилась и третья категория — `<decimal floating-point type>`, то есть
-`DECFLOAT` (см. ту же грамматику).
-
-### 1.3. Минимальной обязательной точности стандарт не задаёт
-
-**НЕ ПОДТВЕРЖДЕНО.** Ни в одном доступном источнике не нашлось нормы, обязывающей
-реализацию поддерживать какую-то минимальную точность; везде максимум объявлен
-implementation-defined. MySQL формулирует только семантическое требование
-([Fixed-Point Types](https://dev.mysql.com/doc/refman/8.4/en/fixed-point-types.html)):
-
-> «Standard SQL requires that `DECIMAL(5,2)` be able to store any value with five digits
-> and two decimals.»
-
-Утверждать про «стандарт требует минимум N цифр» не следует.
+Для понимания различия: NUMERIC(15,2) — это жёсткое ограничение ровно на 15 цифр, DECIMAL(15,2) — на «не меньше 15». По этому определению оба типа можно скомбинировать в один, чем и пользуется постгрессовый `numeric`.
 
 ---
 
