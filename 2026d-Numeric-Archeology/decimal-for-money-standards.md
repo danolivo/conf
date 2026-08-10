@@ -2,8 +2,7 @@
 
 Тип `numeric` является важным числовым типом используемым платформой 1С. Учитывая, что операции с этим типом значительно медленнее стандартных `int`/`bigint`/`real` или `double precision`, то встаёт вопрос: а действительно ли есть необходимость в такой точности? Можно же хранить денежные величины с точностью до копеек и округлять по стандартному правилу. - это бы могло прилично сэкономить вычислительные ресурсы наших серверов баз данных, разве нет?
 
-Так что здесь я буду искать ответ на вопрос: правда ли,
-что `numeric` — стандарт (пусть даже и де-факто) для финансовых приложений, оправдано ли его применение, или это инженерный фольклор?
+Так что здесь я буду искать ответ на вопрос: правда ли, что `numeric` — стандарт (пусть даже и де-факто) для финансовых приложений, оправдано ли его применение, или это инженерный фольклор?
 
 Короткий ответ: формального требования «используйте numeric для денег» не существует нигде — ни в ISO SQL, ни в законодательстве. Но существуют четыре независимых слоя требований, которым двоичная плавающая точка не удовлетворяет по построению.
 
@@ -27,17 +26,20 @@
 
 Для понимания различия: NUMERIC(15,2) — это жёсткое ограничение ровно на 15 цифр, DECIMAL(15,2) — на «не меньше 15». По этому определению оба типа можно скомбинировать в один, чем и пользуется постгрессовый `numeric`.
 
+Cтандарт предусматривает реализацию точного десятичного типа поверх двоичного целого — ровно то, что делают Arrow, SQL Server, DuckDB и пр. Фиксированная ширина на int64/int128 — это предусмотренный им вариант.
+
+Подраздел 4.5.2 «Characteristics of numbers»:
+«An exact numeric type has a precision P and a scale S. P is a positive integer that determines the number of significant digits in a particular radix R, where R is either 2 or 10. S is a non-negative integer. Every value of an exact numeric type of scale S is of the form n × 10⁻ˢ, where n is an integer such that −Rᴾ ≤ n < Rᴾ.»
+
+Итого. Точный десятичный тип входит в обязательное ядро SQL — реализация без DECIMAL/NUMERIC просто не соответствует стандарту. А DECFLOAT — опциональная фича, наравне с BIGINT.
+
 ---
 
-## 2. Международный уровень: где decimal фактически обязателен
+## 2. Технические требования к финансовым операциям
 
-### 2.1. Право
-
-**ЕС, регламент Совета (EC) № 1103/97 о введении евро** — самый жёсткий из найденных
-документов. [Полный текст на EUR-Lex](https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:31997R1103).
+Регламент Совета EC No. 1103/97 [о введении евро](https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:31997R1103) хорошо проработан и достаточно однозначно требует шесть значащих десятичных цифр без округления и усечения, запрещает альтернативный метод, дающий иной результат и фиксирует детерминированное поведение при округлении за пределами точности. Тип `float` под такие требования не подходит.
 
 Статья 4:
-
 > «The conversion rates shall be adopted with six significant figures.»
 >
 > «The conversion rates **shall not be rounded or truncated** when making conversions.»
@@ -50,25 +52,15 @@
 > be used unless it produces the same results.**»
 
 Статья 5:
-
 > «Monetary amounts to be paid or accounted for when a rounding takes place after a
 > conversion into the euro unit pursuant to Article 4 shall be rounded up or down to the
 > nearest cent. … **If the application of the conversion rate gives a result which is
 > exactly half-way, the sum shall be rounded up.**»
 
-Здесь три требования, каждое из которых двоичный float нарушает: шесть значащих
-десятичных цифр без округления и усечения; запрет альтернативного метода, дающего иной
-результат; и детерминированное поведение ровно на половине.
-
-**Великобритания, НДС.** [HMRC VAT Trader Records, VATREC12030](https://www.gov.uk/hmrc-internal-manuals/vat-trader-records/vatrec12030):
+Великобритания, [HMRC VAT Trader Records, VATREC12030](https://www.gov.uk/hmrc-internal-manuals/vat-trader-records/vatrec12030). Требования к масштабу формулируются в долях пенни и точность в три знака после запятой.
 
 > «If the VAT on any transaction comes to less than 0.5 of one penny, it should be rounded
 > down. If the VAT comes to 0.5 of one penny or more, it should be rounded up.»
-
-Обратите внимание на масштаб: правило формулируется в **долях пенни**, а
-[VATREC12010](https://www.gov.uk/hmrc-internal-manuals/vat-trader-records/vatrec12010)
-допускает «rounding down to one tenth of a penny» и «rounding to 3 digits». То есть
-требуемая точность — не «два знака», а больше.
 
 ### 2.2. Форматы обмена финансовыми данными
 
@@ -175,41 +167,26 @@ given. Maximum of 2 may be present for the given currency».
 Отсюда прямое инженерное следствие: «два знака после запятой» — не универсальная
 константа, а параметр модели данных.
 
-### 2.4. Отраслевые бенчмарки: показательный раскол
+### А какие требования у стандартных TPC-бенчмарков?
 
-**TPC-C**, [Standard Specification Rev. 5.11, клауза 1.3.1](https://www.tpc.org/tpc_documents_current_versions/pdf/tpc-c_v5.11.0.pdf) —
-самая сильная формулировка из всех найденных:
+Бенчмарк TPC-C требует точных вычислений и следования стандарту SQL.
 
-> «Numeric fields that contain monetary values (W_YTD, D_YTD, C_CREDIT_LIM, C_BALANCE,
-> C_YTD_PAYMENT, H_AMOUNT, OL_AMOUNT, I_PRICE) **must use data types that are defined by
-> the DBMS as being an exact numeric data type** or that satisfy the ANSI SQL Standard
-> definition of being an exact numeric representation.»
+[Standard Specification Rev. 5.11, клауза 1.3.1](https://www.tpc.org/tpc_documents_current_versions/pdf/tpc-c_v5.11.0.pdf) —
+> Numeric fields that contain monetary values (W_YTD, D_YTD, C_CREDIT_LIM, C_BALANCE, C_YTD_PAYMENT, H_AMOUNT, OL_AMOUNT, I_PRICE) **must use data types that are defined by the DBMS as being an exact numeric data type** or that satisfy the ANSI SQL Standard definition of being an exact numeric representation.
 
-Колонки объявлены как `signed numeric(12,2)`, `signed numeric(6,2)` и т. п.
+То же самое имеется в требованиях TPC-E.
 
-**TPC-E** (брокерский бенчмарк),
 [v1.14.0, клауза 2.2.1](https://www.tpc.org/tpc_documents_current_versions/pdf/tpc-e_v1.14.0.pdf):
-
-> «ENUM and SENUM… must be implemented using a Native Data Type which provides **exact
-> representation** of at least n Digits of precision after the decimal place.»
+> «ENUM and SENUM… must be implemented using a Native Data Type which provides **exact representation** of at least n Digits of precision after the decimal place.»
 >
 > «BALANCE_T is defined as SENUM(12,2)… FIN_AGG_T is defined as SENUM(15,2)…»
 
-**А вот TPC-H и TPC-DS — нет.**
+Бенчмарки, ориентированные на аналитику - TPC-H и TPC-DS — снижают требования к точности. Для `Integer` требование точности сформулировано жёстко, а для `Decimal` нет - в агрегатах требования к точности требуют обеспечения 1%.
+
 [TPC-H v3.0.1, клауза 1.3.1](https://www.tpc.org/tpc_documents_current_versions/pdf/tpc-h_v3.0.1.pdf):
+> «Decimal means that the column must be able to represent values in the range −9,999,999,999.99 to +9,999,999,999.99 in increments of 0.01; the values can be **either represented exactly or interpreted to be in this range**»
 
-> «Decimal means that the column must be able to represent values in the range
-> −9,999,999,999.99 to +9,999,999,999.99 in increments of 0.01; the values can be **either
-> represented exactly or interpreted to be in this range**»
-
-И там же допуск при валидации (клауза 2.1.3.5): «within $100» для `SUM` и «within 1 %» для
-`AVG`. [TPC-DS v3.2.0, клауза 2.2.2.1](https://www.tpc.org/tpc_documents_current_versions/pdf/tpc-ds_v3.2.0.pdf)
-содержит ту же лазейку — причём для `Integer` требование точности сформулировано жёстко,
-а для `Decimal` нет.
-
-**Вывод:** транзакционные бенчмарки требуют точного типа дословно, аналитические —
-явно разрешают приближение. Этот раскол сам по себе — хороший ответ на вопрос «где
-numeric обязателен, а где нет».
+Интересный вывод: транзакционные бенчмарки требуют точного типа дословно, аналитические — явно разрешают приближение. Такое послабление потенциально позволяет включать различные оптимизации для запроса, объявленного как "аналитический". Любопытно, используется ли где-то в вроде этот нюанс при переносе данных их "горячей" транзакционной БД в холодное аналитическое хранилище?
 
 ### 2.5. Что говорят вендоры СУБД
 
