@@ -66,58 +66,13 @@ Cтандарт не запрещает реализацию точного де
 
 Чтобы проанализировать форматы обмена финансовыми данными, пришлось прибегнуть к помощи Claude.
 
-**ISO 20022** (SWIFT, SEPA, платёжные системы). Из официальной XSD (`pacs.008.001.07`,
-[копия схемы](https://raw.githubusercontent.com/yudhik/example-iso-20022/master/src/main/java/id/brainmaster/iso20022/model/pacs.008.001.07.xsd);
-идентично в [`camt.053.001.05`](https://github.com/kedder/ofxstatement-iso20022/blob/master/doc/camt.053.001.05.xsd)):
-
-```xml
-<xs:simpleType name="ActiveCurrencyAndAmount_SimpleType">
-    <xs:restriction base="xs:decimal">
-        <xs:fractionDigits value="5"/>
-        <xs:totalDigits value="18"/>
-        <xs:minInclusive value="0"/>
-    </xs:restriction>
-</xs:simpleType>
-<xs:complexType name="ActiveCurrencyAndAmount">
-    <xs:simpleContent>
-        <xs:extension base="ActiveCurrencyAndAmount_SimpleType">
-            <xs:attribute name="Ccy" type="ActiveCurrencyCode" use="required"/>
-        </xs:extension>
-    </xs:simpleContent>
-</xs:complexType>
-```
-
-То есть межбанковский стандарт — это структурно `NUMERIC(18,5)` плюс обязательный код валюты. Прямого запрета на плавающую точку в тексте нет, но намерение однозначно: в официальном JSON-биндинге суммы передаются **строками**
+ISO 20022. [пример](https://raw.githubusercontent.com/yudhik/example-iso-20022/master/src/main/java/id/brainmaster/iso20022/model/pacs.008.001.07.xsd) (SWIFT, SEPA, платёжные системы) позволяет сделать вывод, что межбанковский стандарт — это структурно `NUMERIC(18,5)` плюс обязательный код валюты. Прямого запрета на плавающую точку в тексте нет, но намерение однозначно: в официальном JSON-биндинге суммы передаются строками
 ([ISO 20022 JSON Schema draft, 10.06.2025](https://www.iso20022.org/sites/default/files/media/file/ISO_20022_Generation_of_JSON_Schema_Draft_2020_12_for_ISO_20022_2013_10June2025.pdf)):
-
 > «Number type are represented as strings because there was a preference for validating
 > the total digits and fraction digits in the schema.»
 
-Поверх этого действуют повалютные ограничения:
-[xmldation, Currency decimals](https://knowledge.xmldation.com/support/iso20022/general_rules/currency_decimals) —
-`<InstdAmt Ccy="EUR">10.403</InstdAmt>` отвергается с сообщением «Too many decimal digits
-given. Maximum of 2 may be present for the given currency».
-
 Отдельная деталь от представителя SWIFT
-([Kris Ketels, W3C Web Payments WG](https://lists.w3.org/Archives/Public/public-payments-wg/2016May/0014.html)):
-в ISO 20022 отрицательных сумм не бывает вовсе — дебет это или кредит, определяется
-контекстом, а не знаком.
-
-**XBRL** (отчётность для SEC/ESMA). Из схемы `xbrl-instance-2003-12-31.xsd`
-([рендер Liquid Technologies](https://schemas.liquid-technologies.com/XBRL/2.1/xbrl-instance-2003-12-31_xsd.html)):
-
-```xml
-<simpleType name="monetary">
-  <restriction base="decimal" />
-</simpleType>
-```
-
-Нюанс, который стоит знать: атрибуты `@decimals` и `@precision` в XBRL — это **метаданные
-о точности реального факта**, а не объявление точности хранения. Рабочая записка XBRL
-[«Precision, Decimals and Units 1.0»](http://www.xbrl.org/WGN/precision-decimals-units/WGN-2017-01-11/precision-decimals-units-WGN-2017-01-11.html):
-
-> «The `@precision` and `@decimals` attributes indicate the range in which the actual value
-> of the fact that gave rise to its expressed value in the XBRL instance lies.»
+([Kris Ketels, W3C Web Payments WG](https://lists.w3.org/Archives/Public/public-payments-wg/2016May/0014.html)) указывает на то, что в ISO 20022 отрицательных сумм не бывает вовсе — дебет это или кредит, определяется контекстом, а не знаком.
 
 **FIX** (биржевая торговля). В tag-value FIX 4.4 тип `float` определён как символьная
 строка ([FIX 4.4 dictionary, Onix](https://www.onixs.biz/fix-dictionary/4.4/index.html)):
