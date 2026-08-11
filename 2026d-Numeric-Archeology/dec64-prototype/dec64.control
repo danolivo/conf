@@ -1,0 +1,4 @@
+comment = 'exact fixed-point decimal type stored in a single machine word'
+default_version = '1.0'
+module_pathname = '$libdir/dec64'
+relocatable = true
