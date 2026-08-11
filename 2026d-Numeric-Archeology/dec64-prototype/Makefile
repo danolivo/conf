@@ -1,8 +1,8 @@
 MODULE_big = dec64
-OBJS = dec64.o
+OBJS = dec64.o dec128.o
 EXTENSION = dec64
 DATA = dec64--1.0.sql
-REGRESS = dec64
+REGRESS = dec64 dec128
 PGFILEDESC = "dec64 - exact fixed-point decimal in a machine word"
 
 PG_CONFIG ?= $(HOME)/pgdev-upstream/tmp_install/bin/pg_config

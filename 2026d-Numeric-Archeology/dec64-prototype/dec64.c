@@ -75,32 +75,12 @@
 #include "utils/numeric.h"
 #include "utils/sortsupport.h"
 
-PG_MODULE_MAGIC;
+#include "dec_common.h"
 
-#ifndef HAVE_INT128
-#error "dec64 requires a native 128-bit integer type"
-#endif
+PG_MODULE_MAGIC;
 
 StaticAssertDecl(sizeof(Datum) >= 8,
 				 "dec64 is pass-by-value and needs a 64-bit Datum");
-
-typedef int64 Dec64;
-
-#define DEC64_MAX_SCALE			7
-#define DEC64_MAX_PRECISION		18
-#define DEC64_SCALE_BITS		3
-#define DEC64_SCALE_MASK		((int64) 0x7)
-#define DEC64_MAX_MANT			INT64CONST(999999999999999999)
-
-#define DEC64_SCALE(v)			((int) ((v) & DEC64_SCALE_MASK))
-#define DEC64_MANT(v)			((int64) (v) >> DEC64_SCALE_BITS)
-#define DEC64_MAKE(m, s)		\
-	((Dec64) (((uint64) (int64) (m) << DEC64_SCALE_BITS) | (uint64) (s)))
-
-#define DatumGetDec64(X)		((Dec64) DatumGetInt64(X))
-#define Dec64GetDatum(X)		Int64GetDatum((int64) (X))
-#define PG_GETARG_DEC64(n)		DatumGetDec64(PG_GETARG_DATUM(n))
-#define PG_RETURN_DEC64(x)		return Dec64GetDatum(x)
 
 /* typmod layout: (precision << 8) | scale, offset by VARHDRSZ as numeric does */
 #define DEC64_TYPMOD_IS_VALID(t)	((t) >= (int32) VARHDRSZ)
@@ -108,8 +88,8 @@ typedef int64 Dec64;
 #define DEC64_TYPMOD_SCALE(t)		(((t) - VARHDRSZ) & 0xff)
 #define DEC64_MAKE_TYPMOD(p, s)		((((p) << 8) | (s)) + VARHDRSZ)
 
-/* 10^0 .. 10^18 */
-static const int64 dec64_pow10[DEC64_MAX_PRECISION + 1] = {
+/* 10^0 .. 10^18, shared with the dec128 tier */
+const int64 dec64_pow10[DEC64_MAX_PRECISION + 1] = {
 	INT64CONST(1), INT64CONST(10), INT64CONST(100), INT64CONST(1000),
 	INT64CONST(10000), INT64CONST(100000), INT64CONST(1000000),
 	INT64CONST(10000000), INT64CONST(100000000), INT64CONST(1000000000),
@@ -1676,12 +1656,28 @@ dec64_agg_state(FunctionCallInfo fcinfo, int argno)
 }
 
 /*
+ * Report an accumulator that has outgrown 128 bits.  Reaching this needs on
+ * the order of 10^13 rows, but "unreachable" is not the same as "checked",
+ * and a silently wrapped sum is the worst failure a money type could have.
+ */
+static pg_noinline void
+dec64_agg_overflow(void)
+{
+	ereport(ERROR,
+			(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+			 errmsg("running total is out of range for a dec64 aggregate"),
+			 errdetail("The 128-bit accumulator overflowed.")));
+}
+
+/*
  * Add a 128-bit quantity held at scale "vscale" into the accumulator,
  * normalising whichever side carries the smaller scale.
  */
 static void
 dec64_agg_add(Dec64AggState *state, __int128 mant, int vscale)
 {
+	__int128	addend = mant;
+
 	Assert(vscale >= 0 && vscale <= DEC64_MAX_SCALE);
 
 	if (!state->seen)
@@ -1692,16 +1688,25 @@ dec64_agg_add(Dec64AggState *state, __int128 mant, int vscale)
 		return;
 	}
 
-	if (likely(vscale == state->scale))
-		state->sum += mant;
-	else if (vscale > state->scale)
+	if (unlikely(vscale != state->scale))
 	{
-		state->sum *= (__int128) dec64_pow10[vscale - state->scale];
-		state->sum += mant;
-		state->scale = vscale;
+		if (vscale > state->scale)
+		{
+			/* lift the running total to the wider scale */
+			if (__builtin_mul_overflow(state->sum,
+									   (__int128) dec64_pow10[vscale - state->scale],
+									   &state->sum))
+				dec64_agg_overflow();
+			state->scale = vscale;
+		}
+		else if (__builtin_mul_overflow(mant,
+										(__int128) dec64_pow10[state->scale - vscale],
+										&addend))
+			dec64_agg_overflow();
 	}
-	else
-		state->sum += mant * (__int128) dec64_pow10[state->scale - vscale];
+
+	if (unlikely(__builtin_add_overflow(state->sum, addend, &state->sum)))
+		dec64_agg_overflow();
 }
 
 /*

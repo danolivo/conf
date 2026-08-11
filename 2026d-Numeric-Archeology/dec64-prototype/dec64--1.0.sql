@@ -121,7 +121,13 @@ CREATE OPERATOR > (LEFTARG = dec64, RIGHTARG = dec64, FUNCTION = dec64_gt,
                    COMMUTATOR = <, NEGATOR = <=,
                    RESTRICT = scalargtsel, JOIN = scalargtjoinsel);
 
-CREATE OPERATOR CLASS dec64_ops DEFAULT FOR TYPE dec64 USING btree AS
+-- Both tiers share one btree operator family, so cross-tier comparisons can
+-- drive index scans and merge joins, exactly as integer_ops does for
+-- smallint/integer/bigint.
+CREATE OPERATOR FAMILY dec_ops USING btree;
+
+CREATE OPERATOR CLASS dec64_ops DEFAULT FOR TYPE dec64 USING btree
+    FAMILY dec_ops AS
     OPERATOR 1 <,
     OPERATOR 2 <=,
     OPERATOR 3 =,
@@ -307,22 +313,7 @@ CREATE OPERATOR > (LEFTARG = numeric, RIGHTARG = dec64, FUNCTION = numeric_dec64
                    COMMUTATOR = <, NEGATOR = <=,
                    RESTRICT = scalargtsel, JOIN = scalargtjoinsel);
 
--- Register the cross-type members so an index on a dec64 column can still be
--- used when the comparison value arrives as numeric.
-ALTER OPERATOR FAMILY dec64_ops USING btree ADD
-    OPERATOR 1 < (dec64, numeric),
-    OPERATOR 2 <= (dec64, numeric),
-    OPERATOR 3 = (dec64, numeric),
-    OPERATOR 4 >= (dec64, numeric),
-    OPERATOR 5 > (dec64, numeric),
-    FUNCTION 1 dec64_numeric_cmp(dec64, numeric),
-    OPERATOR 1 < (numeric, dec64),
-    OPERATOR 2 <= (numeric, dec64),
-    OPERATOR 3 = (numeric, dec64),
-    OPERATOR 4 >= (numeric, dec64),
-    OPERATOR 5 > (numeric, dec64),
-    FUNCTION 1 numeric_dec64_cmp(numeric, dec64),
-    FUNCTION 1 (numeric, numeric) numeric_cmp(numeric, numeric);
+-- Cross-type family members are registered once, at the end of this script.
 
 -- ---------------------------------------------------------------------------
 -- Rounding and inspection
@@ -444,3 +435,459 @@ ALTER FUNCTION numeric_dec64_eq(numeric, dec64) SUPPORT dec64_cmp_support;
 ALTER FUNCTION numeric_dec64_ne(numeric, dec64) SUPPORT dec64_cmp_support;
 ALTER FUNCTION numeric_dec64_ge(numeric, dec64) SUPPORT dec64_cmp_support;
 ALTER FUNCTION numeric_dec64_gt(numeric, dec64) SUPPORT dec64_cmp_support;
+
+-- ===========================================================================
+-- dec128 — wide tier: 37 significant digits, up to 15 decimals, 16 bytes
+--
+-- The upper rung of DuckDB's int64/int128 ladder, which one PostgreSQL type
+-- cannot hold because pg_type.typlen is a single value per type.  Here it is
+-- a second type, and the widening between the tiers follows the convention
+-- core already uses for smallint/integer/bigint.
+--
+-- Four bits of the word carry the scale, so the range is 37 digits rather
+-- than DuckDB's 38.  That bit buys scale up to 15, without which the widest
+-- normative money format — N(26.11) from the Russian FTS e-invoice schema —
+-- would not fit at any precision.
+-- ===========================================================================
+
+CREATE TYPE dec128;
+
+CREATE FUNCTION dec128_in(cstring, oid, integer) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_out(dec128) RETURNS cstring
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_recv(internal, oid, integer) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_send(dec128) RETURNS bytea
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128typmodin(cstring[]) RETURNS integer
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128typmodout(integer) RETURNS cstring
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE TYPE dec128 (
+    INPUT = dec128_in,
+    OUTPUT = dec128_out,
+    RECEIVE = dec128_recv,
+    SEND = dec128_send,
+    TYPMOD_IN = dec128typmodin,
+    TYPMOD_OUT = dec128typmodout,
+    INTERNALLENGTH = 16,
+    ALIGNMENT = double,
+    STORAGE = plain,
+    CATEGORY = 'N'
+);
+
+COMMENT ON TYPE dec128 IS
+    'exact fixed-point decimal, 37 significant digits, up to 15 decimal places';
+
+CREATE FUNCTION dec128(dec128, integer) RETURNS dec128
+    AS 'MODULE_PATHNAME', 'dec128_scale_typmod'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE CAST (dec128 AS dec128) WITH FUNCTION dec128(dec128, integer) AS IMPLICIT;
+
+-- Arithmetic ----------------------------------------------------------------
+
+CREATE FUNCTION dec128_add(dec128, dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_sub(dec128, dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_mul(dec128, dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_div(dec128, dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_mod(dec128, dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_uminus(dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_uplus(dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OPERATOR + (LEFTARG = dec128, RIGHTARG = dec128,
+                   FUNCTION = dec128_add, COMMUTATOR = +);
+CREATE OPERATOR - (LEFTARG = dec128, RIGHTARG = dec128, FUNCTION = dec128_sub);
+CREATE OPERATOR * (LEFTARG = dec128, RIGHTARG = dec128,
+                   FUNCTION = dec128_mul, COMMUTATOR = *);
+CREATE OPERATOR / (LEFTARG = dec128, RIGHTARG = dec128, FUNCTION = dec128_div);
+CREATE OPERATOR % (LEFTARG = dec128, RIGHTARG = dec128, FUNCTION = dec128_mod);
+CREATE OPERATOR - (RIGHTARG = dec128, FUNCTION = dec128_uminus);
+CREATE OPERATOR + (RIGHTARG = dec128, FUNCTION = dec128_uplus);
+
+-- Comparison, ordering, hashing ---------------------------------------------
+
+CREATE FUNCTION dec128_cmp(dec128, dec128) RETURNS integer
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_lt(dec128, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_le(dec128, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_eq(dec128, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_ne(dec128, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_ge(dec128, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_gt(dec128, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_hash(dec128) RETURNS integer
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_hash_extended(dec128, bigint) RETURNS bigint
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_sortsupport(internal) RETURNS void
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OPERATOR < (LEFTARG = dec128, RIGHTARG = dec128, FUNCTION = dec128_lt,
+                   COMMUTATOR = >, NEGATOR = >=,
+                   RESTRICT = scalarltsel, JOIN = scalarltjoinsel);
+CREATE OPERATOR <= (LEFTARG = dec128, RIGHTARG = dec128, FUNCTION = dec128_le,
+                    COMMUTATOR = >=, NEGATOR = >,
+                    RESTRICT = scalarlesel, JOIN = scalarlejoinsel);
+CREATE OPERATOR = (LEFTARG = dec128, RIGHTARG = dec128, FUNCTION = dec128_eq,
+                   COMMUTATOR = =, NEGATOR = <>,
+                   RESTRICT = eqsel, JOIN = eqjoinsel, HASHES, MERGES);
+CREATE OPERATOR <> (LEFTARG = dec128, RIGHTARG = dec128, FUNCTION = dec128_ne,
+                    COMMUTATOR = <>, NEGATOR = =,
+                    RESTRICT = neqsel, JOIN = neqjoinsel);
+CREATE OPERATOR >= (LEFTARG = dec128, RIGHTARG = dec128, FUNCTION = dec128_ge,
+                    COMMUTATOR = <=, NEGATOR = <,
+                    RESTRICT = scalargesel, JOIN = scalargejoinsel);
+CREATE OPERATOR > (LEFTARG = dec128, RIGHTARG = dec128, FUNCTION = dec128_gt,
+                   COMMUTATOR = <, NEGATOR = <=,
+                   RESTRICT = scalargtsel, JOIN = scalargtjoinsel);
+
+CREATE OPERATOR CLASS dec128_ops DEFAULT FOR TYPE dec128 USING btree
+    FAMILY dec_ops AS
+    OPERATOR 1 <, OPERATOR 2 <=, OPERATOR 3 =, OPERATOR 4 >=, OPERATOR 5 >,
+    FUNCTION 1 dec128_cmp(dec128, dec128),
+    FUNCTION 2 dec128_sortsupport(internal);
+
+CREATE OPERATOR CLASS dec128_ops DEFAULT FOR TYPE dec128 USING hash AS
+    OPERATOR 1 =,
+    FUNCTION 1 dec128_hash(dec128),
+    FUNCTION 2 dec128_hash_extended(dec128, bigint);
+
+-- Conversions ---------------------------------------------------------------
+
+CREATE FUNCTION numeric_dec128(numeric, integer) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_numeric(dec128) RETURNS numeric
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec64_dec128(dec64) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_dec64(dec128) RETURNS dec64
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION int2_dec128(smallint) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION int4_dec128(integer) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION int8_dec128(bigint) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_int2(dec128) RETURNS smallint
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_int4(dec128) RETURNS integer
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_int8(dec128) RETURNS bigint
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION float4_dec128(real) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION float8_dec128(double precision) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_float4(dec128) RETURNS real
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_float8(dec128) RETURNS double precision
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+-- dec64 widens into dec128 implicitly: 18 digits fit in 37, scale 7 in 15,
+-- so the conversion is always exact.  The reverse is narrowing.
+CREATE CAST (dec64 AS dec128) WITH FUNCTION dec64_dec128(dec64) AS IMPLICIT;
+CREATE CAST (dec128 AS dec64) WITH FUNCTION dec128_dec64(dec128) AS ASSIGNMENT;
+
+CREATE CAST (smallint AS dec128) WITH FUNCTION int2_dec128(smallint) AS ASSIGNMENT;
+CREATE CAST (integer AS dec128) WITH FUNCTION int4_dec128(integer) AS ASSIGNMENT;
+CREATE CAST (bigint AS dec128) WITH FUNCTION int8_dec128(bigint) AS ASSIGNMENT;
+CREATE CAST (numeric AS dec128) WITH FUNCTION numeric_dec128(numeric, integer) AS ASSIGNMENT;
+CREATE CAST (dec128 AS numeric) WITH FUNCTION dec128_numeric(dec128) AS IMPLICIT;
+CREATE CAST (dec128 AS smallint) WITH FUNCTION dec128_int2(dec128) AS ASSIGNMENT;
+CREATE CAST (dec128 AS integer) WITH FUNCTION dec128_int4(dec128) AS ASSIGNMENT;
+CREATE CAST (dec128 AS bigint) WITH FUNCTION dec128_int8(dec128) AS ASSIGNMENT;
+CREATE CAST (real AS dec128) WITH FUNCTION float4_dec128(real) AS ASSIGNMENT;
+CREATE CAST (double precision AS dec128) WITH FUNCTION float8_dec128(double precision) AS ASSIGNMENT;
+CREATE CAST (dec128 AS real) WITH FUNCTION dec128_float4(dec128) AS IMPLICIT;
+CREATE CAST (dec128 AS double precision) WITH FUNCTION dec128_float8(dec128) AS IMPLICIT;
+
+-- Mixed dec128/integer arithmetic --------------------------------------------
+
+CREATE FUNCTION dec128_add_int8(dec128, bigint) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_sub_int8(dec128, bigint) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_mul_int8(dec128, bigint) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_div_int8(dec128, bigint) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION int8_add_dec128(bigint, dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION int8_sub_dec128(bigint, dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION int8_mul_dec128(bigint, dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION int8_div_dec128(bigint, dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OPERATOR + (LEFTARG = dec128, RIGHTARG = bigint,
+                   FUNCTION = dec128_add_int8, COMMUTATOR = +);
+CREATE OPERATOR + (LEFTARG = bigint, RIGHTARG = dec128,
+                   FUNCTION = int8_add_dec128, COMMUTATOR = +);
+CREATE OPERATOR - (LEFTARG = dec128, RIGHTARG = bigint, FUNCTION = dec128_sub_int8);
+CREATE OPERATOR - (LEFTARG = bigint, RIGHTARG = dec128, FUNCTION = int8_sub_dec128);
+CREATE OPERATOR * (LEFTARG = dec128, RIGHTARG = bigint,
+                   FUNCTION = dec128_mul_int8, COMMUTATOR = *);
+CREATE OPERATOR * (LEFTARG = bigint, RIGHTARG = dec128,
+                   FUNCTION = int8_mul_dec128, COMMUTATOR = *);
+CREATE OPERATOR / (LEFTARG = dec128, RIGHTARG = bigint, FUNCTION = dec128_div_int8);
+CREATE OPERATOR / (LEFTARG = bigint, RIGHTARG = dec128, FUNCTION = int8_div_dec128);
+
+-- Cross-type comparison against numeric --------------------------------------
+
+CREATE FUNCTION dec128_numeric_cmp(dec128, numeric) RETURNS integer
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION numeric_dec128_cmp(numeric, dec128) RETURNS integer
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_numeric_lt(dec128, numeric) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_numeric_le(dec128, numeric) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_numeric_eq(dec128, numeric) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_numeric_ne(dec128, numeric) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_numeric_ge(dec128, numeric) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_numeric_gt(dec128, numeric) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION numeric_dec128_lt(numeric, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION numeric_dec128_le(numeric, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION numeric_dec128_eq(numeric, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION numeric_dec128_ne(numeric, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION numeric_dec128_ge(numeric, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION numeric_dec128_gt(numeric, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OPERATOR < (LEFTARG = dec128, RIGHTARG = numeric, FUNCTION = dec128_numeric_lt,
+                   COMMUTATOR = >, NEGATOR = >=, RESTRICT = scalarltsel, JOIN = scalarltjoinsel);
+CREATE OPERATOR <= (LEFTARG = dec128, RIGHTARG = numeric, FUNCTION = dec128_numeric_le,
+                    COMMUTATOR = >=, NEGATOR = >, RESTRICT = scalarlesel, JOIN = scalarlejoinsel);
+CREATE OPERATOR = (LEFTARG = dec128, RIGHTARG = numeric, FUNCTION = dec128_numeric_eq,
+                   COMMUTATOR = =, NEGATOR = <>, RESTRICT = eqsel, JOIN = eqjoinsel, MERGES);
+CREATE OPERATOR <> (LEFTARG = dec128, RIGHTARG = numeric, FUNCTION = dec128_numeric_ne,
+                    COMMUTATOR = <>, NEGATOR = =, RESTRICT = neqsel, JOIN = neqjoinsel);
+CREATE OPERATOR >= (LEFTARG = dec128, RIGHTARG = numeric, FUNCTION = dec128_numeric_ge,
+                    COMMUTATOR = <=, NEGATOR = <, RESTRICT = scalargesel, JOIN = scalargejoinsel);
+CREATE OPERATOR > (LEFTARG = dec128, RIGHTARG = numeric, FUNCTION = dec128_numeric_gt,
+                   COMMUTATOR = <, NEGATOR = <=, RESTRICT = scalargtsel, JOIN = scalargtjoinsel);
+
+CREATE OPERATOR < (LEFTARG = numeric, RIGHTARG = dec128, FUNCTION = numeric_dec128_lt,
+                   COMMUTATOR = >, NEGATOR = >=, RESTRICT = scalarltsel, JOIN = scalarltjoinsel);
+CREATE OPERATOR <= (LEFTARG = numeric, RIGHTARG = dec128, FUNCTION = numeric_dec128_le,
+                    COMMUTATOR = >=, NEGATOR = >, RESTRICT = scalarlesel, JOIN = scalarlejoinsel);
+CREATE OPERATOR = (LEFTARG = numeric, RIGHTARG = dec128, FUNCTION = numeric_dec128_eq,
+                   COMMUTATOR = =, NEGATOR = <>, RESTRICT = eqsel, JOIN = eqjoinsel, MERGES);
+CREATE OPERATOR <> (LEFTARG = numeric, RIGHTARG = dec128, FUNCTION = numeric_dec128_ne,
+                    COMMUTATOR = <>, NEGATOR = =, RESTRICT = neqsel, JOIN = neqjoinsel);
+CREATE OPERATOR >= (LEFTARG = numeric, RIGHTARG = dec128, FUNCTION = numeric_dec128_ge,
+                    COMMUTATOR = <=, NEGATOR = <, RESTRICT = scalargesel, JOIN = scalargejoinsel);
+CREATE OPERATOR > (LEFTARG = numeric, RIGHTARG = dec128, FUNCTION = numeric_dec128_gt,
+                   COMMUTATOR = <, NEGATOR = <=, RESTRICT = scalargtsel, JOIN = scalargtjoinsel);
+
+-- Cross-type family members are registered once, at the end of this script.
+
+CREATE FUNCTION dec128_cmp_support(internal) RETURNS internal
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+ALTER FUNCTION dec128_numeric_lt(dec128, numeric) SUPPORT dec128_cmp_support;
+ALTER FUNCTION dec128_numeric_le(dec128, numeric) SUPPORT dec128_cmp_support;
+ALTER FUNCTION dec128_numeric_eq(dec128, numeric) SUPPORT dec128_cmp_support;
+ALTER FUNCTION dec128_numeric_ne(dec128, numeric) SUPPORT dec128_cmp_support;
+ALTER FUNCTION dec128_numeric_ge(dec128, numeric) SUPPORT dec128_cmp_support;
+ALTER FUNCTION dec128_numeric_gt(dec128, numeric) SUPPORT dec128_cmp_support;
+ALTER FUNCTION numeric_dec128_lt(numeric, dec128) SUPPORT dec128_cmp_support;
+ALTER FUNCTION numeric_dec128_le(numeric, dec128) SUPPORT dec128_cmp_support;
+ALTER FUNCTION numeric_dec128_eq(numeric, dec128) SUPPORT dec128_cmp_support;
+ALTER FUNCTION numeric_dec128_ne(numeric, dec128) SUPPORT dec128_cmp_support;
+ALTER FUNCTION numeric_dec128_ge(numeric, dec128) SUPPORT dec128_cmp_support;
+ALTER FUNCTION numeric_dec128_gt(numeric, dec128) SUPPORT dec128_cmp_support;
+
+-- Rounding and inspection ----------------------------------------------------
+
+CREATE FUNCTION abs(dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME', 'dec128_abs' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION sign(dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME', 'dec128_sign' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION round(dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME', 'dec128_round' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION round(dec128, integer) RETURNS dec128
+    AS 'MODULE_PATHNAME', 'dec128_round_scale' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION trunc(dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME', 'dec128_trunc' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION trunc(dec128, integer) RETURNS dec128
+    AS 'MODULE_PATHNAME', 'dec128_trunc_scale' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION ceil(dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME', 'dec128_ceil' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION ceiling(dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME', 'dec128_ceil' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION floor(dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME', 'dec128_floor' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION scale(dec128) RETURNS integer
+    AS 'MODULE_PATHNAME', 'dec128_scale_fn' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+-- Aggregates -----------------------------------------------------------------
+
+CREATE FUNCTION dec128_accum(internal, dec128) RETURNS internal
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE PARALLEL SAFE;
+CREATE FUNCTION dec128_combine(internal, internal) RETURNS internal
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE PARALLEL SAFE;
+CREATE FUNCTION dec128_serialize(internal) RETURNS bytea
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_deserialize(bytea, internal) RETURNS internal
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_sum_final(internal) RETURNS numeric
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE PARALLEL SAFE;
+CREATE FUNCTION dec128_avg_final(internal) RETURNS numeric
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE PARALLEL SAFE;
+CREATE FUNCTION dec128_smaller(dec128, dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_larger(dec128, dec128) RETURNS dec128
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE AGGREGATE sum(dec128) (
+    SFUNC = dec128_accum, STYPE = internal, FINALFUNC = dec128_sum_final,
+    COMBINEFUNC = dec128_combine, SERIALFUNC = dec128_serialize,
+    DESERIALFUNC = dec128_deserialize, PARALLEL = SAFE
+);
+CREATE AGGREGATE avg(dec128) (
+    SFUNC = dec128_accum, STYPE = internal, FINALFUNC = dec128_avg_final,
+    COMBINEFUNC = dec128_combine, SERIALFUNC = dec128_serialize,
+    DESERIALFUNC = dec128_deserialize, PARALLEL = SAFE
+);
+CREATE AGGREGATE min(dec128) (
+    SFUNC = dec128_smaller, STYPE = dec128, COMBINEFUNC = dec128_smaller,
+    SORTOP = <, PARALLEL = SAFE
+);
+CREATE AGGREGATE max(dec128) (
+    SFUNC = dec128_larger, STYPE = dec128, COMBINEFUNC = dec128_larger,
+    SORTOP = >, PARALLEL = SAFE
+);
+
+-- ===========================================================================
+-- Cross-tier comparison, and the one family registration
+--
+-- Explicit dec64/dec128 operators are not a convenience: without them
+-- "a = b" over one column of each tier is ambiguous, because dec128 = dec128,
+-- dec64 = numeric and numeric = dec128 all match exactly one argument.  A
+-- candidate matching both wins outright.  Core carries a full int2/int4/int8
+-- matrix for the same reason.
+--
+-- They are deliberately NOT marked HASHES: the two tiers pack their bits
+-- differently and so hash differently, and a hash join across them must go
+-- through the widening cast.  MERGES is safe because both classes sit in one
+-- btree family.
+-- ===========================================================================
+
+CREATE FUNCTION dec64_dec128_cmp(dec64, dec128) RETURNS integer
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_dec64_cmp(dec128, dec64) RETURNS integer
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec64_dec128_lt(dec64, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec64_dec128_le(dec64, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec64_dec128_eq(dec64, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec64_dec128_ne(dec64, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec64_dec128_ge(dec64, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec64_dec128_gt(dec64, dec128) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_dec64_lt(dec128, dec64) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_dec64_le(dec128, dec64) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_dec64_eq(dec128, dec64) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_dec64_ne(dec128, dec64) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_dec64_ge(dec128, dec64) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION dec128_dec64_gt(dec128, dec64) RETURNS boolean
+    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OPERATOR < (LEFTARG = dec64, RIGHTARG = dec128, FUNCTION = dec64_dec128_lt,
+                   COMMUTATOR = >, NEGATOR = >=, RESTRICT = scalarltsel, JOIN = scalarltjoinsel);
+CREATE OPERATOR <= (LEFTARG = dec64, RIGHTARG = dec128, FUNCTION = dec64_dec128_le,
+                    COMMUTATOR = >=, NEGATOR = >, RESTRICT = scalarlesel, JOIN = scalarlejoinsel);
+CREATE OPERATOR = (LEFTARG = dec64, RIGHTARG = dec128, FUNCTION = dec64_dec128_eq,
+                   COMMUTATOR = =, NEGATOR = <>, RESTRICT = eqsel, JOIN = eqjoinsel, MERGES);
+CREATE OPERATOR <> (LEFTARG = dec64, RIGHTARG = dec128, FUNCTION = dec64_dec128_ne,
+                    COMMUTATOR = <>, NEGATOR = =, RESTRICT = neqsel, JOIN = neqjoinsel);
+CREATE OPERATOR >= (LEFTARG = dec64, RIGHTARG = dec128, FUNCTION = dec64_dec128_ge,
+                    COMMUTATOR = <=, NEGATOR = <, RESTRICT = scalargesel, JOIN = scalargejoinsel);
+CREATE OPERATOR > (LEFTARG = dec64, RIGHTARG = dec128, FUNCTION = dec64_dec128_gt,
+                   COMMUTATOR = <, NEGATOR = <=, RESTRICT = scalargtsel, JOIN = scalargtjoinsel);
+
+CREATE OPERATOR < (LEFTARG = dec128, RIGHTARG = dec64, FUNCTION = dec128_dec64_lt,
+                   COMMUTATOR = >, NEGATOR = >=, RESTRICT = scalarltsel, JOIN = scalarltjoinsel);
+CREATE OPERATOR <= (LEFTARG = dec128, RIGHTARG = dec64, FUNCTION = dec128_dec64_le,
+                    COMMUTATOR = >=, NEGATOR = >, RESTRICT = scalarlesel, JOIN = scalarlejoinsel);
+CREATE OPERATOR = (LEFTARG = dec128, RIGHTARG = dec64, FUNCTION = dec128_dec64_eq,
+                   COMMUTATOR = =, NEGATOR = <>, RESTRICT = eqsel, JOIN = eqjoinsel, MERGES);
+CREATE OPERATOR <> (LEFTARG = dec128, RIGHTARG = dec64, FUNCTION = dec128_dec64_ne,
+                    COMMUTATOR = <>, NEGATOR = =, RESTRICT = neqsel, JOIN = neqjoinsel);
+CREATE OPERATOR >= (LEFTARG = dec128, RIGHTARG = dec64, FUNCTION = dec128_dec64_ge,
+                    COMMUTATOR = <=, NEGATOR = <, RESTRICT = scalargesel, JOIN = scalargejoinsel);
+CREATE OPERATOR > (LEFTARG = dec128, RIGHTARG = dec64, FUNCTION = dec128_dec64_gt,
+                   COMMUTATOR = <, NEGATOR = <=, RESTRICT = scalargtsel, JOIN = scalargtjoinsel);
+
+ALTER OPERATOR FAMILY dec_ops USING btree ADD
+    OPERATOR 1 < (dec64, numeric),
+    OPERATOR 2 <= (dec64, numeric),
+    OPERATOR 3 = (dec64, numeric),
+    OPERATOR 4 >= (dec64, numeric),
+    OPERATOR 5 > (dec64, numeric),
+    FUNCTION 1 dec64_numeric_cmp(dec64, numeric),
+    OPERATOR 1 < (numeric, dec64),
+    OPERATOR 2 <= (numeric, dec64),
+    OPERATOR 3 = (numeric, dec64),
+    OPERATOR 4 >= (numeric, dec64),
+    OPERATOR 5 > (numeric, dec64),
+    FUNCTION 1 numeric_dec64_cmp(numeric, dec64),
+    OPERATOR 1 < (dec128, numeric),
+    OPERATOR 2 <= (dec128, numeric),
+    OPERATOR 3 = (dec128, numeric),
+    OPERATOR 4 >= (dec128, numeric),
+    OPERATOR 5 > (dec128, numeric),
+    FUNCTION 1 dec128_numeric_cmp(dec128, numeric),
+    OPERATOR 1 < (numeric, dec128),
+    OPERATOR 2 <= (numeric, dec128),
+    OPERATOR 3 = (numeric, dec128),
+    OPERATOR 4 >= (numeric, dec128),
+    OPERATOR 5 > (numeric, dec128),
+    FUNCTION 1 numeric_dec128_cmp(numeric, dec128),
+    OPERATOR 1 < (dec64, dec128),
+    OPERATOR 2 <= (dec64, dec128),
+    OPERATOR 3 = (dec64, dec128),
+    OPERATOR 4 >= (dec64, dec128),
+    OPERATOR 5 > (dec64, dec128),
+    FUNCTION 1 dec64_dec128_cmp(dec64, dec128),
+    OPERATOR 1 < (dec128, dec64),
+    OPERATOR 2 <= (dec128, dec64),
+    OPERATOR 3 = (dec128, dec64),
+    OPERATOR 4 >= (dec128, dec64),
+    OPERATOR 5 > (dec128, dec64),
+    FUNCTION 1 dec128_dec64_cmp(dec128, dec64),
+    FUNCTION 1 (numeric, numeric) numeric_cmp(numeric, numeric);
