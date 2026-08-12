@@ -2,13 +2,11 @@
 
 Тип `numeric` является важным числовым типом используемым в схеме БД многих приложений . Учитывая, что операции с этим типом значительно медленнее стандартных `int`/`bigint`/`real` или `double precision`, то я хочу прояснить вопрос: а действительно ли есть необходимость в такой точности? Можно же хранить денежные величины с точностью до копеек и округлять по стандартному правилу. - это бы могло прилично сэкономить вычислительные ресурсы наших серверов баз данных, разве нет?
 
-Так что здесь я буду искать ответ на вопрос: правда ли, что `numeric` (или *точные десятичные типы*) — стандарт, пусть даже и де-факто, для финансовых приложений. Оправдано ли его применение, или это инженерный фольклор?
+Так что здесь я буду искать ответ на вопрос, откуда растут ноги у различных представлений финансовых величин в базах данных. Правда ли, что `numeric` (или *точные десятичные типы*) — стандарт, пусть даже и де-факто, для финансовых приложений. Оправдано ли его применение, или это инженерный фольклор?
 
-Короткий ответ: формального требования «используйте numeric для денег» не существует нигде — ни в ISO SQL, ни в законодательстве. Но существуют несколько независимых слоя требований, которым двоичная плавающая точка не удовлетворяет по построению.
+Такое исследование - весьма сложная и скучная задача для разработчика СУ. Однако с AI агентами она становится проще - засучим рукава и попробуем разобраться в теме.
 
----
-
-## Что имеется в стандарте SQL SO/IEC 9075-2:2023
+## Что говорит нам стандарт SQL SO/IEC 9075-2:2023
 
 В ISO SQL нет ни типа MONEY. Нет не только типа — в стандарте языка SQL вообще отсутствует понятие валюты. Тип `money` в PostgreSQL и `money`/`smallmoney` в SQL Server — вендорские расширения, а не реализация стандарта.
 
@@ -118,14 +116,6 @@ ISO 20022. [Пример](https://raw.githubusercontent.com/yudhik/example-iso-2
 
 Если проанализировать документацию и публикации представителей разработки известных СУБД (см. ссылки yf на разделы документации [PostgreSQL](https://www.postgresql.org/docs/current/datatype-numeric.html), [SQL Server](https://learn.microsoft.com/en-us/sql/t-sql/data-types/float-and-real-transact-sql), [MySQL](https://dev.mysql.com/doc/refman/8.4/en/fixed-point-types.html), и [IBM](https://speleotrove.com/decimal/decifaq1.html)), то видно, что для точных вычислений (финансовые часто упоминаются прямо) они не рекомендуют использовать типы с двойной плавающей точкой. Прямой рекомендации обычно не даётся, что оставляет пространство для использования как `numeric`, так и целочисленного представления.
 
-### 1С
-
-**Тип «Число» в платформе** —
-[ИТС, «Разрядность результатов выражений и агрегатных функций»](https://its.1c.ru/db/content/metod8dev/src/developers/platform/metod/query/i8102665.htm):
-максимальная разрядность 38 знаков, нотация вида `Число(17,4)`, правила вывода разрядности
-результата для сложения, умножения и деления. Там же оговорка: **«В DB2 максимум составляет
-31, а не 38 знаков»** — косвенное, но сильное свидетельство, что «Число(N,M)» ложится прямо
-в `DECIMAL/NUMERIC(N,M)` СУБД, раз ограничение платформы наследуется от ограничения СУБД.
 
 ### Итог по РФ
 
@@ -138,192 +128,77 @@ ISO 20022. [Пример](https://raw.githubusercontent.com/yudhik/example-iso-2
 
 Закон не называет тип, но описывает поведение, которому в PostgreSQL удовлетворяет ровно `numeric`: точное десятичное хранение, отсутствие неявного округления, явно управляемый масштаб.
 
----
+### Немного библиографии
 
-## 4. Языки и фреймворки: где кончается документация и начинается фольклор
-
-### 4.3. Два самых цитируемых авторитета говорят не то, что им приписывают
-
-**Джошуа Блох, Effective Java, Item 60** — «Avoid float and double if exact answers are required» ([английский текст](https://github.com/clxering/Effective-Java-3rd-edition-Chinese-English-bilingual/blob/dev/Chapter-9/Chapter-9-Item-60-Avoid-float-and-double-if-exact-answers-are-required.md)):
+Джошуа Блох, "[Effective Java](https://github.com/clxering/Effective-Java-3rd-edition-Chinese-English-bilingual/blob/dev/Chapter-9/Chapter-9-Item-60-Avoid-float-and-double-if-exact-answers-are-required.md)" не рекомендует использовать `float` или `double` в любых вычислениях, где предполагается точный ответ. А `BigDecimal` и `int`/`long` предлагает как равноправные варианты.
 
 > In summary, don't use float or double for any calculations that require an exact answer. Use BigDecimal if you want the system to keep track of the decimal point and you don't mind the inconvenience and cost of not using a primitive type… **If performance is of the essence… use int or long.** If the quantities don't exceed nine decimal digits, you can use int; if they don't exceed eighteen digits, you can use long.
 
-Запрет у него один — на двоичный float. `BigDecimal` и `int`/`long` предлагаются как равноправные варианты.
+Мартин Фаулер в книге [Patterns of Enterprise Application Architecture](https://stackoverflow.com/questions/7574745/common-sense-when-storing-currencies) выступает строго против любых `float`-типов для операций над денежными величинами и агностичен между целым и десятичным.
 
-**Мартин Фаулер, PoEAA, гл. 18, паттерн Money.**
 
-> You can store the amount as either an integral type or a fixed decimal type. The decimal type is easier for some manipulations, the integral for others. **You should absolutely avoid any kind of floating point type**, as that will introduce the kind of rounding problems that Money is intended to avoid.
+[Cybertec, Ханс-Юрген Шёниг](https://www.cybertec-postgresql.com/en/postgresql-int4-vs-float4-vs-numeric/):
+> In the case of money, different rounding rules are needed, which is why numeric is the data type you have to use to handle financial data.
 
-Фаулер тоже агностичен между целым и десятичным. Его нерушимое требование — **валюта в типе**, а не десятичность представления.
+[Crunchy Data, Элизабет Кристенсен](https://www.crunchydata.com/blog/working-with-money-in-postgres)
+> «Use `int` or `bigint` if you can work with whole numbers of cents and you don't need fractional cents.»
+> «Use `decimal` / `numeric` for storing money in fractional cents and even out to many many decimal points.»
+> «Store currency separately from the actual monetary values…»
 
-**JSR 354 (Java Money) намеренно отказывается фиксировать представление.**
+
+В этом контексте можно привести достаточно подробно аргументированное мнение Otar Chekurishvili [Storing money as integer cents is often over-engineering](https://world.hey.com/otar/storing-money-as-integer-cents-is-often-over-engineering-7238a485):
+
+> When you store 1999 instead of 19.99, you don't actually solve a problem. You move it out of the database and into every other layer of the app.
+
+
+Спецификация Java для работы с денежными величинами (JSR 354) (Java Money) намеренно отказывается фиксировать представление.**
 [`javax.money.MonetaryAmount`](https://javamoney.github.io/apidocs/javax/money/MonetaryAmount.html):
 
 > JSR 354 explicitly supports different types of monetary amounts to be implemented and used. Reason behind is that the requirements to an implementation heavily vary for different usage scenarios.
 
-И референсная реализация везёт обе:
-[`Money`](https://raw.githubusercontent.com/JavaMoney/jsr354-ri/master/moneta-core/src/main/java/org/javamoney/moneta/Money.java) на `BigDecimal` и [`FastMoney`](https://raw.githubusercontent.com/JavaMoney/jsr354-ri/master/moneta-core/src/main/java/org/javamoney/moneta/FastMoney.java) на `long` в minor units, про который в javadoc написано:
+И референсная реализация везёт два варианта реализации: [`Money`](https://raw.githubusercontent.com/JavaMoney/jsr354-ri/master/moneta-core/src/main/java/org/javamoney/moneta/Money.java) на `BigDecimal` и [`FastMoney`](https://raw.githubusercontent.com/JavaMoney/jsr354-ri/master/moneta-core/src/main/java/org/javamoney/moneta/FastMoney.java) на `long` Про второй в javadoc утверждается, что он даёт ускорение в 10 - 15 раз, что может быть использовано, если большая точность не нужна.
 
-> It suggested to have a performance advantage of a 10-15 times faster compared to `Money`, which internally uses `BigDecimal`. Nevertheless this comes with a price of less precision.
+### Платежи: масштаб как атрибут валюты
 
-### Практика в платёжных API
+Платёжная индустрия деньги дробным числом не передаёт вообще. А причина здесь скорее всего в возрасте системы, стандартах, и тех возможностях ИТ, которые определили эти стандарты в 60х-70х гг.
 
-| Провайдер | Представление | Тип в JSON |
+**ISO 8583**, протокол карточных сетей, задаёт элемент данных DE 4 «Amount, transaction» форматом **`n 12`** — двенадцать цифр, и всё. В чисто числовом поле фиксированной длины десятичному разделителю просто негде разместиться, поэтому масштаб берётся снаружи — из поля «Currency code». Сумма на проводе — целое, а сколько у него знаков после запятой, определяет валюта. Количество знаков после запятой у валют разное: у JPY, KRW и VND — ноль, у USD, EUR и GBP — два, а у BHD, KWD, OMR, TND и JOD — три.
+
+Таким образом в платежах масштаб — это атрибут валюты, а не свойство числа. Он не хранится вместе со значением и не передаётся вместе с ним; он лежит в отдельном поле, а число остаётся целым.
+
+Платёжные HTTP-API сохраняют карточное наследие, а те, кто пришёл позже и не из карточного мира, часто выбирают способ представления десятичной строкой:
+
+| Система / формат | Величина | Формат сообщения |
 |---|---|---|
-| [Stripe](https://docs.stripe.com/api/charges/object) | целое, minor units | `integer` |
-| [Adyen](https://docs.adyen.com/development-resources/currency-codes/) | minor units | integer |
-| [Square](https://developer.squareup.com/reference/square/objects/Money) | smallest denomination | `int64` |
-| [Google `Money`](https://developers.google.com/android-publisher/api-ref/rest/v3/Money) | `units` (int64) + `nanos` (int32) | строка + integer |
-| [PayPal](https://raw.githubusercontent.com/paypal/paypal-rest-api-specifications/main/openapi/checkout_orders_v2.json) | десятичное | **строка** с regex |
-| [Braintree](https://developer.paypal.com/braintree/docs/reference/request/transaction/sale) | `BigDecimal` | десятичное/строка |
-| [Shopify](https://shopify.dev/docs/api/admin-graphql/latest/scalars/Decimal) | скаляр `Decimal` | **строка** |
-| [Wise](https://github.com/transferwise/api-docs/blob/master/source/includes/reference/_quotes.md) | `Decimal` | число |
-| [Plaid](https://raw.githubusercontent.com/plaid/plaid-openapi/master/2020-09-14.yml) | **`number` / `format: double`** | float64 |
-| [T-Bank](https://developer.tbank.ru/eacq/api/init) | целое, копейки | `Integer<int64>` |
-| [ЮKassa](https://yookassa.ru/developers/using-api/response-handling/response-format) | десятичное | строка |
-| [ISO 20022](https://github.com/kedder/ofxstatement-iso20022/blob/master/doc/camt.053.001.05.xsd) | `xs:decimal(18,5)` + `Ccy` | XML decimal |
+| ISO 8583 | целое | binary |
+| [FIX SBE](https://github.com/FIXTradingCommunity/fix-simple-binary-encoding/blob/master/v1-0-RC4/doc/02FieldEncoding.md) | целое | binary |
+| [Stripe](https://docs.stripe.com/api/charges/object) | целое | JSON |
+| [Adyen](https://docs.adyen.com/development-resources/currency-codes/) | целое | JSON |
+| [Square](https://developer.squareup.com/reference/square/objects/Money) | целое | JSON |
+| [T-Bank](https://developer.tbank.ru/eacq/api/init) | целое, копейки | JSON |
+| [Google `Money`](https://raw.githubusercontent.com/googleapis/googleapis/master/google/type/money.proto) | целое | protobuf (binary), JSON в REST |
+| [PayPal](https://raw.githubusercontent.com/paypal/paypal-rest-api-specifications/main/openapi/checkout_orders_v2.json) | десятичное | JSON |
+| [Shopify](https://shopify.dev/docs/api/admin-graphql/latest/scalars/Decimal) | десятичное | JSON (GraphQL) |
+| [ЮKassa](https://yookassa.ru/developers/using-api/response-handling/response-format) | десятичное | JSON |
+| [Braintree](https://developer.paypal.com/braintree/docs/reference/request/transaction/sale) | десятичное | JSON |
+| [Wise](https://github.com/transferwise/api-docs/blob/master/source/includes/reference/_quotes.md) (legacy v1) | десятичное | JSON |
+| [Plaid](https://raw.githubusercontent.com/plaid/plaid-openapi/master/2020-09-14.yml) | десятичное (`double`) | JSON |
+| [ISO 20022](https://github.com/kedder/ofxstatement-iso20022/blob/master/doc/camt.053.001.05.xsd) | десятичное (`decimal`) | XML |
+| [FIX 4.x / Latest](https://fiximate.fixtrading.org/en/FIX.Latest/fix_datatypes.html) | десятичное, текст | текст (tag=value) |
 
-Их основная проблема - в использовании JSON. В нём нет типа, способного переносить десятичную семантику. Как следствие, обычно используется строковое представление
+Таким образом, платёжная практика не отвергает точный десятичный тип — она добавляет к ним третье, независимое требование:
+Точность обязана сохраняться не только при хранении и не только при вычислении, но и при сериализации, когда значение разбирает парсер, который вы не писали. И приём, который на этом слое работает, заключается в хранении точной величины плюс масштаб, заданный вне значения — в соседнем поле, в схеме или в коде валюты.
 
-### 5.2. Почему в API целые: причина в JSON
+## ERP и системы учёта
 
-[RFC 8259, §6 «Numbers»](https://www.rfc-editor.org/rfc/rfc8259):
+- **SAP** — `packed decimal` плюс обязательное поле валюты [ABAP docs, currency field](https://eduardocopat.github.io/abap-docs/7.31/abencurrency_field/).
+- **Oracle E-Business Suite / Fusion** — `NUMBER` вообще без точности и масштаба. [GL_JE_LINES](https://docs.oracle.com/en/cloud/saas/financials/26a/oedmf/gljelines-24789.html).
+- Крайне странный пример - **Odoo**. Колонка в базе имеет тип `numeric`, [odoo/fields.py 17.0](https://raw.githubusercontent.com/odoo/odoo/17.0/odoo/fields.py), но значение в ORM — Python `float`. Оттуда и хелперы [odoo/tools/float_utils.py](https://raw.githubusercontent.com/odoo/odoo/17.0/odoo/tools/float_utils.py).
+> То есть если я всё правильно понимаю, production-ERP с `numeric`-колонками, которая всю арифметику ведёт в двоичном double. Колонка типа `numeric` сама по себе не означает десятичной арифметики — любопытный инсайт, не правда ли?
 
-> «Since software that implements IEEE 754 binary64 (double precision) numbers is generally
-> available and widely used, good interoperability can be achieved by implementations that
-> expect no more precision or range than these provide…»
->
-> «…numbers that are integers and are in the range [−(2**53)+1, (2**53)−1] are
-> **interoperable** in the sense that implementations will agree exactly on their numeric
-> values.»
+- **1С**. Тип «Число» в платформе — [ИТС, «Разрядность результатов выражений и агрегатных функций»](https://its.1c.ru/db/content/metod8dev/src/developers/platform/metod/query/i8102665.htm). Максимальная разрядность 38 знаков, нотация вида `Число(17,4)`, правила вывода разрядности результата для сложения, умножения и деления.
 
-В JSON нет десятичного типа, и гарантированно переживают round-trip только целые в
-пределах ±2⁵³. Отсюда две стратегии: либо целые в minor units (Stripe, Adyen, T-Bank),
-либо десятичное **строкой** (PayPal, Shopify, ЮKassa). Голое дробное JSON-число — это
-третий, наименее надёжный путь.
-
-Явная формулировка проблемы —
-[тред api-craft «Encoding of money amounts in JSON representations»](https://groups.google.com/g/api-craft/c/jwnVh9TJyVw)
-и [разбор про JS](https://cardinalby.github.io/blog/post/best-practices/storing-currency-values-data-types/):
-
-> «JavaScript uses signed *Float64* as an internal representation for the *number* data
-> type… by default a JavaScript application will overflow its number type trying to
-> deserialize JSON containing this value.»
-
-### 5.3. Ledger-системы
-
-[Modern Treasury, «Floats don't work for storing cents»](https://www.moderntreasury.com/journal/floats-dont-work-for-storing-cents):
-
-> «We primarily use 64-bit Integers to represent money in our system.»
-
-Суммы хранятся в дробных единицах на **PostgreSQL `bigint`**.
-
-Дословно противоположная позиция, для баланса —
-[Otar Chekurishvili, «Storing money as integer cents is often over-engineering»](https://world.hey.com/otar/storing-money-as-integer-cents-is-often-over-engineering-7238a485):
-
-> «When you store 1999 instead of 19.99, you don't actually solve a problem. You move it out
-> of the database and into every other layer of the app.»
-
----
-
-## 6. ERP и системы учёта: тут decimal побеждает
-
-**SAP** — packed decimal плюс обязательное поле валюты
-([ABAP docs, currency field](https://eduardocopat.github.io/abap-docs/7.31/abencurrency_field/);
-оригинал `help.sap.com` закрыт robots.txt):
-
-> «A data element of data type CURR is treated as a field of data type DEC and is stored in
-> database tables in the BCD format.»
->
-> «For every structure component of data type CURR, a component of the same structure or of
-> a different structure or database table must be specified… as a reference field, which has
-> the data type CUKY.»
-
-Это чистейшая реализация паттерна Фаулера: сумма + обязательная ссылка на валюту.
-
-**Oracle E-Business Suite / Fusion** — `NUMBER` вообще без точности и масштаба.
-[GL_JE_LINES](https://docs.oracle.com/en/cloud/saas/financials/26a/oedmf/gljelines-24789.html):
-`ENTERED_DR`, `ENTERED_CR`, `ACCOUNTED_DR`, `ACCOUNTED_CR` — все `NUMBER`.
-
-**ERPNext / Frappe** — `decimal(21,9)` на обоих бэкендах
-([mariadb/database.py](https://raw.githubusercontent.com/frappe/frappe/develop/frappe/database/mariadb/database.py),
-postgres-версия идентична):
-
-```python
-"Currency": ("decimal", "21,9"),
-"Float":    ("decimal", "21,9"),
-"Percent":  ("decimal", "21,9"),
-```
-
-Девять знаков дробной части, и бинарных float-колонок нет вовсе.
-
-**Odoo — лучший контрпример из всех, и не тот, которого ждёшь.** Колонка в базе —
-`numeric`, [odoo/fields.py 17.0](https://raw.githubusercontent.com/odoo/odoo/17.0/odoo/fields.py):
-
-```python
-class Monetary(Field):
-    """ Encapsulates a :class:`float` expressed in a given currency. """
-    type = 'monetary'
-    column_type = ('numeric', 'numeric')
-```
-
-Но значение в ORM — Python `float`. Оттуда и хелперы
-([odoo/tools/float_utils.py](https://raw.githubusercontent.com/odoo/odoo/17.0/odoo/tools/float_utils.py)):
-
-> `float_round`: «Return `value` rounded to `precision_digits` decimal digits, **minimizing
-> IEEE-754 floating point representation errors**, and applying the tie-breaking rule
-> selected with `rounding_method`, by default HALF-UP (away from zero).»
->
-> `float_compare`: «**Warning: `float_is_zero(value1-value2)` is not equivalent to
-> `float_compare(value1,value2) == 0`**, as the former will round after computing the
-> difference, while the latter will round before…»
-
-То есть production-ERP с `numeric`-колонками, которая всю арифметику ведёт в двоичном
-double. **Колонка типа `numeric` сама по себе не означает десятичной арифметики** — это,
-пожалуй, главный практический вывод всего раздела.
-
-Версии Odoo ≤ 15.0 несут `column_cast_from = ('float8',)` — свидетельство, что колонка
-исторически была `float8` и её мигрировали.
-
----
-
-## 7. Что говорят практики PostgreSQL
-
-[Wiki «Don't Do This»](https://wiki.postgresql.org/wiki/Don%27t_Do_This):
-
-> «The money data type isn't actually very good for storing monetary values. **Numeric, or
-> (rarely) integer may be better.**»
->
-> «it doesn't handle fractions of a cent…, it's rounding behaviour is probably not what you
-> want.»
->
-> «if you insert '$10.00' while lc_monetary is set to 'en_US.UTF-8' the value you retrieve
-> may be '10,00 Lei' or '¥1,000' if lc_monetary is changed.»
->
-> «Storing a value as a numeric, possibly with the currency being used in an adjacent
-> column, might be better.»
-
-[Cybertec, Ханс-Юрген Шёниг](https://www.cybertec-postgresql.com/en/postgresql-int4-vs-float4-vs-numeric/):
-
-> «In the case of money, different rounding rules are needed, which is why numeric is the
-> data type you have to use to handle financial data.»
-
-[Crunchy Data, Элизабет Кристенсен](https://www.crunchydata.com/blog/working-with-money-in-postgres) —
-и обратите внимание на порядок:
-
-> «Use `int` or `bigint` if you can work with whole numbers of cents and you don't need
-> fractional cents.»
->
-> «Use `decimal` / `numeric` for storing money in fractional cents and even out to many many
-> decimal points.»
->
-> «Store currency separately from the actual monetary values…»
-
----
-
-## 8. Судьба numeric: что умирает, а что нет
-
-### 8.1. Точный десятичный тип не умирает — он расширяется
+### Что происходит с точным десятичным типом
 
 - Период сосуществования MT и MX в SWIFT **закончился 22 ноября 2025 года**
   ([Swift, ISO 20022 FAQ](https://www.swift.com/standards/iso-20022/iso-20022-faqs/implementation)):
