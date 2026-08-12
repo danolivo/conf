@@ -1,16 +1,16 @@
-# Почему приложения используют тип numeric?
+# Почему в БД на PostgreSQL популярен тип `numeric`?
 
-Тип `numeric` является важным числовым типом используемым платформой 1С. Учитывая, что операции с этим типом значительно медленнее стандартных `int`/`bigint`/`real` или `double precision`, то встаёт вопрос: а действительно ли есть необходимость в такой точности? Можно же хранить денежные величины с точностью до копеек и округлять по стандартному правилу. - это бы могло прилично сэкономить вычислительные ресурсы наших серверов баз данных, разве нет?
+Тип `numeric` является важным числовым типом используемым в схеме БД многих приложений . Учитывая, что операции с этим типом значительно медленнее стандартных `int`/`bigint`/`real` или `double precision`, то я хочу прояснить вопрос: а действительно ли есть необходимость в такой точности? Можно же хранить денежные величины с точностью до копеек и округлять по стандартному правилу. - это бы могло прилично сэкономить вычислительные ресурсы наших серверов баз данных, разве нет?
 
-Так что здесь я буду искать ответ на вопрос: правда ли, что `numeric` — стандарт (пусть даже и де-факто) для финансовых приложений, оправдано ли его применение, или это инженерный фольклор?
+Так что здесь я буду искать ответ на вопрос: правда ли, что `numeric` (или *точные десятичные типы*) — стандарт, пусть даже и де-факто, для финансовых приложений. Оправдано ли его применение, или это инженерный фольклор?
 
-Короткий ответ: формального требования «используйте numeric для денег» не существует нигде — ни в ISO SQL, ни в законодательстве. Но существуют четыре независимых слоя требований, которым двоичная плавающая точка не удовлетворяет по построению.
+Короткий ответ: формального требования «используйте numeric для денег» не существует нигде — ни в ISO SQL, ни в законодательстве. Но существуют несколько независимых слоя требований, которым двоичная плавающая точка не удовлетворяет по построению.
 
 ---
 
 ## Что имеется в стандарте SQL SO/IEC 9075-2:2023
 
-В ISO SQL нет ни типа MONEY. Нет не только типа — в стандарте языка SQL вообще отсутствует понятие валюты. `money` в PostgreSQL и `money`/`smallmoney` в SQL Server — вендорские расширения, а не реализация стандарта.
+В ISO SQL нет ни типа MONEY. Нет не только типа — в стандарте языка SQL вообще отсутствует понятие валюты. Тип `money` в PostgreSQL и `money`/`smallmoney` в SQL Server — вендорские расширения, а не реализация стандарта.
 
 Имеется три категории числовых типов:
 
@@ -20,9 +20,9 @@
 
 У типов `Numeric` и `Decimal` есть небольшая семантическая разница.
 
-Подраздел 6.1 «<data type>», Syntax Rules 28 и 29:
-> 28) NUMERIC specifies the data type exact numeric, with the decimal precision and scale specified by the <precision> and <scale>.
-> 29) DECIMAL specifies the data type exact numeric, with the decimal scale specified by the <scale> and the implementation-defined (ID063) decimal precision equal to or greater than the value of the specified <precision>.
+Подраздел 6.1 «data type», Syntax Rules 28 и 29:
+> 28) NUMERIC specifies the data type exact numeric, with the decimal precision and scale specified by the precision and scale.
+> 29) DECIMAL specifies the data type exact numeric, with the decimal scale specified by the scale and the implementation-defined (ID063) decimal precision equal to or greater than the value of the specified precision.
 
 Для понимания различия: NUMERIC(15,2) — это жёсткое ограничение ровно на 15 цифр, DECIMAL(15,2) — на «не меньше 15». По этому определению оба типа можно скомбинировать в один, чем и пользуется постгрессовый `numeric`.
 
@@ -37,7 +37,7 @@ Cтандарт не запрещает реализацию точного де
 
 ---
 
-## 2. Технические требования к финансовым операциям
+## Технические требования к финансовым операциям
 
 Регламент Совета EC No. 1103/97 [о введении евро](https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:31997R1103) хорошо проработан и достаточно однозначно требует шесть значащих десятичных цифр без округления и усечения, и фиксирует детерминированное поведение при округлении за пределами точности. Тип `float` под такие требования не подходит.
 
@@ -114,77 +114,11 @@ ISO 20022. [Пример](https://raw.githubusercontent.com/yudhik/example-iso-2
 
 При этом правила округления не зафиксированы и сильно различаются как между СУБД, так и между типами внутри одной СУБД. На эту тему есть [пост](https://wrschneider.github.io/2022/03/08/spark-rounding.html) Bill Schneider, который подметил заметную разницы в вычислениях на Spark и SQL Server. Поэтому, чтобы избежать неопределённостей, IBM  DB2 просто вынесла это в [настройки](https://www.ibm.com/docs/en/db2-for-zos/12.0.0?topic=registers-current-decfloat-rounding-mode).
 
-### 2.5. Что говорят вендоры СУБД
+### Что говорят вендоры СУБД
 
-**PostgreSQL**, [Numeric Types](https://www.postgresql.org/docs/current/datatype-numeric.html):
+Если проанализировать документацию и публикации представителей разработки известных СУБД (см. ссылки yf на разделы документации [PostgreSQL](https://www.postgresql.org/docs/current/datatype-numeric.html), [SQL Server](https://learn.microsoft.com/en-us/sql/t-sql/data-types/float-and-real-transact-sql), [MySQL](https://dev.mysql.com/doc/refman/8.4/en/fixed-point-types.html), и [IBM](https://speleotrove.com/decimal/decifaq1.html)), то видно, что для точных вычислений (финансовые часто упоминаются прямо) они не рекомендуют использовать типы с двойной плавающей точкой. Прямой рекомендации обычно не даётся, что оставляет пространство для использования как `numeric`, так и целочисленного представления.
 
-> «The type `numeric` can store numbers with a very large number of digits. **It is
-> especially recommended for storing monetary amounts** and other quantities where
-> exactness is required. … **However, calculations on `numeric` values are very slow
-> compared to the integer types, or to the floating-point types**…»
->
-> (в разделе 8.1.3) «If you require exact storage and calculations (such as for monetary
-> amounts), use the `numeric` type instead.»
-
-И на [странице типа `money`](https://www.postgresql.org/docs/current/datatype-money.html):
-
-> «Floating point numbers should not be used to handle money due to the potential for
-> rounding errors.»
-
-**Microsoft SQL Server** — самая категоричная формулировка,
-[float and real](https://learn.microsoft.com/en-us/sql/t-sql/data-types/float-and-real-transact-sql):
-
-> «Because of the approximate nature of the float and real data types, **don't use these
-> data types when exact numeric behavior is required. Examples that require precise numeric
-> values are financial or business data**, operations involving rounding, or equality
-> checks. In those cases, use the integer, decimal, numeric, money, or smallmoney data
-> types.»
-
-**MySQL**, [Fixed-Point Types](https://dev.mysql.com/doc/refman/8.4/en/fixed-point-types.html):
-
-> «The DECIMAL and NUMERIC types store exact numeric data values. These types are used when
-> it is important to preserve exact precision, **for example with monetary data**.»
-
-**Oracle** — только механизм, про деньги не пишет.
-[SQL Language Reference 23](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/Data-Types.html):
-
-> «Values are stored using decimal precision for `NUMBER`. … Binary floating-point numbers
-> are stored using binary precision… Such a storage scheme cannot represent all values
-> using decimal precision exactly.»
-
-[Database Development Guide](https://docs.oracle.com/en/database/oracle/oracle-database/18/adfns/sql-data-types.html):
-
-> «NUMBER values are stored in decimal format. **For calculations that need decimal
-> rounding, use the NUMBER data type.**»
-
-**IBM** — прямого запрета в документации Db2 найти не удалось. Зато есть материал
-Майка Каулишо (написан в IBM),
-[Decimal Arithmetic FAQ](https://speleotrove.com/decimal/decifaq1.html), с самым известным
-расчётом в этой теме:
-
-> «Consider the calculation of a 5% sales tax on an item (such as a $0.70 telephone call),
-> which is then rounded to the nearest cent. Using double binary floating-point, the result
-> of 0.70 × 1.05 is 0.73499999999999998667732370449812151491641998291015625; the result
-> should have been 0.735 (which would be rounded up to $0.74) but instead the rounded result
-> would be $0.73.»
->
-> «**Taken over a million transactions of this kind… these systematic errors add up to an
-> overcharge of more than $20. For a large company, the million calls might be
-> two-minutes-worth; over a whole year the error then exceeds $5 million.**»
-
-Там же — данные о том, как реально типизированы коммерческие базы:
-
-> «Of the numeric columns, the breakdown by datatype was: Decimal 251,038 columns (55.0%),
-> SmallInt 120,464 (26.4%), Integer 78,842 (17.3%), Float 6,180 (1.4%).»
->
-> «These figures indicate that almost all (98.6%) of the numbers in commercial databases
-> have a decimal or integer representation.»
-
----
-
-## 3. Российская Федерация
-
-### 3.10. 1С
+### 1С
 
 **Тип «Число» в платформе** —
 [ИТС, «Разрядность результатов выражений и агрегатных функций»](https://its.1c.ru/db/content/metod8dev/src/developers/platform/metod/query/i8102665.htm):
@@ -193,49 +127,16 @@ ISO 20022. [Пример](https://raw.githubusercontent.com/yudhik/example-iso-2
 31, а не 38 знаков»** — косвенное, но сильное свидетельство, что «Число(N,M)» ложится прямо
 в `DECIMAL/NUMERIC(N,M)` СУБД, раз ограничение платформы наследуется от ограничения СУБД.
 
-**Официального маппинга «Число(N,M) → numeric(N,M)» найти не удалось.** Ни
-[ИТС «Размещение данных 1С:Предприятия 8»](https://its.1c.ru/db/content/metod8dev/src/admins/i8101798.htm),
-ни [статья 1С на Хабре про работу с разными СУБД](https://habr.com/ru/companies/1c/articles/753242/)
-таблицы соответствия типов не содержат. Утверждать без первоисточника не следует.
+### Итог по РФ
 
-**Зато есть официальный формат 1С с деньгами.** Стандарт DirectBank,
-[1C-Company/DirectBank](https://github.com/1C-Company/DirectBank), файл
-[`doc/xsd-scheme/1C-Bank_Exch-Common.xsd`](https://github.com/1C-Company/DirectBank/blob/master/doc/xsd-scheme/1C-Bank_Exch-Common.xsd):
+Прямого предписания «используйте точный десятичный тип» в российском законодательстве нет. Но из совокупности норм следует функционально эквивалентное требование:
 
-```xml
-<xsd:simpleType name="SumType">
-  <xsd:annotation>
-    <xsd:documentation>Сумма в документе</xsd:documentation>
-  </xsd:annotation>
-  <xsd:restriction base="xsd:decimal">
-    <xsd:totalDigits value="18"/>
-    <xsd:fractionDigits value="2"/>
-  </xsd:restriction>
-</xsd:simpleType>
-```
+1. **Хранение обязано быть точным до копейки** — ПП № 1137 требует рубли и копейки в счёте-фактуре, письма Минфина и ФНС запрещают там округление. Двоичный float не представляет 0,01 точно, значит система на `double precision` нарушает это по построению.
+2. **Округление — нормируемая операция в единственной точке**, а не побочный эффект арифметики.
+3. **Незаконное округление меняет налоговую обязанность** — это установлено судом, а не только логикой.
+4. **Разрядность зависит от валюты, и российские классификаторы её не дают** — значит масштаб может быть параметром модели, а не константой.
 
-`decimal(18,2)` — ровно то, что в PostgreSQL было бы `numeric(18,2)`.
-([Описание схем на сайте 1С](https://v8.1c.ru/tekhnologii/obmen-dannymi-i-integratsiya/standarty-i-formaty/standart-vzaimodeystviya-po-tekhnologii-directbank/opisanie-standarta-vzaimodeystviya-mezhdu-1s-predpriyatie-8-i-bankovskim-servisom/skhemy-dannykh/))
-
-### 3.13. Итог по РФ
-
-Прямого предписания «используйте точный десятичный тип» в российском законодательстве
-**нет**. Но из совокупности норм следует функционально эквивалентное требование:
-
-1. **Хранение обязано быть точным до копейки** — ПП № 1137 требует рубли и копейки в
-   счёте-фактуре, письма Минфина и ФНС запрещают там округление. Двоичный float не
-   представляет 0,01 точно, значит система на `double precision` нарушает это по
-   построению.
-2. **Округление — нормируемая операция в единственной точке**, а не побочный эффект
-   арифметики.
-3. **Незаконное округление меняет налоговую обязанность** — это установлено судом, а не
-   только логикой.
-4. **Разрядность зависит от валюты, и российские классификаторы её не дают** — значит
- масштаб может быть параметром модели, а не константой.
-
-Закон не называет тип, но описывает поведение, которому в PostgreSQL удовлетворяет ровно
-`numeric`: точное десятичное хранение, отсутствие неявного округления, явно управляемый
-масштаб.
+Закон не называет тип, но описывает поведение, которому в PostgreSQL удовлетворяет ровно `numeric`: точное десятичное хранение, отсутствие неявного округления, явно управляемый масштаб.
 
 ---
 
@@ -243,83 +144,29 @@ ISO 20022. [Пример](https://raw.githubusercontent.com/yudhik/example-iso-2
 
 ### 4.3. Два самых цитируемых авторитета говорят не то, что им приписывают
 
-**Джошуа Блох, Effective Java, Item 60** — «Avoid float and double if exact answers are
-required» ([английский текст](https://github.com/clxering/Effective-Java-3rd-edition-Chinese-English-bilingual/blob/dev/Chapter-9/Chapter-9-Item-60-Avoid-float-and-double-if-exact-answers-are-required.md)):
+**Джошуа Блох, Effective Java, Item 60** — «Avoid float and double if exact answers are required» ([английский текст](https://github.com/clxering/Effective-Java-3rd-edition-Chinese-English-bilingual/blob/dev/Chapter-9/Chapter-9-Item-60-Avoid-float-and-double-if-exact-answers-are-required.md)):
 
-> «In summary, don't use float or double for any calculations that require an exact answer.
-> Use BigDecimal if you want the system to keep track of the decimal point and you don't
-> mind the inconvenience and cost of not using a primitive type… **If performance is of the
-> essence… use int or long.** If the quantities don't exceed nine decimal digits, you can
-> use int; if they don't exceed eighteen digits, you can use long.»
+> In summary, don't use float or double for any calculations that require an exact answer. Use BigDecimal if you want the system to keep track of the decimal point and you don't mind the inconvenience and cost of not using a primitive type… **If performance is of the essence… use int or long.** If the quantities don't exceed nine decimal digits, you can use int; if they don't exceed eighteen digits, you can use long.
 
-Запрет у него один — на двоичный float. `BigDecimal` и `int`/`long` предлагаются как
-равноправные варианты.
+Запрет у него один — на двоичный float. `BigDecimal` и `int`/`long` предлагаются как равноправные варианты.
 
 **Мартин Фаулер, PoEAA, гл. 18, паттерн Money.**
-[Страница каталога](https://martinfowler.com/eaaCatalog/money.html) содержит только
-постановку задачи. Сама рекомендация — в тексте книги:
 
-> «You can store the amount as either an integral type or a fixed decimal type. The decimal
-> type is easier for some manipulations, the integral for others. **You should absolutely
-> avoid any kind of floating point type**, as that will introduce the kind of rounding
-> problems that Money is intended to avoid.»
+> You can store the amount as either an integral type or a fixed decimal type. The decimal type is easier for some manipulations, the integral for others. **You should absolutely avoid any kind of floating point type**, as that will introduce the kind of rounding problems that Money is intended to avoid.
 
-> ⚠️ Цитата воспроизведена по [публичной копии текста книги](https://gist.github.com/cryptocompress/7097498);
-> на martinfowler.com её нет. При публикации ссылаться на книгу (PoEAA, гл. 18 «Money»), а
-> не на URL.
-
-Фаулер тоже агностичен между целым и десятичным. Его нерушимое требование — **валюта в
-типе**, а не десятичность представления.
+Фаулер тоже агностичен между целым и десятичным. Его нерушимое требование — **валюта в типе**, а не десятичность представления.
 
 **JSR 354 (Java Money) намеренно отказывается фиксировать представление.**
 [`javax.money.MonetaryAmount`](https://javamoney.github.io/apidocs/javax/money/MonetaryAmount.html):
 
-> «JSR 354 explicitly supports different types of monetary amounts to be implemented and
-> used. Reason behind is that the requirements to an implementation heavily vary for
-> different usage scenarios.»
+> JSR 354 explicitly supports different types of monetary amounts to be implemented and used. Reason behind is that the requirements to an implementation heavily vary for different usage scenarios.
 
 И референсная реализация везёт обе:
-[`Money`](https://raw.githubusercontent.com/JavaMoney/jsr354-ri/master/moneta-core/src/main/java/org/javamoney/moneta/Money.java)
-на `BigDecimal` и
-[`FastMoney`](https://raw.githubusercontent.com/JavaMoney/jsr354-ri/master/moneta-core/src/main/java/org/javamoney/moneta/FastMoney.java)
-на `long` в minor units, про который в javadoc написано:
+[`Money`](https://raw.githubusercontent.com/JavaMoney/jsr354-ri/master/moneta-core/src/main/java/org/javamoney/moneta/Money.java) на `BigDecimal` и [`FastMoney`](https://raw.githubusercontent.com/JavaMoney/jsr354-ri/master/moneta-core/src/main/java/org/javamoney/moneta/FastMoney.java) на `long` в minor units, про который в javadoc написано:
 
-> «It suggested to have a performance advantage of a 10-15 times faster compared to
-> `Money`, which internally uses `BigDecimal`. Nevertheless this comes with a price of less
-> precision.»
+> It suggested to have a performance advantage of a 10-15 times faster compared to `Money`, which internally uses `BigDecimal`. Nevertheless this comes with a price of less precision.
 
-### 4.4. Отдельный миф: «в финансах обязательно банковское округление»
-
-**Это неверно, причём ровно наоборот.**
-
-Майк Каулишо, [Decimal Arithmetic Specification](https://speleotrove.com/decimal/damodel.html):
-
-> «*round-half-even* is often used for other applications in the USA, where it is usually
-> called "round to nearest" and is sometimes called "banker's rounding".»
->
-> «*round-half-up* is the usual round-to-nearest algorithm used in European countries, **in
-> international financial dealings, and in the USA for tax calculations**.»
-
-IEEE 754-2008, клаузы 4.3.1 и 4.3.3
-([текст стандарта](https://www.dsc.ufcg.edu.br/~cnum/modulos/Modulo2/IEEE754_2008.pdf)):
-
-> «The roundTiesToEven rounding-direction attribute shall be the **default** rounding-direction
-> attribute for results **in binary formats**.»
->
-> «**A decimal format implementation of this standard shall provide roundTiesToAway as a
-> user-selectable rounding-direction attribute.** The rounding attribute roundTiesToAway is
-> not required for a binary format implementation.»
-
-То есть half-even — это дефолт IEEE 754 для **двоичной** арифметики, а стандарт специально
-обязывает десятичные реализации поддерживать коммерческое half-away-from-zero. И
-законодательство это подтверждает: ЕС (регламент 1103/97, ст. 5) и HMRC требуют half-**up**;
-п. 6 ст. 52 НК РФ — тоже half-up («50 копеек и более округляется до полного рубля»).
-
----
-
-## 5. Где практика расходится со стандартами: целые в minor units
-
-### 5.1. Платёжные API
+### Практика в платёжных API
 
 | Провайдер | Представление | Тип в JSON |
 |---|---|---|
@@ -335,6 +182,8 @@ IEEE 754-2008, клаузы 4.3.1 и 4.3.3
 | [T-Bank](https://developer.tbank.ru/eacq/api/init) | целое, копейки | `Integer<int64>` |
 | [ЮKassa](https://yookassa.ru/developers/using-api/response-handling/response-format) | десятичное | строка |
 | [ISO 20022](https://github.com/kedder/ofxstatement-iso20022/blob/master/doc/camt.053.001.05.xsd) | `xs:decimal(18,5)` + `Ccy` | XML decimal |
+
+Их основная проблема - в использовании JSON. В нём нет типа, способного переносить десятичную семантику. Как следствие, обычно используется строковое представление
 
 ### 5.2. Почему в API целые: причина в JSON
 
@@ -574,216 +423,6 @@ double. **Колонка типа `numeric` сама по себе не озна
 Общий знаменатель: **произвольная длина как деталь физического кодирования встречается;
 произвольная точность как контракт типа — нет.**
 
-### 8.4. В самом PostgreSQL: развилка пройдена в 2001-м и с тех пор не пересматривалась
-
-Хронология попыток добавить рядом с `numeric` тип фиксированной ширины:
-
-| Год | Кто | Что | Итог |
-|---|---|---|---|
-| 2001 | Tom Lane | [«I don't have any objection in principle to an additional datatype "small numeric"»](https://www.postgresql.org/message-id/3077.987145046%40sss.pgh.pa.us) — но в том же письме предложил вместо этого переписать numeric на base-10000 | Сделали base-10000; ветка «small numeric» не тронута |
-| 2013 | Craig Ringer | [DECIMAL32/64/128 поверх gcc `_Decimal*`](https://www.postgresql.org/message-id/51B7B932.3000407@2ndquadrant.com) | Патча не было |
-| 2015–2018 | Feng Tian | [Decimal64/Decimal128 на decNumber](https://www.postgresql.org/message-id/CAFWGqnsuyOKdOwsNLVtDU1LLjS%3D66xmxxxS8Chnng_zSB5_uCg%40mail.gmail.com) | Отклонено, рекомендовано расширением; лицензия decNumber (GPL/ICU) добила |
-| 2016 | Tobia Conforto | [MONEY(s) / FIXED(s) на int64 со scale](https://postgrespro.com/list/thread-id/2286891) | Merlin Moncure: «would be a good idea for an extension» |
-
-Ключевые реплики из треда 2015–2018 (полный тред:
-[postgrespro.com/list/thread-id/1876527](https://postgrespro.com/list/thread-id/1876527)):
-
-> **Robert Haas, 19.06.2017:** «I've never been very happy with the performance of numeric,
-> so I guess I'm a bit more optimistic about the chances of doing better. … **the fact that
-> the datatype could be pass-by-value rather than a varlena might speed things up quite a
-> bit in some cases.**»
->
-> **David Rowley, 13.11.2018:** «Maybe we can get DECFLOAT into core around PostgreSQL 32
-> or so :-)»
->
-> **Tom Lane, 13.11.2018:** «Yeah. I think putting this in core is a long way off. Maybe
-> somebody will write an extension instead.»
-
-**Расширение написали трижды — и все три мертвы:**
-
-| Расширение | Что | Состояние |
-|---|---|---|
-| [okbob/pgDecimal](https://github.com/okbob/pgDecimal) (Павел Стехуле) | decimal32/64 на gcc `_Decimal*` | 3 коммита, 1 звезда, README: «initial», «not complete» |
-| [vitesse-ftian/pgdecimal](https://github.com/vitesse-ftian/pgdecimal) (Feng Tian) | decimal64/128 на decNumber | последний релиз 25.09.2015, 10 звёзд |
-| [2ndQuadrant/fixeddecimal](https://github.com/2ndQuadrant/fixeddecimal) | int64 с неявным scale, «vastly increased performance» | заброшено, 36 звёзд, заявлена поддержка PG 9.5+ |
-
-Целевой поиск по архивам pgsql-hackers за 2019–2026 годы по запросам «fixed-width
-numeric», «small numeric», «numeric64», «decimal64», «DECFLOAT» **не дал ни одного нового
-треда**. Последнее содержательное обсуждение — 13 ноября 2018 года. Тема мертва в hackers
-больше семи лет.
-
-Единственное живое направление — **ускорение самого `numeric`**: работа Дина Рашида по
-расширению int128 в `numeric.c` (2025, PostgreSQL 19). То есть сообщество вкладывается в
-то, чтобы `numeric` стал быстрее, а не в то, чтобы его заменить.
-
----
-
-## 9. Кому вообще нужно больше 38 цифр
-
-Раз весь остальной мир остановился на 38, стоит спросить прямо: а что PostgreSQL делает с
-оставшимися 131 034 цифрами? Ответ оказался неожиданным.
-
-### 9.1. Мифы, которые надо отбросить
-
-**Астрономия и физика — миф.** В обзоре Дэвида Бейли
-[«High-Precision Arithmetic in Mathematical Physics»](https://www.mdpi.com/2227-7390/3/2/337)
-(Mathematics, 2015) вся высокая точность делается **двоичной** арифметикой в библиотеках:
-double-double (~31 цифра), quad-double (~62), дальше QD, ARPREC, MPFR, GMP. До 500 цифр
-нужно для неустойчивых периодических орбит в модели Лоренца — но это `long double` и MPFR,
-а не тип СУБД. PostgreSQL в этой цепочке участвует максимум как хранилище `double
-precision`.
-
-**Криптография — тоже мимо.** [GMP](https://gmplib.org/) — «no practical limit to the
-precision except the ones implied by the available memory». RSA-4096 — это 1234 десятичные
-цифры, и хранят их как `bytea`/DER, а не как `numeric`.
-
-**Биржевая торговля — нет, и это важно для вашего вопроса.** FIX
-([FIX Latest, datatypes](https://fiximate.fixtrading.org/en/FIX.Latest/fix_datatypes.html))
-гарантирует «up to **fifteen** significant digits» для `float`, `Price`, `Qty` и `Amt`.
-Регулятор ограничивает сверху: [SEC Rule 612](https://www.sec.gov/divisions/marketreg/subpenny612faq.htm)
-запрещает котировать акции дороже $1 с шагом меньше $0,01, а дешевле $1 — меньше $0,0001,
-то есть **четыре знака**. Крипто-биржи щедрее, но ненамного: `price_increment` у Coinbase и
-`baseAssetPrecision` у Binance — **8 знаков**. Даже цена с 8 знаками, умноженная на
-абсурдно большой объём, не выходит за 30 цифр. **Биржам `decimal(38)` хватает с запасом.**
-Аргумент за `numeric` в трейдинге — это отсутствие двоичного округления, а не диапазон.
-
-**Гиперинфляция — не подтверждается.** В Зимбабве за три года срезали
-[25 нулей](https://en.wikipedia.org/wiki/Zimbabwean_dollar_(1980%E2%80%932009)) тремя
-деноминациями (2006, 2008, 2009), максимальный номинал — 10¹⁴. Деноминация и есть
-встроенный механизм борьбы с разрядностью: государство обнуляет счётчик раньше, чем
-упрётся тип данных. Открытых свидетельств системы, сломавшейся из-за переполнения
-числового типа, найти не удалось.
-
-### 9.2. Реальный массовый домен ровно один: EVM-блокчейны
-
-`uint256` в Solidity ([docs.soliditylang.org](https://docs.soliditylang.org/en/latest/types.html))
-и балансы ERC-20 в wei ([EIP-20](https://eips.ethereum.org/EIPS/eip-20)) требуют
-**78 значащих цифр**:
-
-```
-2^256 − 1 = 115792089237316195423570985008687907853269984665640564039457584007913129639935
-```
-
-Это вдвое больше 38 — и на одну цифру больше, чем даёт даже BigQuery `BIGNUMERIC`
-(≈76,8 цифры, то есть по сути int256 со scale 38).
-
-Что делают в реальности:
-
-- **The Graph** объявляет `BigInt` как тип «Used for Ethereum's uint32, int64, uint64, …,
-  uint256 types» ([docs](https://thegraph.com/docs/en/subgraphs/developing/creating/ql-schema/)),
-  а в graph-node это отображается прямо в PostgreSQL
-  ([`store/postgres/src/relational.rs`](https://raw.githubusercontent.com/graphprotocol/graph-node/master/store/postgres/src/relational.rs)):
-
-  ```rust
-  ColumnType::BigDecimal => "numeric",
-  ColumnType::BigInt     => "numeric",
-  ```
-
-  То есть каждый субграф в мире хранит балансы в `numeric` без ограничения точности.
-- **Blockscout** —
-  [миграция создания таблицы транзакций](https://github.com/blockscout/blockscout/blob/master/apps/explorer/priv/repo/migrations/20180117221923_create_transactions.exs):
-  `add(:value, :numeric, precision: 100)`, то же для `gas_price`, `r`, `s`. Сотня цифр,
-  сознательно с запасом.
-- **Google Cloud Blockchain Analytics** — прямое признание поражения
-  ([docs](https://docs.cloud.google.com/blockchain-analytics/docs/uint256)):
-
-  > «Blockchain Analytics does not support UINT256 NUMERIC columns… Blockchain Analytics
-  > datasets presents UINT256 values in two separate columns: An UINT128 NUMERIC column
-  > **with potential loss of precision**. A STRING column containing the full decimal value
-  > in string form.»
-
-- **Dune Analytics** ушла с PostgreSQL на Trino ради масштаба — и немедленно уперлась в
-  `decimal(38)`, так что пришлось допиливать движок нативными `UINT256`/`INT256`
-  ([docs](https://docs.dune.com/query-engine/datatypes),
-  [блог](https://dune.com/blog/introducing-dune-sql): «Full wei-level precision calculations
-  via UINT256 and INT256 data types»).
-- **Elasticsearch** не смогла: [issue от 2019 года](https://github.com/elastic/elasticsearch/issues/38242)
-  до сих пор открыт — «all of the Ethereum token values (which are 2^256 −1) were indexed
-  as text».
-- **ClickHouse** `Decimal256` покрывает 76 цифр, то есть даже не весь `int256`, и до сих
-  пор недоделан ([issue #47569](https://github.com/ClickHouse/ClickHouse/issues/47569)).
-
-А в промежуточных вычислениях нужно и больше. Uniswap V3 держит отдельную библиотеку
-[FullMath](https://docs.uniswap.org/contracts/v3/reference/core/libraries/FullMath) —
-«allows multiplication and division where an intermediate value overflows 256 bits». Когда
-ту же формулу воспроизводят в SQL для аналитики, произведение двух `uint256` — это до
-**156 цифр**.
-
-Вывод, который стоит проговорить: PostgreSQL здесь — единственная мейнстрим-СУБД, которая
-справляется без единой строчки кода и без потери точности. Не потому что кто-то предвидел
-Ethereum, а потому что произвольная точность оказалась правильным инженерным решением.
-`numeric` выиграл лотерею, в которую не покупал билет.
-
-### 9.3. И самый массовый случай — вообще без домена
-
-Есть категория, где большая разрядность нужна не потому, что этого требует предметная
-область, а потому, что так устроена арифметика.
-
-**Аккумулятор суммы растёт.** Комментарий к `NumericSumAccum` в `numeric.c`: «When a new
-value has a larger ndigits or weight than the accumulator currently does, the accumulator
-is enlarged to accommodate the new value». Проверено на PostgreSQL 16:
-
-```sql
--- миллион строк по 38 девяток
-SELECT length(sum(x)::text)
-FROM (SELECT repeat('9',38)::numeric AS x FROM generate_series(1,1000000)) t;
--- 44   ← в decimal(38) этот запрос упал бы
-```
-
-Каждое отдельное значение помещается в 38 цифр, а сумма — уже нет. Никакого «домена,
-которому нужно 44 цифры», тут нет; есть `GROUP BY` по большой таблице.
-
-**Масштаб при умножении складывается:**
-
-```sql
-SELECT scale(1.000000000000000001::numeric
-           * 1.000000000000000001
-           * 1.000000000000000001);   -- 54
-```
-
-Три сомножителя, все примерно равные единице, со scale 18 — и результат уже за пределом
-`decimal(38)`.
-
-**Крайний случай — от самого Каулишо.** В статье
-[«Decimal Floating-Point: Algorism for Computers»](https://speleotrove.com/memowiki/files/cowlis2003-DFP-algorism.pdf)
-(IEEE ARITH-16, 2003):
-
-> «the exact calculation of the yearly rate in a non-leap year is R^365. To calculate this
-> to give an exact result needs **2191 digits**, whereas a much shorter result which is
-> correct to within one unit in the last place (ulp) will almost always be sufficient.»
-
-Точное возведение дневной ставки в 365-ю степень требует 2191 цифру. Никакой `decimal(38)`,
-никакой `Decimal256`, никакой IEEE `decimal128` этого не сделает.
-
-### 9.4. Заодно: откуда взялись 38 и 34
-
-Полезно знать, что оба числа — артефакты представления, а не результат анализа
-потребностей.
-
-**38** — это то, сколько десятичных цифр влезает в знаковый int128 (2¹²⁷ ≈ 1,7·10³⁸).
-У Oracle своя история: [документация 21c](https://docs.oracle.com/en/database/oracle/oracle-database/21/sqlrf/Data-Types.html)
-говорит «Oracle guarantees the portability of numbers with precision of up to 20 base-100
-digits, which is equivalent to 39 or 40 decimal digits depending on the position of the
-decimal point» — то есть следствие 22-байтового формата в base-100.
-
-**34 в decimal128** — пересечение двух ограничений. Кодировка DPD требует длины вида
-3k+1 ([Cowlishaw, Decimal Arithmetic Encodings](https://speleotrove.com/decimal/decbits.pdf):
-«each format has a coefficient whose length is a multiple of three, plus one»), а снизу
-подпирает COBOL: ISO COBOL 2002 требует 32-значных промежуточных результатов, поэтому
-вариант с 31 цифрой был отвергнут как «unsuitable for implementing the new COBOL standard»
-(та же статья 2003 года). 31 < 32, следующий кандидат вида 3k+1 — 34.
-
-А сколько реально нужно финансам, Каулишо тоже посчитал
-([Decimal Arithmetic FAQ](https://speleotrove.com/decimal/decifaq1.html)): «Data are
-typically stored with 18 digits of precision with 6 digits after the decimal point» и
-«Typically a precision of 25-30 digits is used, though the ISO COBOL 2002 standard requires
-32-digit decimal floating-point for intermediate results».
-
-**То есть 15–18 цифр на хранение и 25–32 на промежуточные результаты. 34 и 38 — это уже
-запас.**
-
----
-
 ## 10. Отдельно: 1С
 
 Вопрос практический — раз 1С один из крупнейших потребителей PostgreSQL, стоит проверить,
@@ -809,61 +448,6 @@ typically stored with 18 digits of precision with 6 digits after the decimal poi
 [документации SonarQube BSL Plugin](https://docs.checkbsl.org/checks/query/CastToNumber/)).
 То есть платформа сама живёт внутри той же границы 38, что и весь остальной мир.
 
-### 10.2. В патче 1С к PostgreSQL нет ни строчки про numeric
-
-Полный текст патча опубликован Postgres Professional:
-[`patches/postgresql/9.6/1c_FULL_96-0.23`](https://github.com/postgrespro/pgwininstall/blob/master/patches/postgresql/9.6/1c_FULL_96-0.23),
-9173 строки. Проверено механически — `grep -i numeric` даёт **ноль совпадений**. Патч
-трогает ровно три области:
-
-1. **Три contrib-модуля с нуля:** `mchar` (регистронезависимые строки через libICU, авторы
-   в README — Олег Бартунов и Фёдор Сигаев), `fulleq` («operator == which returns true when
-   operands are equal or both are nulls»), `fasttrun` («truncates the temporary table and
-   doesn't grow pg_class size»).
-2. **Планировщик:** `allpaths.c`, `indxpath.c`, `joinrels.c`, `pathkeys.c`, `createplan.c`,
-   `planner.c`, `setrefs.c`, `prepunion.c`, `pathnode.c` + новый файл `appendorpath.c`
-   (969 строк, шапка: «support Append plan for ORed clauses / Teodor Sigaev»).
-3. **Одна косметическая правка в `gram.y`** — снять привязку `like_escape` к `pg_catalog`,
-   чтобы `mchar` мог подставить свою реализацию.
-
-`numeric.c`, `heaptuple.c`, `hashfunc.c`, оценка селективности числовых типов — не тронуты.
-
-Более того, **`fulleq` демонстративно не покрывает `numeric`**. Список типов в Makefile:
-
-```
-ARGTYPE = bool bytea char name int8 int2 int2vector int4 text \
-	oid xid cid oidvector float4 float8 abstime reltime macaddr \
-	inet cidr varchar date time timestamp timestamptz \
-	interval timetz
-```
-
-`isfulleq_numeric` отсутствует. Для ресурсов регистров 1С обходится обычным `=` и обычным
-хэшем.
-
-> ⚠️ Проверен патч для PostgreSQL 9.6. Свежие патчи (PG 16/17) 1С публикует только в
-> составе бинарных сборок; косвенное подтверждение непрерывности — статья
-> [«Сборка PostgreSQL 17 с патчами от 1С»](https://infostart.ru/1c/articles/2501686/),
-> где описан тот же набор из трёх contrib-модулей. За десять лет новых не появилось.
-
-### 10.3. Все оптимизации под 1С у всех вендоров идут мимо типов данных
-
-- **Postgres Pro Enterprise для 1С** ([продуктовая страница](https://postgrespro.ru/products/postgrespro/enterprise-1c)):
-  временные таблицы, планировщик, блокировки, кэш, каталог. Релиз
-  [17.5.1](https://postgrespro.ru/blog/news/5972046): Background freezer, параллельный
-  автовакуум, in-memory catalog для временных таблиц. Релиз
-  [18.4.1](https://habr.com/ru/companies/postgrespro/news/1056088/): временные таблицы на
-  Hot Standby, `enable_join_predicate_pushdown`, селективность MCV. **`numeric` не
-  упоминается нигде.**
-- **Tantor Special Edition 1C** ([страница продукта](https://tantorlabs.ru/tantor-se-1c)):
-  join predicate pushdown, RLS, нормализация имён временных таблиц, ускорение закрытия
-  месяца, `pg_stat_advisor`. Numeric не упоминается.
-- **Доклады PGConf.Russia [2024](https://pgconf.ru/2024/talks) и
-  [2025](https://pgconf.ru/pgconf-2025/talks)** по 1С — про планировщик и временные
-  таблицы. В [разборе доклада Антона Дорошкевича про закрытие месяца](https://habr.com/ru/articles/896662/)
-  узкое место названо прямо: «планировщик неизменно использует Nested Loop в запросах,
-  генерируемых 1С», помог патч Фёдора Сигаева на оценку селективности, ускорение 5–7,7×.
-  Типы данных не упоминаются.
-
 ### 10.4. Платформа движется в сторону большей точности, а не меньшей
 
 [Новое в платформе 8.5.4](https://v8.1c.ru/platforma/news/novoe-v-platforme-8-5-4/):
@@ -875,17 +459,6 @@ ARGTYPE = bool bytea char name int8 int2 int2vector int4 text \
 единой базе на PostgreSQL с патчем от 1С.
 
 От типа, от которого собираются уходить, не требуют большей точности.
-
-### 10.5. Экономика зацементировала выбор
-
-Под 1С выпускаются **отдельные коммерческие редакции СУБД** — у Postgres Professional и у
-Tantor Labs (последняя [продаётся через dist.1c.ru](https://dist.1c.ru/products/item/subd-tantor-special-edition-1-c/)).
-По [опросу Postgres Professional](https://www.cnews.ru/news/line/2026-05-18_postgres_professional_predstavila),
-«свыше 40% респондентов используют для работы ERP-решение «1C»» (это доля среди ERP у
-респондентов, а не доля 1С в инсталляциях PostgreSQL — публичной цифры для второго нет).
-
-Сменить физический тип хранения ресурсов регистров означало бы реструктуризацию всех
-«горячих» таблиц во всех инсталляциях. Цена несопоставима с выигрышем.
 
 ### 10.6. Что это значит для задачи «numeric фиксированной длины для 1С»
 
@@ -942,43 +515,3 @@ Tantor Labs (последняя [продаётся через dist.1c.ru](https
 9. **1С от `numeric` не уходит и не собирается.** За ~18 лет патча к PostgreSQL — ноль
    строк про numeric, при том что для строк 1С написала собственный тип. Платформа 8.5.4
    наоборот повысила точность арифметики в запросах к СУБД.
-
----
-
-## 12. Что осталось непроверенным
-
-- **Нормативный текст ISO/IEC 9075-2** — платный, проверен только по публичному SQL-92,
-  вторичным источникам и грамматике SQL:2016.
-- **Положение Банка России № 809-П** — дословную норму «в рублях и копейках» получить не
-  удалось; подтверждено по предшественнику 579-П.
-- **Положение № 762-П** — реквизиты цитируются по вторичным источникам; норма изменена
-  Указанием от 17.06.2025, нумерация могла поехать.
-- **Альбом УФЭБС Банка России** — скачать не удалось; тип атрибута `Sum` подтверждается
-  только косвенно, по коду интеграторов.
-- **XSD форматов ФНС** — читалась через инструмент-пересказчик; распределение конкретных
-  атрибутов по масштабам (26.11 vs 19.2) требует сверки по скачанному файлу.
-- **Спецификация СБП** — публичной нет; «копейки» выведены из примеров интеграторов.
-- **Маппинг типов 1С в СУБД** — авторитетного источника не найдено.
-- **Байтовые размеры DECFLOAT в документации IBM** — страницы `ibm.com/docs` рендерятся
-  скриптом; значения 8/16 байт выведены из параметров формата IEEE.
-- **Абсолютные цифры из mssqltips 3323** — только внутри картинок.
-- **Позиция Christophe Pettus, depesz, Laurenz Albe по типам для денег** — содержательных
-  публикаций найти не удалось.
-- **Инструкции IRS по округлению до целого доллара** — страница не открылась.
-- **Многоязычный поиск** (`polyglot-search`) в этой сессии не подключился; русскоязычные
-  источники искались встроенным поиском и прямыми URL.
-- **Размеры BigQuery NUMERIC/BIGNUMERIC в байтах (16/32)** — страница с таблицей размеров
-  рендерится скриптом; ширина выведена из диапазонов, а они однозначно указывают на int128.
-- **Свежие патчи 1С (PG 16/17)** — проверен только патч для 9.6; для новых версий есть лишь
-  косвенное подтверждение через описание сборки.
-- **Типичная разрядность денежных реквизитов в типовых конфигурациях 1С** (гипотеза
-  «Число(15,2)») — авторитетного открытого источника нет. Реальный DDL, который удалось
-  увидеть, показывает `NUMERIC(16,0)` для ресурса регистра и `NUMERIC(1,0)` для флага.
-- **Почему в 1С именно 38 знаков** — официального объяснения нет.
-- **Доля 1С в российских инсталляциях PostgreSQL** — публичной цифры нет; есть только
-  «свыше 40% ERP-респондентов Postgres Professional».
-- **Требования к разрядности в актуарных расчётах** — публичных спецификаций не найдено.
-- **Приложение A спецификации Iceberg** (требования к сериализации decimal) — документ
-  обрезается при выборке.
-- Таблица поддержки `DECFLOAT` на modern-sql.com читается ненадёжно и **не использована**;
-  реализации подтверждены по документации Db2, Firebird и трекеру H2.
