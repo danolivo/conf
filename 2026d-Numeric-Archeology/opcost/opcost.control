@@ -1,0 +1,4 @@
+comment = 'measure operator function cost with the executor out of the way'
+default_version = '1.0'
+module_pathname = '$libdir/opcost'
+relocatable = true
