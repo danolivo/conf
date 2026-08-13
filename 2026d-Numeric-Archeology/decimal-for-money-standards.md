@@ -6,7 +6,7 @@
 
 Такое исследование - весьма сложная и скучная задача для разработчика СУ. Однако с AI агентами она становится проще - засучим рукава и попробуем разобраться в теме.
 
-## Что говорит нам стандарт SQL SO/IEC 9075-2:2023
+## Что говорит нам стандарт SQL ISO/IEC 9075-2:2023
 
 В ISO SQL нет ни типа MONEY. Нет не только типа — в стандарте языка SQL вообще отсутствует понятие валюты. Тип `money` в PostgreSQL и `money`/`smallmoney` в SQL Server — вендорские расширения, а не реализация стандарта.
 
@@ -200,23 +200,15 @@ ISO 20022. [Пример](https://raw.githubusercontent.com/yudhik/example-iso-2
 
 ### Что происходит с точным десятичным типом
 
-- Период сосуществования MT и MX в SWIFT **закончился 22 ноября 2025 года**
   ([Swift, ISO 20022 FAQ](https://www.swift.com/standards/iso-20022/iso-20022-faqs/implementation)):
   «The coexistence period ended on 22 November 2025». Банк России идёт следом, полный
-  переход платёжной системы — 2029 год (см. §3.3).
-- **C23 внёс `_Decimal32/64/128` в стандарт языка C**
-  ([cppreference, C23](https://en.cppreference.com/c/23)) — правда, опционально, через
-  макрос `__STDC_IEC_60559_DFP__`; GCC поддерживает частично, Clang и MSVC — нет
+- Международные платежи с конца 2025 года живут на ISO 20022, и денежная величина там определена в схеме как `decimal` с totalDigits="18", fractionDigits="5" и обязательным атрибутом "currency". То есть формат SWIFT теперь требует точного десятичного представления с масштабом, заданным снаружи значения, и при этом укладывается в диапазон, для которого произвольная точность не нужна вовсе.
+- C23 внёс `_Decimal32/64/128` в стандарт языка C ([cppreference, C23](https://en.cppreference.com/c/23)) — правда, опционально, через макрос `__STDC_IEC_60559_DFP__`. GCC поддерживает его частично, Clang и MSVC — пока нет.
   ([RFC в LLVM всё ещё открыт](https://discourse.llvm.org/t/rfc-decimal-floating-point-support-iso-iec-ts-18661-2-and-c23/62152)).
-- `DECFLOAT` из SQL:2016 реализован не только в Db2, но и в **Firebird 4.0**
-  ([README.floating_point_types.md](https://raw.githubusercontent.com/FirebirdSQL/firebird/master/doc/sql.extensions/README.floating_point_types.md)):
-  «DECFLOAT(16) - 64 bit Decimal64», «DECFLOAT(34) - 128 bit Decimal128».
-- Точный десятичный тип есть во всех проверенных аналитических движках и во всех
-  колоночных форматах. Ни один не отказался от него.
+- `DECFLOAT` из SQL:2016 реализован не только в Db2, но и в Firebird 4.0 ([README.floating_point_types.md](https://raw.githubusercontent.com/FirebirdSQL/firebird/master/doc/sql.extensions/README.floating_point_types.md)).
+- Точный десятичный тип есть во множестве СУБД и во всех колоночных форматах.
 
-### 8.2. Умирает конкретная конструкция: произвольная точность переменной длины
-
-Потолок **38 цифр (int128)** стал де-факто универсальной константой:
+А вот что не актуально, так это произвольная точность переменной длины. Потолок в 38 цифр (int128) выглядит де-факто универсальной константой:
 
 | Система | Потолок | Представление |
 |---|---|---|
@@ -229,131 +221,39 @@ ISO 20022. [Пример](https://raw.githubusercontent.com/yudhik/example-iso-2
 | [ClickHouse](https://clickhouse.com/docs/sql-reference/data-types/decimal) | 76 | int32/64/128/256 |
 | [BigQuery](https://raw.githubusercontent.com/google/zetasql/master/docs/data-types.md) | 38 / ~76.8 | int128 с разным scale |
 
-[Redshift прямо предупреждает](https://docs.aws.amazon.com/redshift/latest/dg/r_Numeric_types201.html):
+В каждой системе очевидно есть какие-то компромиссы. Например, [Redshift прямо предупреждает](https://docs.aws.amazon.com/redshift/latest/dg/r_Numeric_types201.html):
 
 > «Do not arbitrarily assign maximum precision to DECIMAL columns unless you are certain
 > that your application requires that precision. 128-bit values use twice as much disk
 > space as 64-bit values and can slow down query execution time.»
 
-**Apache Arrow** фиксирует ровно четыре ширины
-([Schema.fbs](https://raw.githubusercontent.com/apache/arrow/main/format/Schema.fbs)):
+Apache Arrow фиксирует ровно четыре ширины ([Schema.fbs](https://raw.githubusercontent.com/apache/arrow/main/format/Schema.fbs)):
 
 > «Exact decimal value represented as an integer value in two's complement. Currently
 > 32-bit (4-byte), 64-bit (8-byte), 128-bit (16-byte) and 256-bit (32-byte) integers are
 > used.» / «The accepted widths are 32, 64, 128 and 256.»
 
-Причём эволюция идёт **в сторону сужения**: Arrow 18.0.0 (октябрь 2024)
-[добавил Decimal32 и Decimal64](https://arrow.apache.org/blog/2024/10/28/18.0.0-release/),
-а не более широкие типы.
+Причём эволюция идёт в сторону сужения: Arrow 18.0.0 (октябрь 2024) [добавил Decimal32 и Decimal64](https://arrow.apache.org/blog/2024/10/28/18.0.0-release/), а не более широкие типы. Легко можно понять, что суть здесь в повышении производительности: 32-битные и 64-битные операции сильно легче 128-битных в текущих аппаратных системах.
 
-**Самый показательный источник — CedarDB**, коммерческий наследник Umbra, движок,
-спроектированный в 2020-х. Он явно и письменно противопоставляет себя PostgreSQL
-([документация по numeric](https://cedardb.com/docs/references/datatypes/numeric/)):
+Самый показательный источник — CedarDB, коммерческий наследник Umbra, движок, спроектированный в 2020-х. Он явно и письменно противопоставляет себя PostgreSQL ([документация по numeric](https://cedardb.com/docs/references/datatypes/numeric/)):
 
-> «PostgreSQL offers a maximum precision of 131072 and scale of 16383, where **CedarDB
-> restricts precision and scale to a maximum of 38, for performance reasons.**»
+> «PostgreSQL offers a maximum precision of 131072 and scale of 16383, where **CedarDB restricts precision and scale to a maximum of 38, for performance reasons.**»
 >
-> «Operations on 16 Byte types are expensive to compute. We recommend using a precision of
-> 18 or less when possible for your application.»
+> «Operations on 16 Byte types are expensive to compute. We recommend using a precision of 18 or less when possible for your application.»
 >
-> «PostgreSQL allows NaN, +Infinity, and -Infinity as special numeric values» — «CedarDB
-> forbids entering these values as numeric data types.»
+> «PostgreSQL allows NaN, +Infinity, and -Infinity as special numeric values» — «CedarDB forbids entering these values as numeric data types.»
 
-Команда, которая целенаправленно делает быстрый PostgreSQL-совместимый движок, отказалась
-ровно от того, что делает `numeric` медленным: от произвольной точности, от varlena и от
-специальных значений.
+Команда, которая целенаправленно делает быстрый PostgreSQL-совместимый движок, отказалась ровно от того, что делает `numeric` медленным: от произвольной точности, от varlena и от специальных значений.
 
-**И чем за это платят.** [ClickHouse честно документирует](https://clickhouse.com/docs/sql-reference/data-types/decimal),
-что у широких фиксированных типов проверки переполнения нет вовсе:
+Понятно, что у всего есть своя цена. Например ClickHouse [честно документирует](https://clickhouse.com/docs/sql-reference/data-types/decimal), что у широких фиксированных типов проверки переполнения нет вовсе:
 
-> «During calculations on Decimal, integer overflows might happen. Excessive digits in a
-> fraction are discarded (not rounded). Excessive digits in integer part will lead to an
-> exception.»
+> «During calculations on Decimal, integer overflows might happen. Excessive digits in a fraction are discarded (not rounded). Excessive digits in integer part will lead to an exception.»
 >
-> «**Overflow check is not implemented for Decimal128 and Decimal256. In case of overflow
-> incorrect result is returned, no exception is thrown.**»
+> «**Overflow check is not implemented for Decimal128 and Decimal256. In case of overflow incorrect result is returned, no exception is thrown.**»
 
-То есть у `Decimal32`/`Decimal64` переполнение целой части даёт исключение, а у
-`Decimal128`/`Decimal256` — молча неверный результат. Для сравнения: у PostgreSQL `numeric`
-выход за формат — всегда ошибка (`value overflows numeric format`). Это ровно та часть
-цены фиксированной ширины, о которой в спорах «decimal против копеек» обычно не вспоминают.
+То есть у `Decimal32`/`Decimal64` переполнение целой части даёт исключение, а у `Decimal128`/`Decimal256` — молча неверный результат. Для сравнения: у PostgreSQL `numeric` выход за формат — всегда ошибка (`value overflows numeric format`). Это ровно та часть цены фиксированной ширины, о которой в спорах «decimal против копеек» обычно не вспоминают.
 
-**Колоночные форматы — то же самое.** [Parquet](https://raw.githubusercontent.com/apache/parquet-format/master/LogicalTypes.md)
-допускает `BYTE_ARRAY` с неограниченной точностью, но даже там значение — это
-`unscaledValue` в дополнительном коде, а `precision is required` всегда. Семантики
-«произвольная точность как контракт типа» нет нигде.
-
-### 8.3. Честные контрпримеры
-
-Чтобы вывод не выглядел натянутым, вот что играет против него:
-
-- **`shopspring/decimal`** — самая популярная Go-библиотека для денег — это `big.Int` +
-  `int32` экспонента ([pkg.go.dev](https://pkg.go.dev/github.com/shopspring/decimal)), то
-  есть буквально модель PostgreSQL `numeric`. И предложение внести decimal128 в stdlib Go
-  [было отклонено](https://github.com/golang/go/issues/12332).
-- **H2** реализовал стандартный `DECFLOAT` поверх `BigDecimal`, а не поверх IEEE
-  decimal128 ([issue #2254](https://github.com/h2database/h2database/issues/2254)).
-- **Snowflake** хранит `NUMBER` с адаптивной шириной, а не строго фиксированной.
-
-Общий знаменатель: **произвольная длина как деталь физического кодирования встречается;
-произвольная точность как контракт типа — нет.**
-
-## 10. Отдельно: 1С
-
-Вопрос практический — раз 1С один из крупнейших потребителей PostgreSQL, стоит проверить,
-не собирается ли она уходить от `numeric`. **Признаков нет; данные указывают в
-противоположную сторону.**
-
-### 10.1. `numeric` зафиксирован в документации 1С как контракт
-
-Официальная таблица соответствия типов — ИТС, [«Особенности хранения составных типов
-данных»](https://its.1c.ru/db/metod8dev/content/1828/hdoc):
-
-| Колонка | MS SQL | PostgreSQL | DB2 | Oracle |
-|---|---|---|---|---|
-| `_N` (число) | `NUMERIC(n,k)` | **`numeric(n,k)`** | `dec(n,k)` | `NUMBER(n,k)` |
-| `_S` (строка) | `NCHAR(n)` | **`mchar(n)`** | `graphic(n)` | `CHAR(n+1)` |
-
-Обратите внимание на асимметрию во второй строке. **Для строк стоковый `varchar` 1С не
-устроил — они написали собственный тип `mchar`/`mvarchar`. Для чисел взяли стоковый
-`numeric` как есть.** Аналога «mnumeric» не существует.
-
-Ограничение платформы — 38 знаков, «в DB2 максимум 31»
-([ИТС](https://its.1c.ru/db/metod8dev/content/2665/hdoc); чистые цитаты воспроизведены в
-[документации SonarQube BSL Plugin](https://docs.checkbsl.org/checks/query/CastToNumber/)).
-То есть платформа сама живёт внутри той же границы 38, что и весь остальной мир.
-
-### 10.4. Платформа движется в сторону большей точности, а не меньшей
-
-[Новое в платформе 8.5.4](https://v8.1c.ru/platforma/news/novoe-v-platforme-8-5-4/):
-
-> «Мы **повысили точность** простых арифметических операций при выполнении запросов к СУБД.
-> Это изменение реализовано для СУБД Microsoft SQL Server и PostgreSQL и ее производных.»
-
-Там же — нагрузочное тестирование «1С:ERP» на **30 000 одновременных пользователей** в
-единой базе на PostgreSQL с патчем от 1С.
-
-От типа, от которого собираются уходить, не требуют большей точности.
-
-### 10.6. Что это значит для задачи «numeric фиксированной длины для 1С»
-
-Данные складываются в довольно определённую картину:
-
-- **Замены `numeric` не будет** — ни от 1С, ни от вендоров СУБД. Значит работать надо с
-  тем `numeric`, который есть, а не проектировать ему смену.
-- **Ускорение `numeric` — единственное живое направление** и в upstream (Дин Рашид), и,
-  судя по всему, единственное реалистичное здесь.
-- **Аргумент «pass-by-value вместо varlena» уже был озвучен в сообществе** — Робертом
-  Хаасом в 2017 году, и по существу не оспорен. Но три написанных расширения умерли, а
-  тема в hackers мертва с ноября 2018-го. Это надо учитывать, оценивая шансы нового захода.
-- **Граница 38 цифр, на которую ориентируется весь остальной мир, совпадает с
-  ограничением самой платформы 1С.** Это аргумент в пользу того, что фиксированная ширина
-  для 1С-профиля данных вообще возможна — но и напоминание, что за пределами 1С
-  у `numeric` есть потребители, которым нужны 78 и 156 цифр (см. §9.2).
-
----
-
-## 11. Выводы
+## Выводы
 
 1. **Формального стандарта «для денег используйте NUMERIC» не существует.** В ISO SQL нет
    даже типа MONEY. Утверждать обратное — ошибка.
