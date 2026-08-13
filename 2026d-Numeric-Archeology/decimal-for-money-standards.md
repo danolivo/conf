@@ -200,8 +200,6 @@ ISO 20022. [Пример](https://raw.githubusercontent.com/yudhik/example-iso-2
 
 ### Что происходит с точным десятичным типом
 
-  ([Swift, ISO 20022 FAQ](https://www.swift.com/standards/iso-20022/iso-20022-faqs/implementation)):
-  «The coexistence period ended on 22 November 2025». Банк России идёт следом, полный
 - Международные платежи с конца 2025 года живут на ISO 20022, и денежная величина там определена в схеме как `decimal` с totalDigits="18", fractionDigits="5" и обязательным атрибутом "currency". То есть формат SWIFT теперь требует точного десятичного представления с масштабом, заданным снаружи значения, и при этом укладывается в диапазон, для которого произвольная точность не нужна вовсе.
 - C23 внёс `_Decimal32/64/128` в стандарт языка C ([cppreference, C23](https://en.cppreference.com/c/23)) — правда, опционально, через макрос `__STDC_IEC_60559_DFP__`. GCC поддерживает его частично, Clang и MSVC — пока нет.
   ([RFC в LLVM всё ещё открыт](https://discourse.llvm.org/t/rfc-decimal-floating-point-support-iso-iec-ts-18661-2-and-c23/62152)).
@@ -220,18 +218,17 @@ ISO 20022. [Пример](https://raw.githubusercontent.com/yudhik/example-iso-2
 | [Iceberg](https://raw.githubusercontent.com/apache/iceberg/main/format/spec.md) | 38 | «precision must be 38 or less» |
 | [ClickHouse](https://clickhouse.com/docs/sql-reference/data-types/decimal) | 76 | int32/64/128/256 |
 | [BigQuery](https://raw.githubusercontent.com/google/zetasql/master/docs/data-types.md) | 38 / ~76.8 | int128 с разным scale |
+| [YDB](https://ydb.tech/docs/en/yql/reference/types/primitive) | 35 | int128, 16 байт, precision и scale в типе |
 
-В каждой системе очевидно есть какие-то компромиссы. Например, [Redshift прямо предупреждает](https://docs.aws.amazon.com/redshift/latest/dg/r_Numeric_types201.html):
+### Компромиссы
 
-> «Do not arbitrarily assign maximum precision to DECIMAL columns unless you are certain
-> that your application requires that precision. 128-bit values use twice as much disk
-> space as 64-bit values and can slow down query execution time.»
+Каждое техническое решение подразумевает какие-то компромиссы. Не обходится без этого и с СУБД, которые ограничивают точный десятичный тип. Например, Redshift [прямо предупреждает](https://docs.aws.amazon.com/redshift/latest/dg/r_Numeric_types201.html):
+
+> Do not arbitrarily assign maximum precision to DECIMAL columns unless you are certain that your application requires that precision. 128-bit values use twice as much disk space as 64-bit values and can slow down query execution time.
 
 Apache Arrow фиксирует ровно четыре ширины ([Schema.fbs](https://raw.githubusercontent.com/apache/arrow/main/format/Schema.fbs)):
 
-> «Exact decimal value represented as an integer value in two's complement. Currently
-> 32-bit (4-byte), 64-bit (8-byte), 128-bit (16-byte) and 256-bit (32-byte) integers are
-> used.» / «The accepted widths are 32, 64, 128 and 256.»
+> Exact decimal value represented as an integer value in two's complement. Currently 32-bit (4-byte), 64-bit (8-byte), 128-bit (16-byte) and 256-bit (32-byte) integers are used.» / «The accepted widths are 32, 64, 128 and 256.
 
 Причём эволюция идёт в сторону сужения: Arrow 18.0.0 (октябрь 2024) [добавил Decimal32 и Decimal64](https://arrow.apache.org/blog/2024/10/28/18.0.0-release/), а не более широкие типы. Легко можно понять, что суть здесь в повышении производительности: 32-битные и 64-битные операции сильно легче 128-битных в текущих аппаратных системах.
 
@@ -245,48 +242,29 @@ Apache Arrow фиксирует ровно четыре ширины ([Schema.fb
 
 Команда, которая целенаправленно делает быстрый PostgreSQL-совместимый движок, отказалась ровно от того, что делает `numeric` медленным: от произвольной точности, от varlena и от специальных значений.
 
-Понятно, что у всего есть своя цена. Например ClickHouse [честно документирует](https://clickhouse.com/docs/sql-reference/data-types/decimal), что у широких фиксированных типов проверки переполнения нет вовсе:
+Понятно, что у всего есть своя цена. Например ClickHouse [честно документирует](https://clickhouse.com/docs/sql-reference/data-types/decimal), что у широких фиксированных типов проверки переполнения нет вовсе. То есть у `Decimal32`/`Decimal64` переполнение целой части даёт исключение, а у `Decimal128`/`Decimal256` — молча неверный результат.
 
-> «During calculations on Decimal, integer overflows might happen. Excessive digits in a fraction are discarded (not rounded). Excessive digits in integer part will lead to an exception.»
->
-> «**Overflow check is not implemented for Decimal128 and Decimal256. In case of overflow incorrect result is returned, no exception is thrown.**»
+Поскольку у типа фиксированной ширины бюджет разрядов конечен, то разработке приходится балансировать. В данном случае, приходится искать баланс между шириной диапазона, проверками переполнения и специальными значениями. В таблице ниже компромиссы, которые удалось идентифицировать:
 
-То есть у `Decimal32`/`Decimal64` переполнение целой части даёт исключение, а у `Decimal128`/`Decimal256` — молча неверный результат. Для сравнения: у PostgreSQL `numeric` выход за формат — всегда ошибка (`value overflows numeric format`). Это ровно та часть цены фиксированной ширины, о которой в спорах «decimal против копеек» обычно не вспоминают.
+| Движок | Чем заплатил |
+|---|---|
+| ClickHouse | проверками переполнения — у `Decimal128`/`Decimal256` их нет |
+| CedarDB | специальными значениями — `NaN` и `±Infinity` запрещены |
+| YDB | диапазоном — три десятичных разряда из 38 отданы под служебные значения |
+| PostgreSQL `numeric` | ничем |
 
-## Выводы
+Показательно и то, что YDB спроектирован независимо и в те же 2010–2020-е, что CedarDB и
+DuckDB, — и пришёл к той же конструкции: целое фиксированной ширины, масштаб в типе, потолок
+в районе 35–38. Произвольную точность переменной длины не выбрал никто.
 
-1. **Формального стандарта «для денег используйте NUMERIC» не существует.** В ISO SQL нет
-   даже типа MONEY. Утверждать обратное — ошибка.
-2. **Зато есть требования к поведению**, которым двоичная плавающая точка не удовлетворяет:
-   точное представление копейки, детерминированное поведение на ровно половине, округление
-   строго в предписанных точках и нигде больше, масштаб как параметр валюты. Это следует из
-   права (регламент ЕС 1103/97, HMRC, п. 6 ст. 52 НК РФ + ПП № 1137), форматов обмена
-   (ISO 20022, XBRL, FIX/SBE, ФФД, форматы ФНС) и транзакционных бенчмарков (TPC-C, TPC-E).
-3. **Реальный консенсус звучит не «используйте decimal», а «никогда не двоичный float, и
-   всегда валюта рядом с суммой».** Именно так формулируют его Фаулер, Блох, JSR 354 и
-   PostgreSQL wiki.
-4. **Внутри этого консенсуса две легитимные кодировки, и индустрия делится предсказуемо.**
-   Системы учёта (SAP, Oracle EBS, ERPNext, ISO 20022, ЭДО-форматы ФНС, DirectBank) берут
-   точное десятичное, потому что им нужен переменный и большой масштаб. Транспорт и
-   высоконагруженные ledger'ы (Stripe, Adyen, T-Bank, ФФД, Modern Treasury) берут целые в
-   minor units, потому что так удобнее JSON и процессору.
-5. **Для PostgreSQL это значит:** `numeric` — правильный дефолт для системы учёта, и
-   документация говорит это прямо. Но там же, в соседнем предложении, сказано «very slow
-   compared to the integer types» — и `bigint` в копейках не ересь, а вторая половина того
-   же индустриального консенсуса. Выбор между ними — про масштаб и про то, где проходит
-   граница системы, а не про «правильно/неправильно».
-6. **Отдельно и важно:** тип колонки не определяет тип арифметики. Odoo хранит в `numeric`
-   и считает в `double`. Проверять надо оба слоя.
-7. **Точный десятичный тип не умирает — умирает конкретно варианта «произвольная точность
-   переменной длины».** 38 цифр (int128) стали универсальным потолком, а CedarDB, движок
-   2020-х, письменно объясняет отказ от модели PostgreSQL «for performance reasons».
-   В самом PostgreSQL развилка была пройдена в 2001 году и с 2018-го не обсуждалась.
-8. **Сфера применения `numeric` не «финансы», а «всё, где нужна точность за пределами
-   int128 или заранее неизвестный масштаб».** Финансам хватает 15–18 цифр на хранение и
-   25–32 на промежуточные результаты; биржам — 15 по спецификации FIX. Реальный массовый
-   потребитель произвольной точности — EVM-блокчейны (78 цифр на `uint256`, до 156 в
-   промежуточных вычислениях) и сама арифметика агрегатов, где сумма и произведение
-   выводят разрядность за 38 без всякого домена.
-9. **1С от `numeric` не уходит и не собирается.** За ~18 лет патча к PostgreSQL — ноль
-   строк про numeric, при том что для строк 1С написала собственный тип. Платформа 8.5.4
-   наоборот повысила точность арифметики в запросах к СУБД.
+## Анализ
+
+Собственно, что даёт нам сие небольшое исследование?
+
+Во-первых, становится очевидно, сужается что область применения `real` и `double precision` в столбцах таблицы, над которыми выполняются арифметические операции. В области финансов это уже крайне редкое явление.
+
+Целочисленные и точные десятичные типы применяются в приложениях на равноправной основе. При этом в финансовых системах, основанных на старых форматах стоит ждать целых беззнаковых типов, а в более современных - вариации DECIMAL.
+
+Выбор целого или десятичного типа скорее всего определяется областью применения конкретной БД. Десятичный тип очевидно более универсален и нагляден. И что важнее, он оставляет вопрос интерпретации числа на уровне базы данных, не давая пользователю возможности совершить ошибку - наиболее полно это мнение раскрыто в тексте Otar Chekurishvili [Storing money as integer cents is often over-engineering](https://world.hey.com/otar/storing-money-as-integer-cents-is-often-over-engineering-7238a485).
+
+Очевидно, что вопрос производительности математических операций над точными десятичными типами стоит на повестке у разработчиков. И общий ответ здесь - в ограничении диапазона по точности таких величин. И хотя типовым потолком становится 38 цифр в числе, разработчикам приходится идти на различные ухищрения и компромиссы.
