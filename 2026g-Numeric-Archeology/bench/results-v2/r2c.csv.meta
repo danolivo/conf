@@ -1,0 +1,9 @@
+# generated 2026-08-11T13:52:59+00:00
+# host: Linux 6.17.0-1022-gcp x86_64
+# cpu: Intel(R) Xeon(R) Platinum 8481C CPU @ 2.70GHz
+# rows=5000000 reps=20 shared_buffers=32GB pin_core=2
+# governor=none
+# /opt/pg-stock version: postgres (PostgreSQL) 18.3
+# /opt/pg-stock configure:  '--prefix=/opt/pg-stock' '--without-icu' '--without-readline' '--without-zlib' '--enable-depend' 'CFLAGS=-O2'
+# /opt/pg-dec128 version: postgres (PostgreSQL) 18.3
+# /opt/pg-dec128 configure:  '--prefix=/opt/pg-dec128' '--without-icu' '--without-readline' '--without-zlib' '--enable-depend' 'CFLAGS=-O2'

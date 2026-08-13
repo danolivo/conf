@@ -1,0 +1,9 @@
+build,metric,bytes
+stock,heap,221773824
+stock,heap_plus_toast_idx,334348288
+stock,btree_index,112492544
+stock,wal_1m_insert,64185816
+dec128,heap,341835776
+dec128,heap_plus_toast_idx,499916800
+dec128,btree_index,157958144
+dec128,wal_1m_insert,72215832
