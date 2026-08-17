@@ -49,7 +49,13 @@ sum_agg_support(PG_FUNCTION_ARGS)
 		 * aggregate the sort clause is what WITHIN GROUP means, and
 		 * ordered_set_startup() reads aggorder at execution time, so removing
 		 * it would break the aggregate rather than optimize it.
+		 *
+		 * We are named sum_agg_support for a reason: being attached to such
+		 * an aggregate is a configuration error, not a case to handle, so be
+		 * loud about it on assert-enabled builds.  Production builds must
+		 * not crash in a support function and fail safe by declining.
 		 */
+		Assert(aggref->aggkind == AGGKIND_NORMAL);
 		if (aggref->aggkind != AGGKIND_NORMAL)
 			PG_RETURN_POINTER(NULL);
 
@@ -58,10 +64,12 @@ sum_agg_support(PG_FUNCTION_ARGS)
 			PG_RETURN_POINTER(NULL);
 
 		/*
-		 * Be paranoid about what we are attached to: sum() takes exactly one
-		 * argument.  This also makes linitial_oid() below safe, since
-		 * aggargtypes is NIL for a star aggregate such as count(*).
+		 * sum() takes exactly one argument; anything else means we are
+		 * attached to the wrong aggregate — again a configuration error.
+		 * The check also makes linitial_oid() below safe, since aggargtypes
+		 * is NIL for a star aggregate such as count(*).
 		 */
+		Assert(list_length(aggref->aggargtypes) == 1);
 		if (list_length(aggref->aggargtypes) != 1)
 			PG_RETURN_POINTER(NULL);
 

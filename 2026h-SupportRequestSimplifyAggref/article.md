@@ -56,8 +56,11 @@ sum_agg_support(PG_FUNCTION_ARGS)
 		req = (SupportRequestSimplifyAggref *) rawreq;
 		aggref = req->aggref;
 
-		if (aggref->aggdistinct != NIL)
-			PG_RETURN_POINTER(NULL);
+	 	foreach(lc, aggref->args)
+		{
+			if (((TargetEntry *) lfirst(lc))->resjunk)
+				PG_RETURN_POINTER(NULL);
+		}
 
 	    switch (linitial_oid(aggref->aggargtypes))
 		{
@@ -67,6 +70,10 @@ sum_agg_support(PG_FUNCTION_ARGS)
 			case NUMERICOID:
 		 		newagg = copyObject(aggref);
 		 		newagg->aggorder = NIL;
+		 
+		 		foreach(lc, newagg->args)
+					((TargetEntry *) lfirst(lc))->ressortgroupref = 0;
+		 
 		 		PG_RETURN_POINTER(newagg);
 			default:
 				PG_RETURN_POINTER(NULL);
@@ -77,7 +84,15 @@ sum_agg_support(PG_FUNCTION_ARGS)
 }
 ```
 
-Однако, как и всегда в промышленном коде, требуется множество проверок на корректность и всяких "fast path". Поэтому полный код будет выглядеть как-то так:
+В минимальном варианте нам достаточно определить, что агрегат суммирует значения подходящего типа - целые или [точные десятичные типы](ссылка на мою предыдущую статью). В таком случае копируем ноду, реализующую этот агрегат и возвращаем её без клаузы `ORDER BY`. Старый агрегат мы оставляем без изменения - для других расширений или если оптимизатор станет использовать дерево запроса в каком-нибудь альтернативном планировании.
+
+Проверка на `resjunk` - это своеобразный способ отделить выражения вида `SUM(x ORDER BY y)`. Если колонка соротировки не попадает в выражение суммирования, то такаяя колонка появится в списке аргументов как `resjunk` - под текущую оптимизацию не подходит.
+
+Строка с обнулением `ressortgroupref` требуется для того, чтобы удалить метку "отсортировано" которая устанавливалась на колонку `x` - сортировки нет, значит признак должен быть снят, чтобы последующие проверки дерева плана запроса не обнаружили неконсистентность.
+
+Однако это не всё. Промышленный код, как обычно, будет сложнее, ибо должен учитывать разнообразные варианты применения и отрабатывать в том числе и попытки некорректного использования функции. Поэтому полный код будет выглядеть, конечно, [сложнее](https://github.com/danolivo/conf/blob/e8e7bf4215581b4e0462f81d344d510c4aa5b929/2026h-SupportRequestSimplifyAggref/aggsupport/agg_support.c#L33).
+
+// Spoiler:
 
 ```c
 Datum
@@ -100,7 +115,13 @@ sum_agg_support(PG_FUNCTION_ARGS)
 		 * aggregate the sort clause is what WITHIN GROUP means, and
 		 * ordered_set_startup() reads aggorder at execution time, so removing
 		 * it would break the aggregate rather than optimize it.
+		 *
+		 * We are named sum_agg_support for a reason: being attached to such
+		 * an aggregate is a configuration error, not a case to handle, so be
+		 * loud about it on assert-enabled builds.  Production builds must
+		 * not crash in a support function and fail safe by declining.
 		 */
+		Assert(aggref->aggkind == AGGKIND_NORMAL);
 		if (aggref->aggkind != AGGKIND_NORMAL)
 			PG_RETURN_POINTER(NULL);
 
@@ -109,10 +130,12 @@ sum_agg_support(PG_FUNCTION_ARGS)
 			PG_RETURN_POINTER(NULL);
 
 		/*
-		 * Be paranoid about what we are attached to: sum() takes exactly one
-		 * argument.  This also makes linitial_oid() below safe, since
-		 * aggargtypes is NIL for a star aggregate such as count(*).
+		 * sum() takes exactly one argument; anything else means we are
+		 * attached to the wrong aggregate — again a configuration error.
+		 * The check also makes linitial_oid() below safe, since aggargtypes
+		 * is NIL for a star aggregate such as count(*).
 		 */
+		Assert(list_length(aggref->aggargtypes) == 1);
 		if (list_length(aggref->aggargtypes) != 1)
 			PG_RETURN_POINTER(NULL);
 
@@ -177,13 +200,16 @@ sum_agg_support(PG_FUNCTION_ARGS)
 }
 ```
 
-Почти весь код — проверки применимости, и в них вся суть.
+Почти весь код — проверки применимости, и в них вся суть. Давайте тогда приступим к объяснению этой самой сложной части кода и разберём по порядку.
 
-**Только обычные агрегаты.** У ordered-set и hypothetical-set агрегатов (`percentile_disc(0.5) WITHIN GROUP (ORDER BY x)`) поле `aggorder` — это семантика WITHIN GROUP, и читается оно на этапе исполнения. Убрать его — значит сломать агрегат, а не ускорить.
+Проверка наличия условия DISTINCT. DISTINCT означает, что агрегату в любом случае требуется сортировка, а значит оптимизация не повлияет ни на что - по крайней мере, пока DISTINCT внутри агрегата не научится дедупликации методом хэширования.
+
+Во-первых, мы будем оптимизировать только "обычные" агрегаты. SQL содержит достаточно сложные конструкции
+**Только обычные агрегаты.** У ordered-set и hypothetical-set агрегатов (`percentile_disc(0.5) WITHIN GROUP (ORDER BY x)`) поле `aggorder` — это семантика WITHIN GROUP, и читается оно на этапе исполнения. Убрать его — значит сломать агрегат, а не ускорить. Функция не зря называется `sum_agg_support`: привязать её к такому агрегату — ошибка конфигурации, а не ситуация, которую нужно молча обслуживать. Поэтому здесь стоит `Assert` — отладочная сборка упадёт громко, — но боевая всё же тихо откажется: падать в продакшене support-функция не имеет права.
 
 **Никакого DISTINCT.** В `sum(DISTINCT x ORDER BY x)` дедупликация выполняется через ту же сортировку — убирать её нельзя.
 
-**Один аргумент и точный тип.** float4/float8 отвергаем: для них порядок суммирования наблюдаем, сумма в другом порядке — другое число. Здесь есть тонкость: тип аргумента приходится брать из `aggargtypes`, а не из `aggtranstype` — последний заполняется в `preprocess_aggrefs()`, которая выполняется позже, и на момент нашего вызова там ещё `InvalidOid`.
+**Один аргумент и точный тип.** Агрегат не с одним аргументом означает, что нас снова привязали не туда, — тоже `Assert`. А вот float4/float8 отвергаем тихо: `sum(float8)` — легитимная цель привязки, просто для неё трансформация некорректна, ведь порядок суммирования наблюдаем — сумма в другом порядке даёт другое число. Здесь есть тонкость: тип аргумента приходится брать из `aggargtypes`, а не из `aggtranstype` — последний заполняется в `preprocess_aggrefs()`, которая выполняется позже, и на момент нашего вызова там ещё `InvalidOid`.
 
 **Никаких resjunk-аргументов.** В `sum(x ORDER BY y)` столбец `y` попадает в список аргументов агрегата с пометкой resjunk — он нужен только сортировке. Выкинув `ORDER BY`, мы оставили бы бесхозный аргумент; перестройка списка аргументов для демонстрации избыточна — проще отказаться от трансформации.
 
