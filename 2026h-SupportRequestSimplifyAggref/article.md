@@ -32,7 +32,7 @@ Time: 3664.739 ms (00:03.665)
 
 Треть времени запроса уходит впустую — значительное ускорение в идеальном случае. Имеет смысл реализовать замену: она отработает один раз на этапе планирования и не должна стоить дорого. А в случае [generic-планов](https://www.postgresql.org/docs/19/sql-prepare.html) результат трансформации будет ещё и переиспользоваться от выполнения к выполнению.
 
-## Этап первый. Тело функции
+## Тело prosupport-функции
 
 Функция поддержки — это C-функция с SQL-сигнатурой `supportfn(internal) RETURNS internal`. Планировщик передаёт ей указатель на узел плана запроса, а она возвращает результат, тип которого зависит от типа запроса, либо NULL-указатель — «ничем помочь не могу». Типов запросов много: `SupportRequestSimplify`, `SupportRequestCost`, `SupportRequestRows` и другие — все описаны в [supportnodes.h](https://github.com/postgres/postgres/blob/master/src/include/nodes/supportnodes.h). Кстати, в документации `SupportRequestSimplifyAggref` пока не упомянут вовсе, так что заголовочный файл — единственный источник.
 
@@ -90,7 +90,7 @@ sum_agg_support(PG_FUNCTION_ARGS)
 
 Строка с обнулением `ressortgroupref` требуется для того, чтобы удалить метку "отсортировано" которая устанавливалась на колонку `x` - сортировки нет, значит признак должен быть снят, чтобы последующие проверки дерева плана запроса не обнаружили неконсистентность.
 
-Однако это не всё. Промышленный код, как обычно, будет сложнее, ибо должен учитывать разнообразные варианты применения и отрабатывать в том числе и попытки некорректного использования функции. Поэтому полный код будет выглядеть, конечно, [сложнее](https://github.com/danolivo/conf/blob/e8e7bf4215581b4e0462f81d344d510c4aa5b929/2026h-SupportRequestSimplifyAggref/aggsupport/agg_support.c#L33).
+Однако это не всё. Промышленный код, как обычно, будет сложнее, ибо должен учитывать разнообразные варианты применения и отрабатывать в том числе и попытки некорректного использования функции. Также, приходится писать код так, чтобы отрицательные проверки были выполнены как можно раньше и "fast path" не могу ничем помочь" произошёл как можно раньше. Поэтому полный код будет выглядеть, конечно, [чуть сложнее](https://github.com/danolivo/conf/blob/e8e7bf4215581b4e0462f81d344d510c4aa5b929/2026h-SupportRequestSimplifyAggref/aggsupport/agg_support.c#L33).
 
 // Spoiler:
 
@@ -110,40 +110,15 @@ sum_agg_support(PG_FUNCTION_ARGS)
 		req = (SupportRequestSimplifyAggref *) rawreq;
 		aggref = req->aggref;
 
-		/*
-		 * Plain aggregates only.  For an ordered-set or hypothetical-set
-		 * aggregate the sort clause is what WITHIN GROUP means, and
-		 * ordered_set_startup() reads aggorder at execution time, so removing
-		 * it would break the aggregate rather than optimize it.
-		 *
-		 * We are named sum_agg_support for a reason: being attached to such
-		 * an aggregate is a configuration error, not a case to handle, so be
-		 * loud about it on assert-enabled builds.  Production builds must
-		 * not crash in a support function and fail safe by declining.
-		 */
 		Assert(aggref->aggkind == AGGKIND_NORMAL);
-		if (aggref->aggkind != AGGKIND_NORMAL)
-			PG_RETURN_POINTER(NULL);
 
-		/* Nothing to remove, and DISTINCT needs the sort anyway */
 		if (aggref->aggorder == NIL || aggref->aggdistinct != NIL)
 			PG_RETURN_POINTER(NULL);
 
-		/*
-		 * sum() takes exactly one argument; anything else means we are
-		 * attached to the wrong aggregate — again a configuration error.
-		 * The check also makes linitial_oid() below safe, since aggargtypes
-		 * is NIL for a star aggregate such as count(*).
-		 */
 		Assert(list_length(aggref->aggargtypes) == 1);
 		if (list_length(aggref->aggargtypes) != 1)
 			PG_RETURN_POINTER(NULL);
 
-		/*
-		 * Reject inexact types, where the summation order is observable.
-		 * aggtranstype is not filled in until preprocess_aggrefs(), which
-		 * runs after us, so consult the declared argument type instead.
-		 */
 		switch (linitial_oid(aggref->aggargtypes))
 		{
 			case INT2OID:
@@ -155,41 +130,15 @@ sum_agg_support(PG_FUNCTION_ARGS)
 				PG_RETURN_POINTER(NULL);
 		}
 
-		/*
-		 * Punt if any argument is resjunk, ie. it is present only to feed the
-		 * ORDER BY, as in sum(x ORDER BY y).  Removing the sort would leave
-		 * it unused, and rebuilding the argument list is more than this
-		 * example needs.
-		 */
 		foreach(lc, aggref->args)
 		{
 			if (((TargetEntry *) lfirst(lc))->resjunk)
 				PG_RETURN_POINTER(NULL);
 		}
 
-		/*
-		 * Note: no check of agglevelsup is needed.  supportnodes.h warns
-		 * about Aggrefs with agglevelsup > 0, but dropping a semantically
-		 * inert ORDER BY is valid at any aggregation level.
-		 */
-
-		/*
-		 * The API requires a new node; the original must not be modified.  A
-		 * deep copy is wanted here, rather than the makeNode/memcpy shortcut
-		 * some in-core support functions use, because we go on to modify the
-		 * argument list.
-		 */
 		newagg = copyObject(aggref);
 		newagg->aggorder = NIL;
 
-		/*
-		 * The sort-group references on the arguments existed only to be
-		 * targets of that ORDER BY.  Left behind, they would make this call
-		 * unequal to an identical one written without ORDER BY, and
-		 * find_compatible_agg() would then evaluate the same aggregate twice.
-		 * Clearing them is safe precisely because aggorder and aggdistinct
-		 * are both gone.
-		 */
 		foreach(lc, newagg->args)
 			((TargetEntry *) lfirst(lc))->ressortgroupref = 0;
 
@@ -200,24 +149,14 @@ sum_agg_support(PG_FUNCTION_ARGS)
 }
 ```
 
-Почти весь код — проверки применимости, и в них вся суть. Давайте тогда приступим к объяснению этой самой сложной части кода и разберём по порядку.
+Давайте разберём эти проверки.
 
-Проверка наличия условия DISTINCT. DISTINCT означает, что агрегату в любом случае требуется сортировка, а значит оптимизация не повлияет ни на что - по крайней мере, пока DISTINCT внутри агрегата не научится дедупликации методом хэширования.
+Проверка наличия условия DISTINCT. DISTINCT означает, что агрегату в любом случае требуется сортировка, а значит оптимизация не повлияет ни на что — по крайней мере, пока DISTINCT внутри агрегата не научится дедупликации методом хеширования. Желающих, впрочем, пока не видно: комментарий `We don't implement DISTINCT or ORDER BY aggs in the HASHED case (yet)` живёт в `nodeAgg.c` со времён [коммита 34d26872ed8](https://github.com/postgres/postgres/commit/34d26872ed8), которым Том Лейн в 2009 году и добавил `ORDER BY` внутрь агрегатов.
 
-Во-первых, мы будем оптимизировать только "обычные" агрегаты. SQL содержит достаточно сложные конструкции
-**Только обычные агрегаты.** У ordered-set и hypothetical-set агрегатов (`percentile_disc(0.5) WITHIN GROUP (ORDER BY x)`) поле `aggorder` — это семантика WITHIN GROUP, и читается оно на этапе исполнения. Убрать его — значит сломать агрегат, а не ускорить. Функция не зря называется `sum_agg_support`: привязать её к такому агрегату — ошибка конфигурации, а не ситуация, которую нужно молча обслуживать. Поэтому здесь стоит `Assert` — отладочная сборка упадёт громко, — но боевая всё же тихо откажется: падать в продакшене support-функция не имеет права.
+Далее проверяем, что support-функция вызвана для "обычного" агрегата.
+ У ordered-set и hypothetical-set агрегатов (`percentile_disc(0.5) WITHIN GROUP (ORDER BY x)`) поле `aggorder` убрать нельзя без риска поменять семантику. Конечно, агрегат   `SUM()` не может быть использован с `WITHIN GROUP` по определению - здесь мы страхуемся от того, чтобы пользователь не приаттачил prosupport к несовместимому агрегату. То же самое относится и к следующей проверке на то, что входных аргументов ровно одна штука.
 
-**Никакого DISTINCT.** В `sum(DISTINCT x ORDER BY x)` дедупликация выполняется через ту же сортировку — убирать её нельзя.
-
-**Один аргумент и точный тип.** Агрегат не с одним аргументом означает, что нас снова привязали не туда, — тоже `Assert`. А вот float4/float8 отвергаем тихо: `sum(float8)` — легитимная цель привязки, просто для неё трансформация некорректна, ведь порядок суммирования наблюдаем — сумма в другом порядке даёт другое число. Здесь есть тонкость: тип аргумента приходится брать из `aggargtypes`, а не из `aggtranstype` — последний заполняется в `preprocess_aggrefs()`, которая выполняется позже, и на момент нашего вызова там ещё `InvalidOid`.
-
-**Никаких resjunk-аргументов.** В `sum(x ORDER BY y)` столбец `y` попадает в список аргументов агрегата с пометкой resjunk — он нужен только сортировке. Выкинув `ORDER BY`, мы оставили бы бесхозный аргумент; перестройка списка аргументов для демонстрации избыточна — проще отказаться от трансформации.
-
-Отдельной проверки заслуживал бы `agglevelsup`: supportnodes.h прямо предупреждает, что функция поддержки может получить Aggref с `agglevelsup > 0` — агрегат, ссылающийся из подзапроса на внешний уровень. Нам, впрочем, беспокоиться не о чем: выбрасывание семантически инертного `ORDER BY` корректно на любом уровне агрегации.
-
-Сама трансформация после всех проверок — три действия: `copyObject()`, `aggorder = NIL` и обнуление `ressortgroupref` у аргументов. Последнее неочевидно, но важно: ссылки sort-group существовали только ради `ORDER BY`, однако функция `equal()` их учитывает. Не обнули мы их — и `find_compatible_agg()` посчитала бы `sum(x ORDER BY x)` после трансформации и написанный рядом `sum(x)` разными агрегатами, вычислив одно и то же дважды.
-
-## Этап второй. Подключение функции как prosupport к агрегату
+## Подключение функции как prosupport к агрегату
 
 Для обычной функции всё просто: `CREATE FUNCTION ... SUPPORT` или `ALTER FUNCTION ... SUPPORT`. С агрегатами ждёт сюрприз:
 
