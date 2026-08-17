@@ -11,8 +11,8 @@
  *
  * Requires PostgreSQL 19+, where the planner issues
  * SupportRequestSimplifyAggref (commit 42473b3b31) for any aggregate whose
- * pg_proc.prosupport is set.  See agg_support--1.0.sql for how the support
- * function gets attached to the aggregates.
+ * pg_proc.prosupport is set.  See agg_support--1.0.sql for the attach/detach
+ * helpers that link this function to an aggregate, e.g. pg_catalog.sum().
  *
  *-------------------------------------------------------------------------
  */

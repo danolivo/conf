@@ -2,4 +2,5 @@
 comment = 'demo planner support function for a sum()-like aggregate'
 default_version = '1.0'
 module_pathname = '$libdir/agg_support'
-relocatable = true
+# not relocatable: attach/detach helpers reference @extschema@
+relocatable = false
