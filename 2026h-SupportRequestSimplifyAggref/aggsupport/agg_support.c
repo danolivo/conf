@@ -9,7 +9,10 @@
  * true of float4/float8, where the summation order is observable, so those
  * are declined.
  *
- * Requires a server that supports CREATE/ALTER AGGREGATE ... SUPPORT.
+ * Requires PostgreSQL 19+, where the planner issues
+ * SupportRequestSimplifyAggref (commit 42473b3b31) for any aggregate whose
+ * pg_proc.prosupport is set.  See agg_support--1.0.sql for how the support
+ * function gets attached to the aggregates.
  *
  *-------------------------------------------------------------------------
  */
@@ -89,6 +92,12 @@ sum_agg_support(PG_FUNCTION_ARGS)
 			if (((TargetEntry *) lfirst(lc))->resjunk)
 				PG_RETURN_POINTER(NULL);
 		}
+
+		/*
+		 * Note: no check of agglevelsup is needed.  supportnodes.h warns
+		 * about Aggrefs with agglevelsup > 0, but dropping a semantically
+		 * inert ORDER BY is valid at any aggregation level.
+		 */
 
 		/*
 		 * The API requires a new node; the original must not be modified.  A

@@ -6,10 +6,20 @@ function attached to a `sum()`-like aggregate, which removes a redundant
 
 ## Requirements
 
-A server supporting `CREATE AGGREGATE ... SUPPORT` / `ALTER AGGREGATE ...
-SUPPORT`. Stock PostgreSQL has no way to attach a support function to an
-aggregate — `SupportRequestSimplifyAggref` (commit 42473b3b31) is reachable
-only for `count()`, whose `prosupport` slot is set in `pg_proc.dat`.
+PostgreSQL 19 or newer. Since commit 42473b3b31 the planner issues
+`SupportRequestSimplifyAggref` for any aggregate whose `pg_proc.prosupport`
+is set; in core the request is used to turn `count(1)` and
+`count(never_null_column)` into `count(*)`.
+
+Stock PostgreSQL has no DDL to attach a support function to an aggregate:
+`ALTER FUNCTION ... SUPPORT` rejects aggregates, and `CREATE`/`ALTER
+AGGREGATE` know no `SUPPORT` clause (a patch adding both has been
+[proposed](https://www.postgresql.org/message-id/8f58c96d-d3c7-4c0f-9898-116f00eeaff6@gmail.com)).
+Until then the install script writes `pg_proc.prosupport` directly. Within a
+single extension that is tolerable — the aggregates and the support function
+are extension members and can only be dropped together, so no dangling
+`prosupport` OID can be left behind. It is also why `CREATE EXTENSION`
+requires superuser here.
 
 Building the extension requires the server headers (`postgresql-server-dev`
 or a source install).
@@ -18,13 +28,14 @@ or a source install).
 
     make PG_CONFIG=/path/to/pg_config
     make install PG_CONFIG=/path/to/pg_config
+    make installcheck PG_CONFIG=/path/to/pg_config   # against a running server
 
 ## Use
 
-    CREATE EXTENSION agg_support;
+    CREATE EXTENSION agg_support;   -- superuser
 
 This creates the support function plus two demo aggregates, `mysum(numeric)`
-and `mysum(float8)`. Creating them requires superuser, since `SUPPORT` does.
+and `mysum(float8)`.
 
     EXPLAIN (VERBOSE, COSTS OFF) SELECT mysum(n ORDER BY n) FROM t;
 
@@ -59,7 +70,11 @@ that.
 
 ## Do not attach this to the built-in `sum()`
 
-`ALTER AGGREGATE pg_catalog.sum(numeric) SUPPORT ...` records a dependency
-from a pinned catalog object onto the extension's function, which makes the
-extension undroppable, and the change does not survive dump/restore or
-pg_upgrade because system objects are not dumped. Own your aggregates.
+Nothing stops a superuser from pointing `pg_catalog.sum(numeric)` at this
+support function with the same `UPDATE`. Resist the urge, at least in
+production: no dependency is recorded, so the support function can later be
+dropped (with the extension) while `prosupport` still points at its OID —
+after which every query using `sum(numeric)` fails to plan with `cache lookup
+failed for function NNNNN`. The link is also invisible to `pg_dump` and does
+not survive `pg_upgrade`. Own your aggregates, or see the proposed
+`ALTER AGGREGATE ... SUPPORT` patch, which records a proper dependency.
