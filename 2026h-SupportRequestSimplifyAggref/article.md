@@ -158,42 +158,42 @@ sum_agg_support(PG_FUNCTION_ARGS)
 
 ## Подключение функции как prosupport к агрегату
 
-Для обычной функции всё просто: `CREATE FUNCTION ... SUPPORT` или `ALTER FUNCTION ... SUPPORT`. С агрегатами ждёт сюрприз:
+Расширение, которое хочет добавить кастомный prosupport-хелпер в обычном случае просто выполняет DDL: `CREATE FUNCTION ... SUPPORT` или `ALTER FUNCTION ... SUPPORT`. С агрегатами нас ждёт сюрприз:
 
 ```sql
 =# ALTER FUNCTION pg_catalog.sum(numeric) SUPPORT sum_agg_support;
 ERROR:  "pg_catalog.sum" is an aggregate function
-
-=# ALTER AGGREGATE pg_catalog.sum(numeric) SUPPORT sum_agg_support;
-ERROR:  syntax error at or near "SUPPORT"
 ```
 
-DDL, позволяющего навесить функцию поддержки на агрегат, в ванильном PostgreSQL просто нет: фича в ядре формально есть, но снаружи ядра недостижима. Патч, добавляющий опцию `SUPPORT` в `CREATE AGGREGATE` и форму `ALTER AGGREGATE ... SUPPORT`, [предложен в pgsql-hackers](https://www.postgresql.org/message-id/flat/8f58c96d-d3c7-4c0f-9898-116f00eeaff6@gmail.com). Пока он не закоммичен, придётся делать работу DDL руками. Кроме C-функции, скрипт расширения объявляет пару plpgsql-хелперов — `agg_support_attach()` и `agg_support_detach()`. Суть attach — две записи в системный каталог, ровно те, что сделал бы DDL:
+DDL, позволяющего навесить функцию поддержки на агрегат, в ванильном PostgreSQL просто нет: фича в ядре формально есть, но снаружи ядра недостижима. Патч, добавляющий опцию `SUPPORT` в `CREATE AGGREGATE` и форму `ALTER AGGREGATE ... SUPPORT`, [предложен в pgsql-hackers](https://www.postgresql.org/message-id/flat/8f58c96d-d3c7-4c0f-9898-116f00eeaff6@gmail.com). Пока он не закоммичен и здесь мы выполним работу DDL вручную. Кроме C-функции, скрипт расширения объявляет пару plpgsql-хелперов — `agg_support_attach()` и `agg_support_detach()`. Суть attach — две записи в системный каталог, ровно те, что сделал бы DDL:
 
 ```sql
--- планировщик начинает советоваться с функцией поддержки
-UPDATE pg_catalog.pg_proc SET prosupport = supfn WHERE oid = agg;
+UPDATE pg_catalog.pg_proc
+   SET prosupport = 'sum_agg_support'::regproc
+ WHERE oid = 'pg_catalog.sum(numeric)'::regprocedure;
 
--- обычная (NORMAL) зависимость: агрегат зависит от функции поддержки
+-- обычная (NORMAL) зависимость: теперь sum(numeric) будет зависеть от sum_agg_support
 INSERT INTO pg_catalog.pg_depend
        (classid, objid, objsubid, refclassid, refobjid, refobjsubid, deptype)
-VALUES ('pg_catalog.pg_proc'::regclass, agg, 0,
-        'pg_catalog.pg_proc'::regclass, supfn, 0, 'n');
+VALUES ('pg_catalog.pg_proc'::regclass, 'pg_catalog.sum(numeric)'::regprocedure, 0,
+        'pg_catalog.pg_proc'::regclass, 'sum_agg_support'::regproc, 0, 'n');
 ```
+
+Зависимость `deptype = 'n'` (NORMAL) означает «объект нельзя удалить, пока на него ссылаются».
 
 Без второй записи можно было бы и обойтись — но недолго, и сейчас увидим почему.
 
 Подключаемся — прямо к встроенному `sum(numeric)`, планировщику всё равно, чей агрегат перед ним:
 
 ```sql
-=# SELECT agg_support_attach('pg_catalog.sum(numeric)'::regprocedure);
-=# EXPLAIN (VERBOSE, COSTS OFF) SELECT sum(x ORDER BY x) FROM t;
+SELECT agg_support_attach('pg_catalog.sum(numeric)'::regprocedure);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT sum(x ORDER BY x) FROM t;
  Aggregate
    Output: sum(x)
    ->  Seq Scan on public.t
 ```
 
-Вот здесь ручная запись в `pg_depend` и перестаёт быть формальностью. Голый `UPDATE pg_proc` без неё — игра с огнём: удалили расширение — и `prosupport` у `sum(numeric)` указывает в пустоту, после чего каждый запрос с `sum(numeric)` падает на планировании с `cache lookup failed for function NNNNN`, пока кто-нибудь не обнулит поле обратно. С зависимостью же система сама не даст выстрелить себе в ногу:
+Вот здесь ручная запись в `pg_depend` и перестаёт быть формальностью. Если удалить расширение, то `prosupport` у `sum(numeric)` станет указывать в пустоту, после чего каждый запрос с `sum(numeric)` будет падать на планировании с `cache lookup failed for function NNNNN`, пока кто-нибудь не обнулит поле обратно. С зависимостью же система сама не даст выстрелить себе в ногу:
 
 ```sql
 =# DROP EXTENSION agg_support;
@@ -202,16 +202,14 @@ ERROR:  cannot drop function sum(numeric) because it is required by the database
 
 Сообщение не самое говорящее — механизм зависимостей дошёл по нашей записи до pinned-объекта `sum(numeric)` и отказался его трогать, — но провал безопасный: не поможет даже `CASCADE`. Порядок наводится штатно: сначала `agg_support_detach('pg_catalog.sum(numeric)')` — симметричный хелпер, обнуляющий `prosupport` и удаляющий запись из `pg_depend`, — затем `DROP EXTENSION`.
 
-Две оговорки честности ради. Attach к встроенному агрегату действует на всю базу и всех её пользователей — это решение администратора, а не библиотеки. И связка не переживает pg_dump/restore и pg_upgrade: на новом кластере исчезают обе записи разом, `sum` продолжает работать как стоковый, просто attach придётся повторить. Предложенный патч делает всё то же самое штатно — `ALTER AGGREGATE ... SUPPORT` пишет и `prosupport`, и зависимость, — но без похода в системный каталог руками и с человеческими сообщениями об ошибках.
-
-Заодно отметим: и `CREATE EXTENSION` (C-функция), и сам attach требуют суперпользователя — запись в системный каталог дешевле не продаётся.
+Заметим, что кастомные prosupport-функции намеренно не переживают pg_dump/restore и pg_upgrade. Если на новом кластере есть необходимость использовать ту же оптимизациб, то attach придётся повторить.
 
 ## Смотрим на результат
 
-Сборка стандартная для расширений (нужны PostgreSQL 19+ и заголовки сервера):
+Итак, проверим, работает ли наше расширение. Сборка стандартная для расширений (нужнен PostgreSQL 19+):
+Создаём расширение в базе и прошиваем наш агрегат в системном каталоге:
 
 ```bash
-make PG_CONFIG=/path/to/pg_config install
 psql -c "CREATE EXTENSION agg_support"
 psql -c "SELECT agg_support_attach('pg_catalog.sum(numeric)'::regprocedure)"
 ```
@@ -219,7 +217,7 @@ psql -c "SELECT agg_support_attach('pg_catalog.sum(numeric)'::regprocedure)"
 Возьмём табличку с numeric и сравним планы. До подключения встроенный `sum` честно сортирует:
 
 ```sql
-=# EXPLAIN (VERBOSE, COSTS OFF) SELECT sum(x ORDER BY x) FROM t;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT sum(x ORDER BY x) FROM t;
  Aggregate
    Output: sum(x ORDER BY x)
    ->  Sort
@@ -229,10 +227,10 @@ psql -c "SELECT agg_support_attach('pg_catalog.sum(numeric)'::regprocedure)"
                Output: x
 ```
 
-После attach планировщик вызвал нашу функцию поддержки — и от `ORDER BY` не осталось следа, узел Sort исчез вместе с ним, а результат, разумеется, не изменился:
+После attach планировщик вызвал нашу функцию поддержки — и от `ORDER BY` не осталось следа, узел Sort исчез вместе с ним:
 
 ```sql
-=# EXPLAIN (VERBOSE, COSTS OFF) SELECT sum(x ORDER BY x) FROM t;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT sum(x ORDER BY x) FROM t;
  Aggregate
    Output: sum(x)
    ->  Seq Scan on public.t
@@ -242,36 +240,6 @@ psql -c "SELECT agg_support_attach('pg_catalog.sum(numeric)'::regprocedure)"
  same
 ------
  t
-```
-
-Работает и дедупликация, ради которой мы обнуляли `ressortgroupref`: оба вызова ниже сведены к одному агрегату и вычисляются один раз.
-
-```sql
-=# EXPLAIN (VERBOSE, COSTS OFF) SELECT sum(x ORDER BY x), sum(x) FROM t;
- Aggregate
-   Output: sum(x), sum(x)
-   ->  Seq Scan on public.t
-```
-
-Все «отказные» ветки тоже на месте: для `sum(f ORDER BY f)` по float8, `sum(DISTINCT x ORDER BY x)` и `sum(x ORDER BY g)` план остаётся с сортировкой, а `FILTER` трансформации не мешает и честно сохраняется.
-
-Теперь время. Тот же запрос на 10 миллионах строк, что и в начале статьи (лучшее из двух прогонов на ноутбуке, сборка без ассертов, конфигурация по умолчанию):
-
-| Запрос | Sort в плане | Время |
-|---|---|---|
-| `sum(x ORDER BY x)`, сток | есть | 5717 мс |
-| `sum(x)` | нет | 3665 мс |
-| `sum(x ORDER BY x)` после attach | убран функцией поддержки | 3527 мс |
-
-После подключения `sum(x ORDER BY x)` сравнялся с `sum(x)` в пределах шума (разница двух нижних строк — случайные данные между прогонами): сортировка исчезла не только из плана, но и из профиля выполнения. Минус 38% времени, не тронув ни запрос, ни ядро.
-
-Бонус: та самая внутриядерная трансформация из коммита 42473b3b31, с которой всё началось, — рядом. `count` по NOT NULL-колонке больше не таскает значение в агрегат:
-
-```sql
-=# EXPLAIN (VERBOSE, COSTS OFF) SELECT count(a) FROM tc;   -- a объявлена NOT NULL
- Aggregate
-   Output: count(*)
-   ->  Seq Scan on public.tc
 ```
 
 ## Заключение
