@@ -1,0 +1,7 @@
+# Title:
+When the Planner's Misestimation Inflates Your Cloud Bill
+
+# Abstract:
+The usual way of cutting database costs is to sort the pg_stat_statements according to total time, identify the queries that are performing worst, create an index for them, rewrite the query, and then deploy it. Although this method does work, it only picks up queries that are already clearly expensive. A query which takes 20ms and is called ten million times a day never appears on that list, even though it ought to run in 2ms.
+The mistake is generally due to an incorrect row estimate by the planner. This causes it to select a plan that seems sufficient, even though there is another method by which it could be made more effective. For instance, the plan might opt for a nested loop when a hash join would be better, or it might carry out a scan that is wider than necessary. At low volumes no one notices, but when scale is reached the 'sufficient' plan quietly uses up extra CPU time and I/O every day and never shows up as a slow query yet still costs money.
+In the talk I give an explanation of how the Postgres extension pg_track_optimizer can be used to identify queries which may reduce the amount of budget that is being drained. I discuss the metrics that show that query plans are suboptimal, explain how to tell the difference between occasional errors and continuous problems, and also point out that fixing only a small number of these cases resulted in a real reduction in compute costs, not just a decrease in query latency.
