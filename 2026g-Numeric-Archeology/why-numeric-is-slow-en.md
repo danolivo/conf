@@ -6,7 +6,7 @@ Since the PostgreSQL community usually fixes problems that have a more or less s
 
 To make the investigation more visual, let's also trace how DuckDB solves the same tasks — luckily, AI agents have made source-code analysis and testing much easier.
 
-One thing to keep in mind here: DuckDB is built exclusively for OLAP queries. That means, as I [noted earlier](https://habr.com/ru/companies/tantor/articles/1070300/), it places weaker demands on the exactness of operations — and, as you will see below, it actively uses this to make query execution more efficient.
+One thing to keep in mind here: DuckDB is built exclusively for OLAP queries. That means, as I [noted earlier](https://www.pgedge.com/blog/why-is-numeric-so-popular-in-postgresql-databases), it places weaker demands on the exactness of operations — and, as you will see below, it actively uses this to make query execution more efficient.
 
 ### Contents
 
@@ -66,7 +66,7 @@ It would seem the question is about decimal arithmetic. However, three independe
 
 Before diving into a complex construction, it is useful to see the problem as a whole.
 
-[Every](https://habr.com/ru/companies/tantor/articles/1070300/#direction) well-known DBMS has an exact decimal type, and those that have a fast one made it fast in a very similar way: the value is stored as an ordinary integer, and the decimal point lives separately, in the column description. This is (probably) how `DECIMAL` works in SQL Server, DuckDB and ClickHouse, and how decimal works in Arrow and Parquet. PostgreSQL went another way, deliberately taking the following key decisions:
+[Every](https://www.pgedge.com/blog/why-is-numeric-so-popular-in-postgresql-databases) well-known DBMS has an exact decimal type, and those that have a fast one made it fast in a very similar way: the value is stored as an ordinary integer, and the decimal point lives separately, in the column description. This is (probably) how `DECIMAL` works in SQL Server, DuckDB and ClickHouse, and how decimal works in Arrow and Parquet. PostgreSQL went another way, deliberately taking the following key decisions:
 
 1. **The representation does not depend on the declaration.** Everyone else picks the width of the value from the declared precision: a narrow number takes two to four bytes, a wide one eight or sixteen. In PostgreSQL the width is a property of the type, not of the column, so `numeric` has to be variable-length.
 
@@ -101,9 +101,9 @@ However, money (meters of cable in a warehouse, utility bills) is counted in dec
 
 Hence the first decision: the digits stored are decimal. By itself it dictates neither the width of the value nor the position of the decimal point — `DECIMAL` in DuckDB is decimal too, and fixed-width at the same time — but this is where the design of `numeric` starts.
 
-**Digits, but not one at a time.** It would be naive to spend a byte per digit (although an artifact of such a representation can be found in the PostgreSQL code): a byte holds a number up to 255, and we would write 0–9 into it. PostgreSQL takes two bytes per group and stores a number from 0 to 9999 in it. The result is positional notation in base 10000 — the same as the familiar base-10 notation, only there are ten thousand "digits" instead of ten.
+**Digits, but not one at a time.** It would be naive to spend a byte per digit (although an artifact of such a representation [can be found](https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/utils/adt/numeric.c#L78) in the PostgreSQL code): a byte holds a number up to 255, and we would write 0–9 into it. PostgreSQL takes two bytes per group and stores a number from 0 to 9999 in it. The result is positional notation in base 10000 — the same as the familiar base-10 notation, only there are ten thousand "digits" instead of ten.
 
-Why exactly 10000? It comes from the long-multiplication algorithm: the product of two "digits" has to fit into an `int`, and purely arithmetically any even base below `sqrt(INT_MAX)` ≈ 46341 would do. Among those, a power of ten is chosen — with it, printing and rounding to a decimal digit stay trivial — and the largest such power is exactly 10000.
+Why exactly [10000](https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/utils/adt/numeric.c#L96)? It comes from the long-multiplication algorithm: the product of two "digits" has to fit into an `int`, and purely arithmetically any even base below `sqrt(INT_MAX)` ≈ 46341 would do. Among those, a power of ten is chosen — with it, printing and rounding to a decimal digit stay trivial — and the largest such power is exactly 10000.
 
 **Finding where the fraction starts.** Storing the position of the decimal point as "so many digits from the start" is inconvenient: very large and very small numbers would accumulate long chains of zeros. Instead, a **weight** is stored — the position of the very first "digit", counted in powers of 10000. The value of the number is restored by the following formula:
 
@@ -132,7 +132,7 @@ Byte for byte these are different values, yet comparison is obliged to treat the
 
 Note that the above holds for a value declared as plain `numeric`. In a `numeric(15,2)` column, the cast on write sets `dscale = 2` for both values, and they become identical byte for byte.
 
-**Sign and special values.** There is no separate place for the sign — it hides in the two high bits of the header, together with the format flag:
+**Sign and special values.** There is no separate place for the sign — it hides in the [two high bits](https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/utils/adt/numeric.c#L167) of the header, together with the format flag:
 
 ```
 00 → positive           NUMERIC_POS
@@ -143,11 +143,11 @@ Note that the above holds for a value declared as plain `numeric`. In a `numeric
 
 Special values have no digits at all — only the two-byte header remains (three bytes in a tuple, six as a standalone value). And as a bonus: zeros at both ends of the number are dropped, so `1.0000` is stored as a single "digit" `1` with `dscale = 4`.
 
-**Packing.** There is a so-called packed storage format for a `numeric` value. If the number of digits is small (no more than ~62), a one-byte length header is used and the value is stored without alignment. Longer numbers use the standard four-byte header. Each particular value can be in either of these two formats. The operators working on `numeric` expect the standard header, so every function must be ready at any moment to "unpack" an incoming number with a one-byte header into the standard representation.
+**Packing.** There is a so-called [packed storage format](https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/utils/adt/numeric.c#L108) for a `numeric` value. If the number of digits is small (no more than ~62), a one-byte length header is used and the value is stored without alignment. Longer numbers use the standard four-byte header. Each particular value can be in either of these two formats. The operators working on `numeric` expect the standard header, so every function must be ready at any moment to "unpack" an incoming number with a one-byte header into the standard representation.
 
 Clearly, in most practical applications the numbers are short. So the unpacking is usually performed on every number — and that means, among other things, a dynamic allocation of extra memory plus a copy.
 
-The positive side effect is this: small `numeric` values are sometimes cheaper to store than even `bigint` — their "packed" representation can be noticeably shorter than eight bytes:
+The positive side effect is this: small `numeric` values are sometimes cheaper to store than even `bigint` — their "packed" representation can be noticeably shorter than eight bytes, as [`pg_column_size`](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADMIN-DBSIZE) shows:
 
 ```sql
 CREATE TABLE t(x numeric(15,2));
@@ -192,7 +192,7 @@ So the column has one type, hence one scale and one printed form. The same three
 This way, the optimal representation format for a number can be chosen in advance — and DuckDB makes active use of this, implementing a ladder of carriers: `INT16`, `INT32`, `INT64`, `INT128` for precision up to 4, 9, 18 and 38 digits. The ladder is described in the [documentation](https://duckdb.org/docs/stable/sql/data_types/numeric) and defined in the code by a single set of specializations, [`decimal.hpp`](https://github.com/duckdb/duckdb/blob/main/src/include/duckdb/common/types/decimal.hpp):
 > "Internally, decimals are represented as integers depending on their specified `WIDTH`"
 
-The choice is made once, at query planning time; after that a monomorphic function over a concrete integer runs in the loop. The width is visible from outside too: when exporting to Parquet, `DECIMAL(15,2)` is written with the physical type `INT64`, while `DECIMAL(20,2)` is already a byte array. The 18 and 38 boundaries in Parquet and DuckDB coincide not by accident: both systems run into the same machine integers.
+The choice is made once, at query planning time; after that a monomorphic function over a concrete integer runs in the loop. The width is visible from outside too: when exporting to [Parquet](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#decimal), `DECIMAL(15,2)` is written with the physical type `INT64`, while `DECIMAL(20,2)` is already a byte array. The 18 and 38 boundaries in Parquet and DuckDB coincide not by accident: both systems run into the same machine integers.
 
 As a result, the number is stored in an ordinary byte representation. And although such a number may take more space than a packed `numeric`, the basic arithmetic (addition and multiplication) for it is much simpler.
 
@@ -200,9 +200,9 @@ However, a fixed format means a hard ceiling on the maximum value. And, apparent
 
 ### Pass by value or by reference
 
-Inside PostgreSQL every value travels as a `Datum` — a machine word, eight bytes on a 64-bit platform. If a type fits into these eight bytes, it is passed *by value*: a `bigint` lives right inside the `Datum`, that is, in fact in a processor register. If it does not fit, a pointer is passed. The type becomes *pass-by-reference*.
+Inside PostgreSQL every value travels as a [`Datum`](https://www.postgresql.org/docs/current/xfunc-c.html#XFUNC-C-BASETYPE) — a machine word, eight bytes on a 64-bit platform. If a type fits into these eight bytes, it is passed *by value*: a `bigint` lives right inside the `Datum`, that is, in fact in a processor register. If it does not fit, a pointer is passed. The type becomes *pass-by-reference*.
 
-A `numeric` value is always passed by reference. So the result of every arithmetic operation on `numeric` has to be put somewhere, which implies a memory allocation per operation. Let's compare what this means for addition:
+A `numeric` value is always passed by reference. So the result of every arithmetic operation on `numeric` has to be put somewhere, which implies a [memory allocation](https://github.com/postgres/postgres/blob/master/src/backend/utils/mmgr/README) per operation. Let's compare what this means for addition:
 
 ```
 bigint:   a + b  →  one instruction, result in a register
@@ -249,7 +249,7 @@ A row in PostgreSQL is a header, a NULL bitmap, and then the column values one a
 offset of c20 = 19 × 4 — computed and cached once.
 ```
 
-If the width is variable, this doesn't work. The rule is written right in the code that builds the table descriptor: cache offsets only up to the first column of non-fixed length. The comment there says exactly that — "don't cache offsets beyond fixed-width attributes". And this is precisely the `numeric` case. The offset cache breaks off at the first such column, and every offset after it has to be recomputed, reading the header of every preceding value:
+If the width is variable, this doesn't work. The rule is written right in the [code](https://github.com/postgres/postgres/blob/master/src/backend/access/common/tupdesc.c) that builds the table descriptor: cache offsets only up to the first column of non-fixed length. The comment there says exactly that — "don't cache offsets beyond fixed-width attributes". And this is precisely the `numeric` case. The offset cache breaks off at the first such column, and every offset after it has to be recomputed, reading the header of every preceding value:
 
 ```
 20 numeric columns — every value has its own length
@@ -262,7 +262,7 @@ If the width is variable, this doesn't work. The rule is written right in the co
 to find the offset of c20, read the headers of c1…c19 — on every row, again.
 ```
 
-This, by the way, is the aspect that is being actively worked on in core right now, although from the other side. David Rowley spent two development cycles on deform: commit `d28dff3f` (PostgreSQL 18) replaced the 104-byte `FormData_pg_attribute` in the table descriptor with a 16-byte `CompactAttribute` and gave "~10% TPS on OLAP aggregation over a 16-column table, up to ~25%", because fewer cache lines are touched during deforming. The follow-up — ["More speedups for tuple deformation"](https://www.postgresql.org/message-id/CAApHDvpoFjaj3+w_jD5uPnGazaw41A71tVJokLDJg2zfcigpMQ@mail.gmail.com) — was committed to PostgreSQL 19: 21% on average, up to 44%. Tellingly, half of the test cases in that benchmark differ in exactly one thing: whether the first column is `INT` or `TEXT`. So the effect of a variable-length column on performance is noticed in the community.
+This, by the way, is the aspect that is being actively worked on in core right now, although from the other side. David Rowley spent two development cycles on deform: commit [`d28dff3f`](https://github.com/postgres/postgres/commit/d28dff3f) (PostgreSQL 18) replaced the 104-byte `FormData_pg_attribute` in the table descriptor with a 16-byte [`CompactAttribute`](https://github.com/postgres/postgres/blob/REL_18_STABLE/src/include/access/tupdesc.h) and gave "~10% TPS on OLAP aggregation over a 16-column table, up to ~25%", because fewer cache lines are touched during deforming. The follow-up — ["More speedups for tuple deformation"](https://www.postgresql.org/message-id/CAApHDvpoFjaj3+w_jD5uPnGazaw41A71tVJokLDJg2zfcigpMQ@mail.gmail.com) — was committed to PostgreSQL 19: 21% on average, up to 44%. Tellingly, half of the test cases in that benchmark differ in exactly one thing: whether the first column is `INT` or `TEXT`. So the effect of a variable-length column on performance is noticed in the community.
 
 But this does not remove the cause itself. Variable length is a direct consequence of the decision, back in 1998, that `numeric` must hold numbers of arbitrary precision. In other words, by making `numeric` a fixed-length type we could make tuple traversal a little cheaper.
 
@@ -272,7 +272,7 @@ DuckDB has no notion of tuple deforming at all, since storage is columnar. A val
 count(*) where v > 5.00
 ```
 
-the average execution time is 5–7 ms for the "narrow" and ~380 ms for the "wide" storage variant. If compression is switched off (`SET force_compression='uncompressed'`), this gap disappears. Since there is practically no arithmetic here, the only thing that can play a role is unpacking int128, which turns out to be a fairly expensive operation.
+the average execution time is 5–7 ms for the "narrow" and ~380 ms for the "wide" storage variant. If compression is switched off ([`SET force_compression='uncompressed'`](https://duckdb.org/docs/stable/configuration/overview)), this gap disappears. Since there is practically no arithmetic here, the only thing that can play a role is unpacking int128, which turns out to be a fairly expensive operation.
 
 So in both engines, delivering the value to the operation costs more than the operation itself. For Postgres it is deform, for them it is decompression; what they share is that the payment is for width and storage format, not for arithmetic.
 
@@ -313,7 +313,7 @@ select 0.001 / 3::numeric;     -- 0.00033333333333333333    (20 digits)
 
 The number of digits after the decimal point differs, although the argument types are the same. The scale for division is chosen so that there are at least 16 significant digits.
 
-**A comment from the PostgreSQL sources**
+**A comment from the [PostgreSQL sources](https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/utils/adt/numeric.c)** (see `select_div_scale`)
 > The result scale of a division isn't specified in any SQL standard. For PostgreSQL we select a result scale that will give at least NUMERIC_MIN_SIG_DIGITS significant digits, so that numeric gives a result no less accurate than float8; but use a scale not less than either input's display scale.
 
 Why might the scale of intermediate results matter at all? I became interested in this aspect after the paper ["The FastLanes Compression Layout"](https://www.vldb.org/pvldb/vol16/p2132-afroozeh.pdf), PVLDB 2023, and in particular after the following sentence:
@@ -335,7 +335,7 @@ Thus the uncertainty of scale leads to extra overhead: comparison must first bri
 
 And this in turn means that operations on `numeric` have a fundamental data-dependent branch. And a data-dependent branch is what the processor and the compiler hate most. Uniform code like "compare a hundred numbers in a row" the processor can execute in batches, several values per cycle (SIMD), and the branch predictor never misses on it. As soon as an "if the scales differ, align first" appears inside, batches are no longer possible, and every mispredicted branch costs tens of cycles. For `bigint` the compiler can unroll the comparison into two or three instructions; for `numeric` it is forced to leave a full function with branches.
 
-By the way, about aggregates. The intermediate state of `sum(numeric)` may not be a value of the same type — the sum grows with the number of rows. Internally a separate structure, `NumericSumAccum`, was invented for this. The comment on it explains the design better than any retelling:
+By the way, about aggregates. The intermediate state of `sum(numeric)` may not be a value of the same type — the sum grows with the number of rows. Internally a separate structure, [`NumericSumAccum`](https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/utils/adt/numeric.c#L354), was invented for this. The comment on it explains the design better than any retelling:
 > It uses 32-bit integers to store the digits, instead of the normal 16-bit integers (with NBASE=10000). This way, we can safely accumulate up to NBASE - 1 values without propagating carry, before risking overflow of any of the digits.
 
 And the second half of the same comment:
@@ -410,13 +410,13 @@ And here is the main point: k is never written in the query. When aligning scale
 
 The processor does not like division: it is the slowest of the arithmetic instructions, tens of cycles. So compilers avoid it — if the code says `x / 1000`, the compiler replaces the division with a multiplication by a "magic" constant and a shift, and that is already a few cycles. But the trick only works when the divisor is written right in the code: the compiler must see the concrete number to compute that constant for it. And in `numeric` the code says not "divide by 1000" but "divide by ten to the power k" — so the power has to be taken from a table and a general, slow multiplication performed. Or, if it is a division, a real division.
 
-**What `numeric` gets for this.** Printing is almost free: the digits already lie in decimal groups of four, and `numeric_out` simply writes them out into a string. With a binary coefficient this won't work — there, printing is exactly the chain of divisions by a power of ten, the very operation we just feared. And here is what matters in this trade: output happens on every returned row, while arithmetic happens only if the query has arithmetic. A `SELECT` without computations prints everything and computes nothing.
+**What `numeric` gets for this.** Printing is almost free: the digits already lie in decimal groups of four, and [`numeric_out`](https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/utils/adt/numeric.c#L816) simply writes them out into a string. With a binary coefficient this won't work — there, printing is exactly the chain of divisions by a power of ten, the very operation we just feared. And here is what matters in this trade: output happens on every returned row, while arithmetic happens only if the query has arithmetic. A `SELECT` without computations prints everything and computes nothing.
 
 So every time someone suggests "just store numeric as int128", it is worth asking whether they have counted the side effects.
 
 **And what if we do store it in a 128-bit integer?** This is what all the "fast numeric" projects look like. Two pieces of news await them.
 
-The first is good, but not as good as it seems. On both mass-market architectures the processor works with 64-bit numbers, and the compiler assembles 128-bit ones out of them. Multiplication assembles cheaply — three ordinary multiplications and two additions, all inlined right into the code. But there is no "128 by 128" division in the instruction set: on x86-64 the widest is `divq`, a 128-by-64 division, and it faults if the quotient doesn't fit into 64 bits. So the compiler turns a division of two 128-bit numbers into a call to the library function `__udivti3`.
+The first is good, but not as good as it seems. On both mass-market architectures the processor works with 64-bit numbers, and the compiler assembles 128-bit ones out of them. Multiplication assembles cheaply — three ordinary multiplications and two additions, all inlined right into the code. But there is no "128 by 128" division in the instruction set: on x86-64 the widest is [`divq`](https://www.felixcloutier.com/x86/div), a 128-by-64 division, and it faults if the quotient doesn't fit into 64 bits. So the compiler turns a division of two 128-bit numbers into a call to the library function [`__udivti3`](https://gcc.gnu.org/onlinedocs/gccint/Integer-library-routines.html).
 
 Thus division is not something that gets fixed by moving to int128. What speeds up is not the division algorithm but everything around it: `palloc`, unpacking the short header, computing the result scale. But exactly the same things speed up addition too — so division has nothing to do with it.
 
@@ -434,7 +434,7 @@ The working condition comes out like this: the precision of the arguments plus t
 
 DuckDB suffers less for the simple reason that it touches powers of ten less often. Multiplication and division by 10^k are needed only when aligning scales, and whether the scales match is known already at binding time, from the declared types. If they match, the loop degenerates into ordinary integer addition, and all the decimal-ness disappears from the hot path.
 
-Next comes a trick that anyone who does decide to build a fast `numeric` must remember. An overflow check is a branch per element, and it gets in the way of vectorization. The DuckDB optimizer tries to prove from the column's min/max statistics that overflow is impossible here, and, if it succeeds, swaps the operator implementation for a version without the check. After that, what remains in the loop is an unconditional integer addition, which the compiler vectorizes automatically. This is what makes exact decimal arithmetic cheap.
+Next comes a trick that anyone who does decide to build a fast `numeric` must remember. An overflow check is a branch per element, and it gets in the way of vectorization. The DuckDB optimizer [tries to prove](https://github.com/duckdb/duckdb/blob/v1.5.5/src/function/scalar/operator/arithmetic.cpp) from the column's min/max statistics that overflow is impossible here (see `PropagateNumericStats`), and, if it succeeds, swaps the operator implementation for a version without the check. After that, what remains in the loop is an unconditional integer addition, which the compiler vectorizes automatically. This is what makes exact decimal arithmetic cheap.
 
 And a final detail, after which the cost of being decimal looks quite different. In DuckDB a change of *width* costs about as much as a change of *scale* does in PostgreSQL. `DECIMAL(9,2) * DECIMAL(9,2)` gives `DECIMAL(18,4)`, the result crosses the int32 → int64 boundary, and both operands have to be cast: 40.0 ms against 13.9 ms for `DECIMAL(18,2)`, whose result stays in int64. The narrow type turned out three times slower than the wide one.
 
@@ -455,6 +455,3 @@ So the `numeric` format pays for powers of ten in arithmetic and prints almost f
 
 So the diagnosis is made: `numeric` is slow not because of decimal arithmetic but because of four deliberate decisions, each backed by a sound argument. What to do about it, and whether anything can be done at all, is a question for further research.
 
-THE END.
-
-*September 4, 2026, Madrid, Spain.*
