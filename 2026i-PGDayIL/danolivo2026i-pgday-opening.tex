@@ -1,0 +1,162 @@
+% Use xelatex to generate a pdf file of this presentation
+%
+% OPENING SLIDES ONLY — title + motivation, built with the Funnel Approach:
+% wide industry problem -> Postgres-specific mechanism -> one hidden, concrete
+% query. The rest of the deck (The Problem / pg_track_optimizer / results)
+% continues after the final divider frame below.
+
+\documentclass{beamer}
+\usepackage{roboto}
+\usepackage[english]{babel}
+\usetheme{Copenhagen}
+
+% Simple way to put a code listing to the slide
+\usepackage{listings}
+
+\usepackage{tikz}
+\usetikzlibrary{positioning,shapes.geometric}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{graphicx}
+\usepackage{qrcode}
+\usepackage{booktabs}
+
+% Emblem shown in the corner of every slide, and larger on the title page
+\logo{\includegraphics[scale=0.08]{pics/madrid_coat_of_arms}}
+
+% Blocks settings
+\setbeamerfont{block title}{size=\tiny}
+\setbeamertemplate{navigation symbols}{}
+
+%Information to be included in the title page:
+\title{When the Planner's Misestimation Inflates Your Cloud Bill}
+\subtitle{Finding the Costly Queries \texttt{pg\_stat\_statements} Can't See}
+\author{Andrei Lepikhov}
+\institute{pgEdge}
+\date{PGDay Israel, 25.10.2026}
+
+% Add page numbers in the footnote
+\expandafter\def\expandafter\insertshorttitle\expandafter{%
+  \insertshorttitle\hfill%
+  \insertframenumber\,/\,\inserttotalframenumber}
+
+\definecolor{lightlightgray}{gray}{0.9}
+\definecolor{pgblue}{HTML}{336791}
+\definecolor{pgorange}{HTML}{E8781A}
+
+% Default listing format
+\lstset{language=sql, frame=none, tabsize=2, identifierstyle=\color{black},
+  showspaces=false, showtabs=false, showstringspaces=false,
+  columns=fullflexible, % Restore default spaces between letters
+  basicstyle=\rmfamily\scriptsize,
+  stringstyle=\color{purple},
+  keywordstyle=\bfseries\color{green!40!black},
+  numberstyle=\tiny\color{gray},
+  morekeywords={PUBLICATION,SUBSCRIPTION,CONNECTION,WITH,COPY,FORMAT}}
+
+% -----------------------------
+
+\begin{document}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Title
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+\titlepage
+   \tikz [remember picture,overlay]
+    \node at
+        ([yshift=2.6cm, xshift=-4.9cm]current page.center)
+        {\includegraphics[scale=0.16]{pics/madrid_coat_of_arms}};
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Why This Matters
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+\vspace*{\fill}\begin{center}
+\huge{Why This Matters}
+\end{center}\vspace*{\fill}
+\end{frame}
+
+\begin{frame}\frametitle{Motivation}
+\small
+\textbf{1. Cloud database spend is already under scrutiny.}\\
+Industry estimates put 20--60\% of cloud data spend as avoidable ---
+and Postgres is not exempt: one team cut its AWS RDS bill by 59\%
+after tuning.
+{\tiny\textit{(Revefi, Xomnia; Brocoders --- AWS RDS PostgreSQL case)}}
+
+\medskip
+\textbf{2. The standard practice only sees what's already loud.}\\
+Sort \texttt{pg\_stat\_statements} by total time, fix the worst
+offender, deploy. It works --- but a query that takes 20\,ms and runs
+ten million times a day never makes that list, even though it should
+run in 2\,ms.
+
+\medskip
+\textbf{3. The root cause hides in a single wrong number.}\\
+A bad row estimate makes the planner pick a plan that looks
+``good enough'' --- a nested loop instead of a hash join, a scan
+wider than it needs to be. At low volume nobody notices. At scale it
+quietly burns CPU and I/O every day, never showing up as a slow
+query.
+
+\medskip
+{\textit{On one production system, a query executing in 0.39\,ms was
+called 1\,824 times --- with a cardinality estimate off by roughly
+5\,000$\times$. Nothing here looks slow. Everything here is about to
+become expensive.}}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% The Funnel: from industry noise to one hidden query
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}\frametitle{Narrowing Down: Where the Real Cost Hides}
+\begin{center}
+\begin{tikzpicture}[
+  band/.style={trapezium, draw, thick, trapezium left angle=70,
+               trapezium right angle=110, align=center,
+               font=\footnotesize, inner sep=6pt, text width=6.2cm},
+  lbl/.style={font=\tiny, text=gray, align=left, text width=2.4cm},
+  arr/.style={->, thick, >=stealth, gray},
+]
+
+\node[band, minimum width=8.8cm, fill=pgblue!12] (b1) at (0,0)
+  {\textbf{All cloud database spend}\\{\footnotesize 20--60\% called ``avoidable''}};
+
+\node[band, minimum width=7cm, fill=pgblue!22] (b2) at (0,-1.6)
+  {\textbf{Postgres queries with suboptimal plans}\\{\footnotesize wrong join, wrong scan --- fixable by the planner alone}};
+
+\node[band, minimum width=4.6cm, fill=pgorange!30] (b3) at (0,-3.2)
+  {\textbf{Hidden hot queries}\\{\footnotesize cheap today, invisible to duration-based tools}};
+
+\node[regular polygon, regular polygon sides=3, shape border rotate=180,
+      draw, thick, fill=pgorange!60, minimum width=1.4cm] (tip) at (0,-4.5) {};
+\node[font=\scriptsize\bfseries, below=2pt of tip] {one wrong row estimate};
+
+\draw[arr] (b1) -- (b2);
+\draw[arr] (b2) -- (b3);
+\draw[arr] (b3) -- (tip);
+
+\node[lbl, right=0.4cm of b1] {sort by total time\\catches this layer};
+\node[lbl, right=0.4cm of b2, text=pgblue] {\texttt{EXPLAIN}\\catches this layer};
+\node[lbl, right=0.4cm of b3, text=pgorange!80!black] {\textbf{nothing catches\\this layer --- yet}};
+
+\end{tikzpicture}
+\end{center}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% The Problem  (section continues elsewhere in the full deck)
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+\vspace*{\fill}\begin{center}
+\huge{The Problem}
+\end{center}\vspace*{\fill}
+\end{frame}
+
+\end{document}
