@@ -21,6 +21,20 @@
 \usepackage{qrcode}
 \usepackage{booktabs}
 
+% --- "The Letter" cold-open slide -------------------------------
+% Single static page: the wall of text with one line in red.
+\usepackage[most]{tcolorbox}
+\definecolor{crash}{HTML}{B21F1F}     % swap for pgorange to stay monochrome
+\definecolor{paper}{HTML}{FCFCFA}
+\definecolor{mailrule}{HTML}{D8D6D0}
+% one log line: \lgl{ink 0-100}{text}
+\newcommand{\lgl}[2]{\textcolor{black!#1}{#2}}
+% mail header row
+\newcommand{\hdr}[2]{%
+  \makebox[1.25cm][l]{\textcolor{black!40}{\tiny\textsf{#1}}}%
+  \textcolor{black!75}{\tiny\textsf{#2}}\par}
+% ----------------------------------------------------------------
+
 % Emblem shown in the corner of every slide, and larger on the title page
 \logo{\includegraphics[scale=0.08]{pics/madrid_coat_of_arms}}
 
@@ -64,10 +78,58 @@
 
 \begin{frame}
 \titlepage
-   \tikz [remember picture,overlay]
-    \node at
-        ([yshift=2.6cm, xshift=-4.9cm]current page.center)
-        {\includegraphics[scale=0.16]{pics/madrid_coat_of_arms}};
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Cold open: the letter that started the investigation
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]\frametitle{31 December 2023}
+
+\vspace{-0.6em}
+\hfill{\tiny\textsf{\textcolor{black!45}{pgsql-bugs@lists.postgresql.org}}}
+
+\vspace{-0.9em}
+
+\begin{tcolorbox}[
+  enhanced, sharp corners=downhill, arc=1pt,
+  colback=paper, colframe=mailrule, boxrule=0.4pt,
+  left=6pt, right=6pt, top=5pt, bottom=2pt,
+  drop shadow={black!12}]
+
+\hdr{From}{Michael B. Williams
+           \textcolor{black!35}{$\langle$michael.williams@glexia.com$\rangle$}}
+\hdr{Subject}{\textbf{Segmentation fault caused by Postgrest -
+              reateplan.c:6178 - prepare\_sort\_from\_pathkeys}}
+
+\vspace{-1pt}\textcolor{mailrule}{\hrule height 0.4pt}\vspace{6pt}
+
+{\ttfamily\fontsize{6.8}{9.0}\selectfont
+ \setlength{\parskip}{0pt}\setlength{\topsep}{0pt}\setlength{\partopsep}{0pt}
+\begin{semiverbatim}
+\lgl{62}{2023-12-31 03:23:12.048 PST [17763] LOG: server process (PID 19014) was}
+\lgl{62}{terminated by \textcolor{crash}{signal 11: Segmentation fault}}
+\lgl{62}{2023-12-31 03:23:12.048 PST [17763] DETAIL: Failed process was running:}
+\lgl{50}{      with recursive}
+\lgl{48}{      pks_fks as (}
+\lgl{34}{        -- pk + fk referencing col}
+\lgl{44}{        select}
+\lgl{40}{          contype::text as contype,}
+\lgl{36}{          conname,}
+\lgl{31}{          array_length(conkey, 1) as ncol,}
+\lgl{26}{          conrelid as resorigtbl,}
+\lgl{21}{          col as resorigcol,}
+\lgl{16}{          ord}
+\lgl{12}{        from pg_constraint}
+\lgl{8}{        left join lateral unnest(conkey) with ordinality as _(col, ord)}
+\lgl{4}{        where contype IN ('p', 'f')}
+\end{semiverbatim}
+}
+\end{tcolorbox}
+
+\vspace{-0.7em}\hspace{0.8cm}
+{\tiny\textsf{\textcolor{black!30}{$\vdots$\quad and then the whole gdb session: \#0 \ldots\ \#21}}}
+
 \end{frame}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
