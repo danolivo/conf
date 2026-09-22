@@ -67,11 +67,12 @@ typedef struct PlannerGap
 
 ### 0.5. Дисциплина, которую надо заложить сразу
 
-Из чужого опыта (раздел 20) — три правила, нарушение каждого убивало похожие механизмы:
+Из чужого опыта (раздел 20) — четыре правила, нарушение каждого убивало похожие механизмы:
 
-1. **Цена платится в планировании, окупается в исполнении.** Oracle отключил adaptive statistics по умолчанию в 12.2 именно потому, что на нагрузке с динамическим SQL и литералами (PeopleSoft) каждый statement исполняется ровно один раз, и разведка — чистый убыток. Нужен порог по оценочной стоимости плана, а не по числу аннотаций.
-2. **Откат обязателен.** SQL Server верифицирует каждую обратную связь на следующем исполнении и откатывается при регрессии; персистит только подтверждённое. Snowflake: «we do no harm» — каждый добавленный агрегат сам себя отключает в рантайме.
-3. **Выключатель с первого дня.** `enable_planner_second_pass` (по умолчанию `off` до накопления опыта) плюс порог `planner_second_pass_cost_threshold`.
+1. **Разведка не должна ходить за данными.** Главный урок Oracle — не «оптимизировать дважды дорого», а «сэмплировать во время парса дорого». Механизм CBQT, который оптимизирует запрос по разу на каждое состояние трансформации, у Oracle остался включённым по умолчанию; выключили adaptive statistics, чья разведка означала рекурсивный SQL к реальным блокам данных. Разбор — раздел 20.5.
+2. **Разведка не должна переживать запрос.** Второй убийца у Oracle — персистентность: SQL Plan Directives привязаны не к statement'у, а к выражению запроса, поэтому одна директива начинает облагать налогом hard parse всех остальных запросов, трогающих те же колонки.
+3. **Цена платится в планировании, окупается в исполнении.** Это остаётся верным и для нас. Нужен порог по оценочной стоимости плана, а не по числу аннотаций: патологическая нагрузка — ровно та, где много дешёвых запросов, каждый из которых честно поставил по одной аннотации.
+4. **Откат и выключатель с первого дня.** SQL Server верифицирует каждую обратную связь на следующем исполнении и откатывается при регрессии; персистит только подтверждённое. Snowflake: «we do no harm» — каждый добавленный агрегат сам себя отключает в рантайме. У нас: `enable_planner_second_pass` (по умолчанию `off` до накопления опыта) плюс порог `planner_second_pass_cost_threshold`.
 
 ### 0.6. Формат разделов
 
@@ -587,7 +588,7 @@ SELECT * FROM a JOIN b ON a.d = b.d WHERE a.d BETWEEN '2026-01-01' AND '2026-01-
 **Альтернативные СУБД.** Здесь самый поучительный набор ответов во всём документе.
 
 - **Snowflake — Aggregation Placement, и они решили НЕ знать предикаты сверху.** Критика классического подхода дословно: *«the optimizer's cost model is based on compiler statistics. Compiler statistics could be missing, stale, too coarse, expensive to maintain, and often deviate from the actual statistics in non-trivial cases.»* Правила применяются **в отдельной фазе трансформации плана после того, как определён порядок join'ов** — буквально второй проход по готовому плану. Агрегат **всегда** проталкивается на максимальную глубину: *«If an aggregation can be pushed below multiple joins, we always push to the deepest possible position in the join tree. This is different from the traditional approach... where the optimizer would consider alternatives and pick one, which execution is stuck with.»* Выбор делается **в рантайме, на уровне отдельного агрегата**: каждый child-aggregate смотрит на runtime-статистику своего pipeline, считает стоимость «с собой» против «без себя» и сам себя отключает. Применяется примерно к каждому пятому production-запросу; раскатка — 3 месяца, полный цикл ~полгода. И цифра цены некалиброванного решения: при первом прогоне TPC-DS 10 TB *«more than 10 queries had noticeable degradation»* при выигрышах до 3× на других.
-- **Oracle — Group-By Placement, cost-based через грубую силу.** Хинты `PLACE_GROUP_BY`/`NO_PLACE_GROUP_BY`. Определение из [VLDB 2024](https://vldb.org/pvldb/vol17/p4200-pasupuleti.pdf): *«an array of early grouping query transformation strategies that involve pre-aggregating intermediate results by an eager group-by operation... A final group-by operation, after the join operation, computes the final aggregate values.»* GBP проходит через CBQT (cost-based query transformation): генерируется candidate query, он **полностью оптимизируется**, стоимости сравниваются. То есть Oracle не выводит недостающую информацию — он переоптимизирует каждое состояние целиком. Это прямой архитектурный прецедент «оптимизировать N раз внутри одной компиляции», и платят за него временем парса.
+- **Oracle — Group-By Placement, cost-based через грубую силу.** Хинты `PLACE_GROUP_BY`/`NO_PLACE_GROUP_BY`. Определение из [VLDB 2024](https://vldb.org/pvldb/vol17/p4200-pasupuleti.pdf): *«an array of early grouping query transformation strategies that involve pre-aggregating intermediate results by an eager group-by operation... A final group-by operation, after the join operation, computes the final aggregate values.»* GBP проходит через CBQT (cost-based query transformation): генерируется candidate query, он **полностью оптимизируется**, стоимости сравниваются. То есть Oracle не выводит недостающую информацию — он переоптимизирует каждое состояние целиком. Это прямой архитектурный прецедент «оптимизировать N раз внутри одной компиляции», и платят за него временем парса — но, в отличие от adaptive statistics, **CBQT включён по умолчанию и никогда не выключался** (см. 20.5).
 - **SQL Server** — правило `LocalAggBelowJoin`. Выбор «partial или одноуровневая агрегация» зависит от числа уникальных групп и их размера: *«if the optimizer anticipates that a query will generate few large groups, it will use partial aggregation... many small groups — single level aggregation»*. Рантайм-подстраховка, важная для нашего дизайна: partial hash aggregate просит фиксированный минимальный грант и **никогда не спиллит** — если память кончилась, он перестаёт агрегировать и пропускает строки насквозь. Неудачная догадка деградирует до no-op, а не до спилла.
 - **Presto** — `PushAggregationThroughOuterJoin`. **Doris** — eager aggregation с greedy join reorder.
 
@@ -660,24 +661,55 @@ SELECT * FROM a JOIN b ON a.d = b.d WHERE a.d BETWEEN '2026-01-01' AND '2026-01-
 
 Отдельно в Orca есть **нисходящий проход вывода статистики**: сначала родительское group expression запрашивает у детей нужные гистограммы (`InnerJoin(T1,T2) on (a=b)` запрашивает гистограммы на `T1.a`, `T2.b`), затем восходящий проход их объединяет. То есть «какая информация мне понадобится» — отдельный нисходящий проход. Ровно наш «пристрелочный», только для статистики.
 
-### 20.5. Oracle: история отката, которую надо прочитать до начала работы
+### 20.5. Oracle: история отката, и что в ней на самом деле стоило дорого
 
-Oracle прошёл этот путь целиком и откатился.
+Этот раздел легко прочитать как аргумент против пристрелочного прохода. Это неверно, и разбираться стоит внимательно, потому что при беглом чтении вывод получается противоположным правильному.
 
-**Механизмы:**
-- **Adaptive Plans** — `STATISTICS COLLECTOR` в плане, точка перегиба, выбор subplan в рантайме. Порядок join'ов **не меняется**.
-- **Statistics Feedback** — это и есть «второй парс»: при оптимизации план помечается для мониторинга; после исполнения actual-кардинальности кладутся в SGA, курсор помечается `IS_REOPTIMIZABLE='Y'`; при **следующем** исполнении создаётся новый child cursor с недокументированными хинтами `OPT_ESTIMATE` (видны в `V$SQL_REOPTIMIZATION_HINTS`). Хранилище — только SGA, теряется при рестарте.
-- **SQL Plan Directives** — персистентная аннотация, привязанная **не к statement'у, а к query expression**. Содержимое — не сохранённая кардинальность, а инструкция «сделай dynamic sampling здесь» и/или «собери extended statistics». То есть директива чинит источник проблемы, а не результат.
+**Ключевое различение: ни один из выключенных механизмов не является «вторым циклом планирования».**
 
-**Режимы отказа:**
+**Что осталось включённым.**
 
-1. **Цена — в парсе, не в исполнении.** Отчёт по PeopleSoft: *«adaptive statistics comes at the price of making the database do more work during SQL parse. Unfortunately, PeopleSoft makes extensive use of dynamically generated SQL, often with literal values leading to large amounts of parse. Even a small additional overhead during SQL parse can result in a significant overhead for the entire system.»* Для запросов с литералами statement почти наверняка **никогда не выполнится второй раз** — цена платится, выгода не реализуется. Официальная рекомендация Oracle для PeopleSoft: `optimizer_adaptive_features = FALSE`.
-2. **Нестабильность планов.** Багфикс с говорящим названием: Bug 20465582 «High parse time in 12c for multi-table join SQL with SQL plan directives enabled».
-3. **Переоптимизация может дать план хуже.**
-4. **Недетерминизм петли**: что применится на втором исполнении, зависит от того, успела ли SPD персистнуться в SYSAUX. Результат зависит от того, сколько времени прошло между исполнениями.
-5. **Итог, к которому пришёл вендор.** В 12.2 единый `OPTIMIZER_ADAPTIVE_FEATURES` **удалён** и расщеплён надвое: `OPTIMIZER_ADAPTIVE_PLANS` = **TRUE** по умолчанию (дёшево, решение в рантайме, ноль лишних парсов), `OPTIMIZER_ADAPTIVE_STATISTICS` = **FALSE** по умолчанию (SPD, statistics feedback, adaptive dynamic sampling). Плюс `AUTO_STAT_EXTENSIONS` = OFF. Бэкпорт в 12.1: патчи 22652097 и 21171382.
+- **Adaptive Plans** (`OPTIMIZER_ADAPTIVE_PLANS` = TRUE) — `STATISTICS COLLECTOR` в плане, точка перегиба посчитана при компиляции, выбор subplan в рантайме. Покрывает выбор NL/hash join, метод параллельного распределения и bitmap pruning в star transformation. Порядок join'ов **не меняется**. Ноль лишних парсов.
+- **CBQT** (cost-based query transformation, с 10gR1) — и вот это самое важное для нас. Oracle *«provides a mechanism for the exploration of the state space generated by applying one or more transformations»*: генерируется candidate query, он **полностью оптимизируется**, стоимости сравниваются. То есть Oracle буквально запускает физический оптимизатор по разу на каждое состояние трансформации — и **этот механизм включён по умолчанию до сих пор**. Через него, в частности, работает Group-By Placement (раздел 18).
 
-**Это главный урок для нас: вендор оставил включённым дешёвый рантайм-механизм и выключил по умолчанию дорогой compile-time механизм сбора фактов.** Наш пристрелочный проход относится ко второй категории.
+**Что выключили** (`OPTIMIZER_ADAPTIVE_STATISTICS` = FALSE с 12.2). По белой книге Oracle это ровно четыре вещи: SQL plan directives; statistics feedback (кардинальность join'ов); performance feedback (степень параллелизма при `PARALLEL_DEGREE_POLICY=ADAPTIVE`); adaptive dynamic sampling для параллельного исполнения.
+
+**Почему это дорого — и дорого здесь не то, о чём думаешь.**
+
+SQL Plan Directive — это **не** сохранённая кардинальность. Это инструкция «в следующий раз, когда будешь парсить что-то с этой группой колонок, сделай здесь dynamic sampling». То есть Oracle во время hard parse выпускает рекурсивный SQL, который **реально читает блоки таблицы**. Он опознаётся по комментарию `/* DS_SVC */`:
+
+```sql
+SELECT /* DS_SVC */ /*+ dynamic_sampling(0) no_sql_tune no_monitoring
+  optimizer_features_enable(default) no_parallel result_cache(snapshot=3600) */
+SELECT /*+ qb_name("innerQuery") NO_INDEX_FFS( "A") */ 1 AS C1
+  ("A"."ACCOUNT"='40000001' OR "A"."ACCOUNT"='40000002' OR ...) AND
+  ("A"."DEPTID"='001A' OR "A"."DEPTID"='002A' OR ...) innerQuery
+```
+
+Комментарий автора отчёта под этим листингом: *«It is easy to see that you wouldn't need too many additional queries like this to have a significant [impact] on system performance.»*
+
+**Дорого не «оптимизировать второй раз». Дорого сходить за данными на диск посреди парса.**
+
+Дальше три множителя, каждый из которых относится к персистентности, а не к повторной оптимизации:
+
+1. **Директивы привязаны к выражению запроса, а не к statement'у.** Поэтому одна директива, рождённая одним запросом, начинает облагать налогом hard parse *всех остальных* запросов, трогающих те же колонки. Стоимость размазывается по всей нагрузке.
+2. **Их число растёт комбинаторно** с числом рассматриваемых групп колонок — отсюда багфикс с говорящим названием Bug 20465582 «High parse time in 12c for multi-table join SQL with SQL plan directives enabled».
+3. **Они тянут за собой автоматическое создание extended statistics**, что удорожает последующие `DBMS_STATS` и двигает планы в момент сбора статистики. Это тоже выключили (`AUTO_STAT_EXTENSIONS` = OFF, патч 21171382).
+
+Плюс два самостоятельных дефекта:
+
+- **Недетерминизм петли**: пока директива не сброшена из SGA в SYSAUX — работает statistics feedback, после сброса — директива. Результат второго исполнения зависит от того, сколько времени прошло между исполнениями.
+- **Переоптимизация может дать план хуже.**
+
+**Где это убило.** PeopleSoft: динамический SQL с литералами в тексте, каждый statement — уникальный hard parse, выполняется ровно один раз. Отчёт: *«This additional information should help the optimizer make better decisions, but it comes at the price of making the database do more work during SQL parse. Unfortunately, PeopleSoft makes extensive use of dynamically generated SQL, often with literal values leading to large amounts of parse. Even a small additional overhead during SQL parse can result in a significant overhead for the entire system.»* Официальная рекомендация Oracle для PeopleSoft — `optimizer_adaptive_features = FALSE` (Doc ID 1445965.1). Бэкпорт расщепления параметров в 12.1 — патч 22652097.
+
+**Что из этого к нам не относится.** Пристрелочный проход не ходит за данными: он смотрит на дерево, которое уже построено. Чистый CPU, ограниченный размером плана, никакого I/O. И он не персистентен — аннотации живут внутри одного вызова планировщика и умирают вместе с ним. Ни один из трёх множителей выше не воспроизводится. А главное — Oracle **оставил включённым** механизм, который оптимизирует запрос N раз внутри одной компиляции; значит, сама по себе повторная оптимизация вендором признана допустимой по цене.
+
+**Что относится.** Ровно одна вещь: стоимость падает на hard parse, и нагрузки, где hard parse доминирует, существуют. Второй проход — это примерно ×2 по времени планирования плюс цикл перевывода в `query_planner()` (Том: «does add some time» при многих итерациях). Для OLTP-запроса с планированием 0.2 мс и исполнением 0.3 мс это −40% к суммарной латентности.
+
+Порядок величин у нас уже измерен, причём на куда более дешёвой операции: в треде про ORDER BY prefix повторные вызовы `relation_can_be_sorted_early()` дали **1329 мс → 3195 мс** на реальном большом запросе. Это ×2.4 от одной вспомогательной функции, а не от полного второго прохода.
+
+Отсюда практический вывод: **порог входа считается от оценочной стоимости плана, а не от числа аннотаций.** Патологическая нагрузка — ровно та, где много дешёвых запросов, каждый из которых честно поставил по одной аннотации.
 
 ### 20.6. SQL Server: дисциплина обратной связи
 

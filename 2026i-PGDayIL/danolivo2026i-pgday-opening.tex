@@ -10,6 +10,10 @@
 \usepackage[english]{babel}
 \usetheme{Copenhagen}
 
+% Aged-paper canvas: the warm off-white of a 1950s typed page.
+\definecolor{aged}{HTML}{F6F2E4}
+\setbeamercolor{background canvas}{bg=aged}
+
 % Simple way to put a code listing to the slide
 \usepackage{listings}
 
@@ -25,7 +29,7 @@
 % Single static page: the wall of text with one line in red.
 \usepackage[most]{tcolorbox}
 \definecolor{crash}{HTML}{B21F1F}     % swap for pgorange to stay monochrome
-\definecolor{paper}{HTML}{FCFCFA}
+\definecolor{paper}{HTML}{FDFAF0}   % sheet on the desk: warmer than the canvas, never pure white
 \definecolor{mailrule}{HTML}{D8D6D0}
 % one log line: \lgl{ink 0-100}{text}
 \newcommand{\lgl}[2]{\textcolor{black!#1}{#2}}
@@ -33,6 +37,60 @@
 \newcommand{\hdr}[2]{%
   \makebox[1.25cm][l]{\textcolor{black!40}{\tiny\textsf{#1}}}%
   \textcolor{black!75}{\tiny\textsf{#2}}\par}
+% ----------------------------------------------------------------
+
+% --- "The Chat" cold-open slide ---------------------------------
+% Stylised reproduction of a messenger thread. Light variant so it
+% projects well and matches the paper aesthetic of the letter slide.
+\definecolor{waoutbg}{HTML}{DCF8C6}   % outgoing (me)
+\definecolor{wainbg}{HTML}{FFFFFF}    % incoming (customer)
+\definecolor{wabord}{HTML}{E2E2DE}
+\definecolor{chatbg}{HTML}{ECE5DD}    % classic chat wallpaper
+\definecolor{wablue}{HTML}{34B7F1}    % "read" ticks
+% blue double tick
+\newcommand{\waticks}{\tikz[x=1pt,y=1pt,baseline=0pt]{%
+  \draw[wablue, line width=0.5pt, line cap=round, line join=round]
+    (0,2) -- (1.7,0) -- (4.4,3.8);
+  \draw[wablue, line width=0.5pt, line cap=round, line join=round]
+    (3.0,2) -- (4.7,0) -- (7.4,3.8);}}
+% chat header: avatar, redacted contact name, caption
+\newcommand{\wahead}[1]{%
+  \noindent\raisebox{-1.5pt}{\tikz{\fill[black!22] (0,0) circle (4.5pt);}}%
+  \hspace{4pt}%
+  \tikz{\fill[black!70, rounded corners=1.5pt] (0,0) rectangle (1.9cm,5.5pt);}%
+  \hfill{\tiny\textsf{\textcolor{black!45}{#1}}}\par
+  \vspace{2pt}{\color{wabord}\hrule height 0.4pt}\vspace{3pt}}
+% centred date pill
+\newcommand{\wadate}[1]{%
+  \begin{tcolorbox}[enhanced, arc=3pt, colback=wainbg, colframe=wabord,
+    boxrule=0.3pt, left=6pt, right=6pt, top=1.5pt, bottom=1pt,
+    width=2.7cm, center, before skip=0pt, after skip=3pt]
+  \centering\tiny\sffamily\textcolor{black!50}{#1}
+  \end{tcolorbox}}
+% \wame[width]{time}{text} -- my message, right aligned, with tail + ticks
+\newcommand{\wame}[3][0.70]{%
+  \begin{tcolorbox}[enhanced, arc=4pt, colback=waoutbg, colframe=wabord,
+    boxrule=0.3pt, left=5pt, right=5pt, top=2pt, bottom=1pt,
+    width=#1\linewidth, flush right, drop fuzzy shadow=black!10,
+    before skip=2pt, after skip=2pt,
+    overlay={\fill[waoutbg, draw=wabord, line width=0.3pt]
+      ([xshift=-0.6pt]frame.north east) -- ++(5pt,0pt)
+        -- ++(-5pt,-6pt) -- cycle;}]
+  \footnotesize\sffamily\textcolor{black!85}{#3}%
+  \hfill{\tiny\textcolor{black!35}{#2}}\,\waticks
+  \end{tcolorbox}}
+% \wathem[width]{time}{text} -- customer message, left aligned
+\newcommand{\wathem}[3][0.70]{%
+  \begin{tcolorbox}[enhanced, arc=4pt, colback=wainbg, colframe=wabord,
+    boxrule=0.3pt, left=5pt, right=5pt, top=2pt, bottom=1pt,
+    width=#1\linewidth, flush left, drop fuzzy shadow=black!10,
+    before skip=2pt, after skip=2pt,
+    overlay={\fill[wainbg, draw=wabord, line width=0.3pt]
+      ([xshift=0.6pt]frame.north west) -- ++(-5pt,0pt)
+        -- ++(5pt,-6pt) -- cycle;}]
+  \footnotesize\sffamily\textcolor{black!85}{#3}%
+  \hfill{\tiny\textcolor{black!35}{#2}}
+  \end{tcolorbox}}
 % ----------------------------------------------------------------
 
 % Emblem shown in the corner of every slide, and larger on the title page
@@ -57,6 +115,14 @@
 \definecolor{lightlightgray}{gray}{0.9}
 \definecolor{pgblue}{HTML}{336791}
 \definecolor{pgorange}{HTML}{E8781A}
+
+% --- "One query, two views" slide -------------------------------
+\definecolor{ptoink}{HTML}{14213D}      % headings / figures
+\definecolor{ptoteal}{HTML}{2B6A6C}     % pg_stat_statements label
+\definecolor{ptoaccent}{HTML}{C2410C}   % pg_track_optimizer label, statement bar
+\definecolor{ptotint}{HTML}{FDF1EA}     % callout background
+\definecolor{ptopaper}{HTML}{FFF8F3}    % text on the statement bar
+% ----------------------------------------------------------------
 
 % Default listing format
 \lstset{language=sql, frame=none, tabsize=2, identifierstyle=\color{black},
@@ -130,6 +196,222 @@
 \vspace{-0.7em}\hspace{0.8cm}
 {\tiny\textsf{\textcolor{black!30}{$\vdots$\quad and then the whole gdb session: \#0 \ldots\ \#21}}}
 
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Cold open, part two: the chat with the user who rolled it out anyway
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}\frametitle{12 January 2024}
+
+\vspace{-0.7em}
+
+\begin{tcolorbox}[enhanced, sharp corners, colback=chatbg, colframe=chatbg,
+  boxrule=0pt, left=5pt, right=5pt, top=3pt, bottom=3pt,
+  before skip=0pt, after skip=0pt]
+
+\wahead{private chat with an AQO user}
+
+\wadate{12 Jan 2024}
+
+\wame[0.86]{1:41}{Be careful using AQO -- just remember, AI guesses, and
+  these predictions can sometimes be totally wrong. The best results I
+  achieved were when I used it manually, correcting only specific
+  problematic queries.}
+
+\wathem[0.68]{3:06}{We have turned on AQO across
+  \textcolor{crash}{\textbf{5\,000 servers}} for all queries now}
+
+\wathem[0.26]{3:06}{We love it.}
+
+\wame[0.62]{3:07}{Do you have some positive effect?}
+
+\wathem[0.19]{3:15}{Yes.}
+
+\wathem[0.52]{3:15}{Much faster across the board.}
+
+\wathem[0.72]{3:18}{I.e.\ run the query 50\% time without AQO then
+  50\% w/ AQO then compare}
+
+\end{tcolorbox}
+
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% The takeaway of the cold open
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+\vspace*{\fill}
+\begin{center}
+{\LARGE The \textcolor{pgorange}{query plan} is a great source
+ of savings on your cloud bill.}
+
+\bigskip
+\begin{minipage}{0.86\textwidth}\centering
+{\large\textcolor{black!55}{It requires no extra hardware or watts ---
+ just a little thought and careful tuning.}}
+\end{minipage}
+\end{center}
+\vspace*{\fill}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% What a real workload looks like (adapted from the PG Bootcamp deck,
+% slide "Типичная БД и запросы")
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]\frametitle{Is it easy to spot an optimisation problem?}
+\setbeamerfont{itemize/enumerate body}{size=\scriptsize}
+\setbeamerfont{itemize item}{size=\scriptsize}
+
+\vspace{-0.4em}
+\begin{columns}[T]
+
+\begin{column}{0.58\textwidth}
+\begin{tcolorbox}[enhanced, sharp corners=downhill, arc=1pt,
+  colback=paper, colframe=mailrule, boxrule=0.4pt,
+  left=3pt, right=3pt, top=3pt, bottom=2pt,
+  before skip=0pt, after skip=2pt]
+\begin{lstlisting}[language=SQL, breaklines=true, columns=fixed,
+  basicstyle=\ttfamily\fontsize{3.1}{3.5}\selectfont,
+  keywordstyle=\ttfamily]
+SELECT T1.Fld100343RRef,
+ (CAST(CAST((T16.Fld100345_ * T1.Fld100346_) AS NUMERIC(28,8)) /
+ (T16.Fld100346_ * T1.Fld100345_) AS NUMERIC(28,8)))
+FROM (SELECT T15._Fld100344RRef AS Fld100344RRef,
+ T15._Fld100343RRef AS Fld100343RRef, T15._Fld100346 AS Fld100346_,
+ T15._Fld100345 AS Fld100345_
+FROM (SELECT T3._Fld100343RRef AS Fld100343RRef,
+ T3._Fld100344RRef AS Fld100344RRef, MAX(T3._Period) AS MAXPERIOD_
+FROM _InfoRg100342 T3
+WHERE ((T3._Fld2488 = CAST(0 AS NUMERIC))) AND (T3._Period <=
+ '2023-12-04 12:49:02'::timestamp AND (EXISTS(SELECT 1
+FROM pg_temp.tt3319 T4
+LEFT OUTER JOIN _Reference101 T5
+ ON (T4._Q_001_F_007RRef = T5._IDRRef) AND (T5._Fld2488 = CAST(0 AS NUMERIC))
+LEFT OUTER JOIN _Reference395 T6
+ ON (T4._Q_001_F_005RRef = T6._IDRRef) AND (T6._Fld2488 = CAST(0 AS NUMERIC))
+LEFT OUTER JOIN _Reference366X1 T7
+ ON (T4._Q_001_F_006RRef = T7._IDRRef) AND (T7._Fld2488 = CAST(0 AS NUMERIC))
+WHERE ((1=1 OR 1=0) AND (T4._Q_001_F_001RRef =
+ '\216@\030f\332\261R\333\021\356\222\212\342\004z\226'::bytea) AND
+ (T5._Fld53293RRef = '\214\215O\271\351\244\310\000B<\227\003{~\356e'::bytea)
+ AND ((T7._Fld59861RRef <> '\201F\nu\257Q\301Fp\027O\211\214\001{'::bytea)
+ OR (T7._Fld59861RRef = '\201F\nu\257Q\301Fp\027O\211\214\001{'::bytea)))
+ AND ((T3._Fld100343RRef = T5._Fld53297RRef) AND
+ (T3._Fld100344RRef = T6._Fld101340RRef))
+UNION ALL SELECT 1
+FROM pg_temp.tt3319 T8
+LEFT OUTER JOIN _Reference101 T9
+ ON (T8._Q_001_F_007RRef = T9._IDRRef) AND (T9._Fld2488 = CAST(0 AS NUMERIC))
+LEFT OUTER JOIN _Reference101 T10
+ ON (T9._Fld53299RRef = T10._IDRRef) AND (T10._Fld2488 = CAST(0 AS NUMERIC))
+LEFT OUTER JOIN _Reference395 T11
+ ON (T8._Q_001_F_005RRef = T11._IDRRef) AND (T11._Fld2488 = CAST(0 AS NUMERIC))
+LEFT OUTER JOIN _Reference366X1 T12
+ ON (T8._Q_001_F_006RRef = T12._IDRRef) AND (T12._Fld2488 = CAST(0 AS NUMERIC))
+WHERE ((1=1 OR 1=0) AND (T8._Q_001_F_001RRef =
+ '\216@\030f\332\261R\333\021\356\222\212\342\004z\226'::bytea) AND
+ (T9._Fld53293RRef = '\214\215O\271\351\244\310\000B<\227\003{~\356e'::bytea)
+\end{lstlisting}
+\end{tcolorbox}
+\vspace{-0.5em}
+{\tiny\textsf{\textcolor{black!35}{$\vdots$\quad one query out of
+ 115\,502 --- and not the longest one}}}
+\end{column}
+
+\begin{column}{0.40\textwidth}
+{\footnotesize\textbf{One production ERP database:}}
+
+\smallskip
+{\scriptsize
+\begin{itemize}\itemsep2pt
+ \item 115\,502 distinct \texttt{queryid}s
+ \item query text: 33 -- 126\,000 chars
+ \item execution time: 1\,ms -- 26\,s
+ \item calls: 1 -- 5\,075
+ \item blocks read: 0 -- 3.5\,M ($\approx$27\,GB)
+ \item plan nodes: 1 -- 195
+ \item \emph{never executed} nodes: 0 -- 52
+\end{itemize}
+}
+
+\medskip
+{\scriptsize\textcolor{black!60}{Which one costs you money?
+ Not the text, not the length, not the call count.}}
+\end{column}
+
+\end{columns}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% One query, two views — pg_stat_statements measures how long it ran,
+% pg_track_optimizer whether it had to. All figures in brackets are
+% placeholders: replace with real numbers from the stand.
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}\frametitle{One query, two views}
+\vspace{-0.3em}
+\begin{columns}[T]
+
+\begin{column}{0.48\textwidth}
+\begin{tcolorbox}[enhanced, arc=3pt, colback=paper, colframe=mailrule,
+  boxrule=0.4pt, left=6pt, right=6pt, top=5pt, bottom=5pt,
+  before skip=0pt, after skip=0pt, equal height group=qtv]
+{\ttfamily\scriptsize\bfseries\textcolor{ptoteal}{pg\_stat\_statements}}
+
+\smallskip
+{\ttfamily\scriptsize\color{ptoink}
+\begin{tabular*}{\linewidth}{@{}l@{\extracolsep{\fill}}r@{}}
+calls            & [10\,000\,000]\\
+mean\_exec\_time  & [100.0]\\
+total\_exec\_time & [1\,000\,000\,000]\\
+\end{tabular*}}
+
+\smallskip
+{\scriptsize Milliseconds, as the view stores them: 278 hours of CPU,
+near the top of any ranking by total time. And every column agrees the
+query is healthy.}
+\end{tcolorbox}
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\begin{tcolorbox}[enhanced, arc=3pt, colback=paper, colframe=ptoaccent,
+  boxrule=0.4pt, left=6pt, right=6pt, top=5pt, bottom=5pt,
+  before skip=0pt, after skip=0pt, equal height group=qtv]
+{\ttfamily\scriptsize\bfseries\textcolor{ptoaccent}{pg\_track\_optimizer}}
+
+\smallskip
+{\ttfamily\scriptsize\color{ptoink}
+\begin{tabular*}{\linewidth}{@{}l@{\extracolsep{\fill}}r@{}}
+nexecs         & [10\,000\,000]\\
+avg\_error      & \textcolor{ptoaccent}{[8.4]}\\
+f\_join\_filter  & \textcolor{ptoaccent}{[0.74]}\\
+\end{tabular*}}
+
+\smallskip
+\begin{tcolorbox}[enhanced, arc=2pt, colback=ptotint, colframe=ptotint,
+  boxrule=0pt, left=5pt, right=5pt, top=4pt, bottom=4pt,
+  before skip=2pt, after skip=0pt]
+{\scriptsize\color{ptoink}\textbf{Three quarters} of this query's time
+went into rows a join built and then threw away. Not a slow disk.
+A plan choice.}
+\end{tcolorbox}
+\end{tcolorbox}
+\end{column}
+
+\end{columns}
+
+\vfill
+\begin{tcolorbox}[enhanced, arc=3pt, colback=ptoaccent, colframe=ptoaccent,
+  boxrule=0pt, left=8pt, right=8pt, top=6pt, bottom=6pt,
+  before skip=2pt, after skip=0pt]
+\begin{center}
+{\small\color{ptopaper}Same query. One tool measures how long it ran ---
+the other, whether it had to.}
+\end{center}
+\end{tcolorbox}
 \end{frame}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
