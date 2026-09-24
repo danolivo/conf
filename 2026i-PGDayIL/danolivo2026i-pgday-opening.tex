@@ -18,7 +18,7 @@
 \usepackage{listings}
 
 \usepackage{tikz}
-\usetikzlibrary{positioning,shapes.geometric}
+\usetikzlibrary{positioning,shapes.geometric,arrows.meta}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 \usepackage{graphicx}
@@ -101,7 +101,8 @@
 \setbeamertemplate{navigation symbols}{}
 
 %Information to be included in the title page:
-\title{When the Planner's Misestimation Inflates Your Cloud Bill}
+% short form for the footer: the full title plus "10 / 10" no longer fits
+\title[When Misestimation Inflates Your Cloud Bill]{When the Planner's Misestimation Inflates Your Cloud Bill}
 \subtitle{Finding the Costly Queries \texttt{pg\_stat\_statements} Can't See}
 \author{Andrei Lepikhov}
 \institute{pgEdge}
@@ -463,7 +464,7 @@ the other, whether it had to.}
 % (PostgreSQL 18.6 release build; script plans/dimensionless.sql).
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{frame}\frametitle{Nuance 1: dimensionless parameters}
+\begin{frame}\frametitle{Nuance 1: Queries are different}
 \vspace{-0.6em}
 \begin{columns}[T,onlytextwidth]
 
@@ -566,6 +567,126 @@ PREPARE q(int, bool) AS
 \end{column}
 \end{columns}
 \vfill
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Estimation is stochastic: the data never change, only ANALYZE reruns.
+% Counts come from plans/stochastic.csv (script plans/stochastic.sql,
+% ~/pg instance, REL_18_STABLE, default_statistics_target = 100).
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]\frametitle{Nuance 3: statistics' stochastic nature}
+\vspace{-0.3em}
+\begin{sql}[fontsize=\tiny]
+ANALYZE t;                               -- 40 times, the data never change
+EXPLAIN SELECT * FROM t WHERE x = 77;    -- actual: 10000 rows every time
+\end{sql}
+\vspace{0.6em}
+\begin{columns}[T,onlytextwidth]
+
+\begin{column}{0.48\textwidth}
+\begin{tcolorbox}[enhanced, arc=3pt, colback=paper, colframe=ptoink,
+  boxrule=0.6pt, left=8pt, right=8pt, top=6pt, bottom=6pt,
+  before skip=0pt, after skip=0pt, equal height group=stoch]
+\small\color{ptoink}
+\texttt{77} made it into the MCV list
+
+\medskip
+{\Large $\approx$\,10\,000} rows\\[2pt]
+\textbf{Bitmap Heap Scan}
+
+\medskip
+{\scriptsize\color{black!55}21 runs of 40}
+\end{tcolorbox}
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\begin{tcolorbox}[enhanced, arc=3pt, colback=paper, colframe=crash,
+  boxrule=0.6pt, left=8pt, right=8pt, top=6pt, bottom=6pt,
+  before skip=0pt, after skip=0pt, equal height group=stoch]
+\small\color{ptoink}
+\texttt{77} missed the MCV list
+
+\medskip
+{\Large $\approx$\,60} rows, \textcolor{crash}{\textbf{off by $\times$170}}\\[2pt]
+\textbf{Index Scan}
+
+\medskip
+{\scriptsize\color{black!55}19 runs of 40}
+\end{tcolorbox}
+\end{column}
+
+\end{columns}
+
+\vfill
+\begin{tcolorbox}[enhanced, arc=3pt, colback=ptoaccent, colframe=ptoaccent,
+  boxrule=0pt, left=8pt, right=8pt, top=4pt, bottom=4pt,
+  before skip=2pt, after skip=0pt]
+\begin{center}
+{\small\color{ptopaper}Statistics are a random sample: on unchanged data,\\
+a fresh ANALYZE moves the estimate --- and flips the plan.}
+\end{center}
+\end{tcolorbox}
+
+{\tiny\color{black!40}5\,M rows: 150 values $\times$ 10\,000 rows compete for 100 MCV slots,
+ plus a long tail of rare values}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% The answer to the three nuances: dimensionless metrics + the rstats type.
+% Chips on top name the nuances from the previous three slides; arrows
+% show which part of the design handles which nuance.
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% card body: fixed-size top-aligned box, so both cards match
+\newcommand{\cardbody}[1]{\parbox[t][3.25cm][t]{4.8cm}{\raggedright\hyphenpenalty=10000 #1}}
+\tikzset{
+  chip/.style={draw=mailrule, fill=paper, rounded corners=6pt, line width=0.4pt,
+               inner xsep=6pt, inner ysep=3pt, text height=1.6ex, text depth=0.4ex,
+               font=\scriptsize\sffamily, text=black!65},
+  card/.style={draw=#1, fill=paper, rounded corners=3pt, line width=0.6pt,
+               inner sep=6pt, anchor=north,
+               font=\scriptsize\sffamily, text=ptoink},
+  link/.style={-{Stealth[length=4pt]}, black!40, line width=0.6pt}}
+
+\begin{frame}\frametitle{Ratios, and how they spread}
+\centering
+\begin{tikzpicture}
+
+  % the three nuances, one per previous slide
+  \node[chip] (n1) at (-3.7, 0) {\textcolor{ptoaccent}{\bfseries 1}\enspace shapes and scales differ};
+  \node[chip] (n2) at ( 0.0, 0) {\textcolor{ptoaccent}{\bfseries 2}\enspace nodes may not run};
+  \node[chip] (n3) at ( 3.7, 0) {\textcolor{ptoaccent}{\bfseries 3}\enspace estimates drift};
+
+  % the two parts of the answer
+  \node[card=ptoink] (dim) at (-2.75, -0.75) {\cardbody{%
+    {\small\bfseries Dimensionless metrics}\par\medskip
+    per plan node:\par\smallskip
+    \centerline{$e = \left|\,\ln\dfrac{\textit{actual}}{\textit{estimated}}\,\right|$}\par\smallskip
+    averaged over the nodes that \emph{ran}; weights: none, square, share of time, share of cost\par\smallskip
+    {\ttfamily avg\quad rms\quad twa\quad wca}}};
+
+  \node[card=ptoaccent] (rst) at (2.75, -0.75) {\cardbody{%
+    {\small\bfseries \texttt{rstats} type}\par\medskip
+    a distribution, not a number:\par\smallskip
+    \centerline{\ttfamily (count, mean, min, max, stddev)}\par\smallskip
+    updated in place on every execution (Welford), $O(1)$ memory\par\smallskip
+    wide \texttt{min..max} or large \texttt{stddev}: the plan is unstable, not just wrong}};
+
+  \draw[link] (n1.south) -- (dim.north -| n1.south);
+  \draw[link] (n2.south) to[out=-90, in=90] ([xshift=1.6cm]dim.north);
+  \draw[link] (n3.south) -- (rst.north -| n3.south);
+\end{tikzpicture}
+
+\vfill
+\begin{tcolorbox}[enhanced, arc=3pt, colback=ptoaccent, colframe=ptoaccent,
+  boxrule=0pt, left=8pt, right=8pt, top=4pt, bottom=4pt,
+  before skip=2pt, after skip=0pt]
+\begin{center}
+{\small\color{ptopaper}Any two queries become comparable ---\\
+and each one tells you how steady it is.}
+\end{center}
+\end{tcolorbox}
 \end{frame}
 
 \end{document}
