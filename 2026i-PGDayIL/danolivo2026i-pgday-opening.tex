@@ -345,20 +345,23 @@ WHERE ((1=1 OR 1=0) AND (T8._Q_001_F_001RRef =
 \end{columns}
 \end{frame}
 
+\definecolor{infobg}{HTML}{FFF8DC}     % cornsilk, soft yellow
+\definecolor{infoframe}{HTML}{E6B800}  % darker amber for the border
+
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % One query, two views — pg_stat_statements measures how long it ran,
 % pg_track_optimizer whether it had to. All figures in brackets are
 % placeholders: replace with real numbers from the stand.
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{frame}\frametitle{One query, two views}
+\begin{frame}\frametitle{Closing the blind spot in query statistics}
 \vspace{-0.3em}
 \begin{columns}[T]
 
 \begin{column}{0.48\textwidth}
 \begin{tcolorbox}[enhanced, arc=3pt, colback=paper, colframe=mailrule,
   boxrule=0.4pt, left=6pt, right=6pt, top=5pt, bottom=5pt,
-  before skip=0pt, after skip=0pt, equal height group=qtv]
+  before skip=2pt, after skip=0pt, equal height group=qtv]
 {\ttfamily\scriptsize\bfseries\textcolor{ptoteal}{pg\_stat\_statements}}
 
 \smallskip
@@ -369,17 +372,19 @@ mean\_exec\_time  & [100.0]\\
 total\_exec\_time & [1\,000\,000\,000]\\
 \end{tabular*}}
 
-\smallskip
-{\scriptsize Milliseconds, as the view stores them: 278 hours of CPU,
-near the top of any ranking by total time. And every column agrees the
-query is healthy.}
+\smallskip\smallskip
+\begin{tcolorbox}[enhanced, arc=3pt, colback=infobg, colframe=infoframe,
+  boxrule=0.4pt, left=6pt, right=6pt, top=5pt, bottom=5pt,
+  before skip=2pt, after skip=0pt]
+{\scriptsize\color{ptoink} 278 hours of execution time, near the top of any ranking by total time.}
+\end{tcolorbox}
 \end{tcolorbox}
 \end{column}
 
 \begin{column}{0.48\textwidth}
 \begin{tcolorbox}[enhanced, arc=3pt, colback=paper, colframe=ptoaccent,
   boxrule=0.4pt, left=6pt, right=6pt, top=5pt, bottom=5pt,
-  before skip=0pt, after skip=0pt, equal height group=qtv]
+  before skip=2pt, after skip=0pt, equal height group=qtv]
 {\ttfamily\scriptsize\bfseries\textcolor{ptoaccent}{pg\_track\_optimizer}}
 
 \smallskip
@@ -390,13 +395,12 @@ avg\_error      & \textcolor{ptoaccent}{[8.4]}\\
 f\_join\_filter  & \textcolor{ptoaccent}{[0.74]}\\
 \end{tabular*}}
 
-\smallskip
-\begin{tcolorbox}[enhanced, arc=2pt, colback=ptotint, colframe=ptotint,
-  boxrule=0pt, left=5pt, right=5pt, top=4pt, bottom=4pt,
+\smallskip\smallskip
+\begin{tcolorbox}[enhanced, arc=3pt, colback=infobg, colframe=infoframe,
+  boxrule=0.4pt, left=6pt, right=6pt, top=5pt, bottom=5pt,
   before skip=2pt, after skip=0pt]
-{\scriptsize\color{ptoink}\textbf{Three quarters} of this query's time
-went into rows a join built and then threw away. Not a slow disk.
-A plan choice.}
+{\scriptsize\color{ptoink}\textbf{A lot} of this query's time
+went into rows a join built and then threw away.}
 \end{tcolorbox}
 \end{tcolorbox}
 \end{column}
@@ -415,92 +419,29 @@ the other, whether it had to.}
 \end{frame}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Why This Matters
+% The levers: what pg_track_optimizer lets us watch. Names only — each
+% one is unpacked with an example on the following slides.
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{frame}
-\vspace*{\fill}\begin{center}
-\huge{Why This Matters}
-\end{center}\vspace*{\fill}
-\end{frame}
+% \lever{number}{name}{metrics}
+\newcommand{\lever}[3]{%
+  \begin{tcolorbox}[enhanced, arc=3pt, colback=paper, colframe=mailrule,
+    boxrule=0.4pt, left=8pt, right=8pt, top=5pt, bottom=5pt,
+    before skip=0pt, after skip=5pt]
+  \makebox[0.9cm][l]{\Large\bfseries\textcolor{ptoaccent}{#1}}%
+  {\large\color{ptoink}#2}%
+  \hfill{\ttfamily\scriptsize\textcolor{black!45}{#3}}
+  \end{tcolorbox}}
 
-\begin{frame}\frametitle{Motivation}
-\small
-\textbf{1. Cloud database spend is already under scrutiny.}\\
-Industry estimates put 20--60\% of cloud data spend as avoidable ---
-and Postgres is not exempt: one team cut its AWS RDS bill by 59\%
-after tuning.
-{\tiny\textit{(Revefi, Xomnia; Brocoders --- AWS RDS PostgreSQL case)}}
+\begin{frame}\frametitle{Levers on a query plan}
+\vspace*{\fill}
 
-\medskip
-\textbf{2. The standard practice only sees what's already loud.}\\
-Sort \texttt{pg\_stat\_statements} by total time, fix the worst
-offender, deploy. It works --- but a query that takes 20\,ms and runs
-ten million times a day never makes that list, even though it should
-run in 2\,ms.
+\lever{1}{Estimation errors}{avg / rms / twa / wca\_error}
+\lever{2}{Missing indexes}{f\_scan\_filter, f\_join\_filter}
+\lever{3}{Heavy SubPlans}{f\_worst\_splan}
+\lever{4}{Enough \texttt{work\_mem}?}{temp\_blks}
 
-\medskip
-\textbf{3. The root cause hides in a single wrong number.}\\
-A bad row estimate makes the planner pick a plan that looks
-``good enough'' --- a nested loop instead of a hash join, a scan
-wider than it needs to be. At low volume nobody notices. At scale it
-quietly burns CPU and I/O every day, never showing up as a slow
-query.
-
-\medskip
-{\textit{On one production system, a query executing in 0.39\,ms was
-called 1\,824 times --- with a cardinality estimate off by roughly
-5\,000$\times$. Nothing here looks slow. Everything here is about to
-become expensive.}}
-\end{frame}
-
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% The Funnel: from industry noise to one hidden query
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\begin{frame}\frametitle{Narrowing Down: Where the Real Cost Hides}
-\begin{center}
-\begin{tikzpicture}[
-  band/.style={trapezium, draw, thick, trapezium left angle=70,
-               trapezium right angle=110, align=center,
-               font=\footnotesize, inner sep=6pt, text width=6.2cm},
-  lbl/.style={font=\tiny, text=gray, align=left, text width=2.4cm},
-  arr/.style={->, thick, >=stealth, gray},
-]
-
-\node[band, minimum width=8.8cm, fill=pgblue!12] (b1) at (0,0)
-  {\textbf{All cloud database spend}\\{\footnotesize 20--60\% called ``avoidable''}};
-
-\node[band, minimum width=7cm, fill=pgblue!22] (b2) at (0,-1.6)
-  {\textbf{Postgres queries with suboptimal plans}\\{\footnotesize wrong join, wrong scan --- fixable by the planner alone}};
-
-\node[band, minimum width=4.6cm, fill=pgorange!30] (b3) at (0,-3.2)
-  {\textbf{Hidden hot queries}\\{\footnotesize cheap today, invisible to duration-based tools}};
-
-\node[regular polygon, regular polygon sides=3, shape border rotate=180,
-      draw, thick, fill=pgorange!60, minimum width=1.4cm] (tip) at (0,-4.5) {};
-\node[font=\scriptsize\bfseries, below=2pt of tip] {one wrong row estimate};
-
-\draw[arr] (b1) -- (b2);
-\draw[arr] (b2) -- (b3);
-\draw[arr] (b3) -- (tip);
-
-\node[lbl, right=0.4cm of b1] {sort by total time\\catches this layer};
-\node[lbl, right=0.4cm of b2, text=pgblue] {\texttt{EXPLAIN}\\catches this layer};
-\node[lbl, right=0.4cm of b3, text=pgorange!80!black] {\textbf{nothing catches\\this layer --- yet}};
-
-\end{tikzpicture}
-\end{center}
-\end{frame}
-
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% The Problem  (section continues elsewhere in the full deck)
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\begin{frame}
-\vspace*{\fill}\begin{center}
-\huge{The Problem}
-\end{center}\vspace*{\fill}
+\vspace*{\fill}
 \end{frame}
 
 \end{document}
