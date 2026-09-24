@@ -124,6 +124,15 @@
 \definecolor{ptopaper}{HTML}{FFF8F3}    % text on the statement bar
 % ----------------------------------------------------------------
 
+% --- Query plans as graphs (planslides.sty, from the plan-template session)
+% Keep the deck's own fonts; re-tint the plan boxes to the paper palette.
+\usepackage[nomonofont]{planslides}
+\colorlet{planbg}{paper}
+\colorlet{planrule}{mailrule}
+\colorlet{planbad}{crash}
+\colorlet{plantext}{ptoink}
+% ----------------------------------------------------------------
+
 % Default listing format
 \lstset{language=sql, frame=none, tabsize=2, identifierstyle=\color{black},
   showspaces=false, showtabs=false, showstringspaces=false,
@@ -423,25 +432,140 @@ the other, whether it had to.}
 % one is unpacked with an example on the following slides.
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% \lever{number}{name}{metrics}
+% \lever{number}{what we measure}{the question it answers}
 \newcommand{\lever}[3]{%
-  \begin{tcolorbox}[enhanced, arc=3pt, colback=paper, colframe=mailrule,
-    boxrule=0.4pt, left=8pt, right=8pt, top=5pt, bottom=5pt,
-    before skip=0pt, after skip=5pt]
-  \makebox[0.9cm][l]{\Large\bfseries\textcolor{ptoaccent}{#1}}%
-  {\large\color{ptoink}#2}%
-  \hfill{\ttfamily\scriptsize\textcolor{black!45}{#3}}
-  \end{tcolorbox}}
+  \noindent\makebox[0.8cm][l]{\large\bfseries\textcolor{ptoaccent}{#1}}%
+  {\large\color{ptoink}#2}\par
+  \vspace{1pt}
+  \noindent\hspace{0.8cm}{\small\itshape\textcolor{black!55}{#3}}\par
+  \vspace{7pt}}
 
-\begin{frame}\frametitle{Levers on a query plan}
+\begin{frame}\frametitle{Assessing the instance's potential}
 \vspace*{\fill}
 
-\lever{1}{Estimation errors}{avg / rms / twa / wca\_error}
-\lever{2}{Missing indexes}{f\_scan\_filter, f\_join\_filter}
-\lever{3}{Heavy SubPlans}{f\_worst\_splan}
-\lever{4}{Enough \texttt{work\_mem}?}{temp\_blks}
+\lever{1}{Estimation error (rows estimated / rows actual)}
+  {is it worth manipulating table statistics?}
+\lever{2}{Selectivity of scans and joins (rows removed by filter)}
+  {do we have enough indexes?}
+\lever{3}{SubPlans' share of the execution time}
+  {is it time to rewrite the queries?}
+\lever{4}{Spilling of intermediate results}
+  {should queries get more memory?}
+\lever{4}{Plan stability}
+  {would a generic plan be a better idea?}
 
 \vspace*{\fill}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Why the metrics are dimensionless: two plans that share nothing but
+% the symptom. Numbers are copied from plans/dimensionless.raw.txt
+% (PostgreSQL 18.6 release build; script plans/dimensionless.sql).
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}\frametitle{Nuance 1: dimensionless parameters}
+\vspace{-0.6em}
+\begin{columns}[T,onlytextwidth]
+
+\begin{column}{0.60\textwidth}
+\centering{\footnotesize\bfseries\color{ptoink}Two joins over a filtered scan}\par\smallskip\smallskip
+\begin{forest} plangraph, for tree={font=\sffamily\tiny, inner xsep=2pt, l sep=7pt, s sep=4pt}
+[Hash Join, rows={20}{20000}
+  [Seq Scan, rows={100000}{100000}, flow=100000]
+  [Hash, rows={1}{1000}, flow=1000
+    [Nested Loop, detail={Removed: 4\,999\,000}, rows={1}{1000}, bad, flow=1000
+      [Seq Scan, rows={1}{1000}, flow=1000]
+      [Seq Scan, rows={5000}{5000}, loops={1000}, flow=5000000]
+    ]
+  ]
+]
+\end{forest}
+
+\smallskip{\scriptsize\color{black!55}6 nodes \textperiodcentered{} 2 joins \textperiodcentered{} 226\,ms}
+\end{column}
+
+\begin{column}{0.38\textwidth}
+\centering{\footnotesize\bfseries\color{ptoink}GROUP BY over a scan}\par\smallskip\smallskip
+\begin{forest} plangraph, for tree={font=\sffamily\tiny, inner xsep=2pt, l sep=7pt}
+[HashAggregate, rows={2000}{100}, bad
+  [Seq Scan, rows={20000}{20000}, flow=20000]
+]
+\end{forest}
+
+\smallskip{\scriptsize\color{black!55}2 nodes \textperiodcentered{} 0 joins \textperiodcentered{} 1.4\,ms}
+\end{column}
+
+\end{columns}
+\vfill
+\begin{tcolorbox}[enhanced, arc=3pt, colback=ptoaccent, colframe=ptoaccent,
+  boxrule=0pt, left=8pt, right=8pt, top=6pt, bottom=6pt,
+  before skip=2pt, after skip=0pt]
+\begin{center}
+{\small\color{ptopaper} We should estimate optimisation potential of very different queries }
+\end{center}
+\end{tcolorbox}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% A node does not always run: one prepared statement, one generic plan,
+% two executions. Numbers are copied from plans/never-executed.raw.txt
+% (~/pg instance, REL_18_STABLE; script plans/never-executed.sql).
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% one-line plan node for this slide: \nd{operator}{relation or condition}{actual rows}
+\newcommand{\nd}[3]{#1\ifx\relax#2\relax\else\ \textcolor{planfade}{#2}\fi\enspace\textbf{#3}}
+
+\begin{frame}[fragile]\frametitle{Nuance 2: Parameter might be in undefined state}
+\vspace{-0.3em}
+\begin{sql}[fontsize=\tiny]
+PREPARE q(int, bool) AS
+  SELECT o.id, p.id FROM orders o
+    JOIN customers c ON c.id = o.cust JOIN payments p ON p.cust = c.id
+  WHERE $1;
+\end{sql}
+
+\vfill
+
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.5\textwidth}
+\centering{\scriptsize\bfseries\color{ptoink}\texttt{EXECUTE q(true)}}\par\smallskip\smallskip
+\begin{forest} plangraph, for tree={font=\sffamily\tiny, inner xsep=1.5pt, inner ysep=1.5pt, l=0pt, l sep=7pt, s sep=2pt}
+[{\nd{Result}{\$1}{20000}}, bad
+  [{\nd{Hash Join}{}{20000}}, flow=20000
+    [{\nd{Seq Scan}{payments}{100000}}, flow=100000]
+    [{\nd{Hash}{}{1000}}, flow=1000
+      [{\nd{Hash Join}{}{1000}}, flow=1000
+        [{\nd{Seq Scan}{orders}{1000}}, flow=1000]
+        [{\nd{Hash}{}{5000}}, flow=5000
+          [{\nd{Seq Scan}{customers}{5000}}, flow=5000]
+        ]
+      ]
+    ]
+  ]
+]
+\end{forest}
+\end{column}
+
+\begin{column}{0.5\textwidth}
+\centering{\scriptsize\bfseries\color{ptoink}\texttt{EXECUTE q(false)}}\par\smallskip\smallskip
+\begin{forest} plangraph, for tree={font=\sffamily\tiny, inner xsep=1.5pt, inner ysep=1.5pt, l=0pt, l sep=7pt, s sep=2pt}
+[{\nd{Result}{\$1}{0}}, bad
+  [{\nd{Hash Join}{}{--}}, faded
+    [{\nd{Seq Scan}{payments}{--}}, faded]
+    [{\nd{Hash}{}{--}}, faded
+      [{\nd{Hash Join}{}{--}}, faded
+        [{\nd{Seq Scan}{orders}{--}}, faded]
+        [{\nd{Hash}{}{--}}, faded
+          [{\nd{Seq Scan}{customers}{--}}, faded]
+        ]
+      ]
+    ]
+  ]
+]
+\end{forest}
+\end{column}
+\end{columns}
+\vfill
 \end{frame}
 
 \end{document}
