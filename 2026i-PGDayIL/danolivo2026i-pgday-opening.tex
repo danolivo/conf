@@ -136,6 +136,13 @@
 \newcommand\kw[1]{\textcolor{pgblue}{#1}}       % keyword
 \newcommand\sqlnum[1]{\textcolor{ptoaccent}{#1}} % numeric literal
 \newcommand\sqlcmt[1]{\textcolor{planfade}{#1}}  % -- comment
+
+% fact cards for a tcbraster: big headline + one line of explanation
+\newcommand{\factcard}[3][ptoink]{%
+  \begin{tcolorbox}[colframe=#1]
+  {\sffamily\huge\bfseries\color{#1}#2}\par\smallskip
+  {\sffamily\small\color{ptoink}\raggedright\hyphenpenalty=10000 #3\par}
+  \end{tcolorbox}}
 % ----------------------------------------------------------------
 
 % Default listing format
@@ -463,6 +470,41 @@ the other, whether it had to.}
 \end{frame}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% pg_track_optimizer in one slide: a data-flow strip instead of the
+% architecture diagram of the Bootcamp deck, then four facts.
+% Facts checked against contrib/pg_track_optimizer @ 4c628e9:
+%  - ExecutorStart/End hooks; 11 rstats columns in the view
+%  - GetNamedDSMSegment + dshash: no shmem_request_hook, so no preload needed
+%  - hash_mem (4MB default); auto_flush on backend exit, reloaded at init
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}\frametitle{Postgres extension pg\_track\_optimizer}
+\centering
+\resizebox{\linewidth}{!}{\begin{tikzpicture}[
+  ptostep/.style={draw=mailrule, fill=paper, rounded corners=6pt, line width=0.4pt,
+    inner xsep=6pt, inner ysep=4pt, font=\scriptsize\sffamily, text=ptoink,
+    align=center},
+  flow/.style={-{Stealth[length=4pt]}, black!40, line width=0.6pt}]
+  \node[ptostep] (a) {executor\\finishes a query};
+  \node[ptostep, right=0.3cm of a] (b) {estimated vs actual\\rows, per node};
+  \node[ptostep, right=0.3cm of b] (c) {running stats\\in shared memory};
+  \node[ptostep, right=0.3cm of c, draw=ptoaccent] (d) {one view:\\\ttfamily pg\_track\_optimizer};
+  \draw[flow] (a) -- (b); \draw[flow] (b) -- (c); \draw[flow] (c) -- (d);
+\end{tikzpicture}}
+
+\vfill
+\begin{tcbraster}[raster columns=2, raster equal height, raster column skip=0.5cm,
+  raster row skip=0.35cm, enhanced, arc=3pt, colback=paper, boxrule=0.6pt,
+  left=10pt, right=10pt, top=6pt, bottom=6pt]
+\factcard{11}{metrics per query [ID]}
+\factcard{0 restarts}{to start tracking: shared memory via the DSM registry, no preload needed}
+\factcard{QueryID}{Modified Query ID to reduce the number of different entries}
+\factcard[ptoaccent]{Persistent}{flushed to disk on backend exit, loaded back after a restart}
+\end{tcbraster}
+\vfill
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Why the metrics are dimensionless: two plans that share nothing but
 % the symptom. Numbers are copied from plans/dimensionless.raw.txt
 % (PostgreSQL 18.6 release build; script plans/dimensionless.sql).
@@ -726,13 +768,6 @@ and each one tells you how steady it is.}
 
 \vfill
 \end{frame}
-
-% four fact cards, 2x2: big headline + one line of explanation
-\newcommand{\factcard}[3][ptoink]{%
-  \begin{tcolorbox}[colframe=#1]
-  {\sffamily\huge\bfseries\color{#1}#2}\par\smallskip
-  {\sffamily\small\color{ptoink}\raggedright\hyphenpenalty=10000 #3\par}
-  \end{tcolorbox}}
 
 \begin{frame}\frametitle{How does it work in practice?}
 \vspace{-0.4em}
