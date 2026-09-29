@@ -132,6 +132,10 @@
 \colorlet{planrule}{mailrule}
 \colorlet{planbad}{crash}
 \colorlet{plantext}{ptoink}
+% SQL highlighting inside sql/psql boxes (commandchars are on there)
+\newcommand\kw[1]{\textcolor{pgblue}{#1}}       % keyword
+\newcommand\sqlnum[1]{\textcolor{ptoaccent}{#1}} % numeric literal
+\newcommand\sqlcmt[1]{\textcolor{planfade}{#1}}  % -- comment
 % ----------------------------------------------------------------
 
 % Default listing format
@@ -577,9 +581,9 @@ PREPARE q(int, bool) AS
 
 \begin{frame}[fragile]\frametitle{Nuance 3: statistics' stochastic nature}
 \vspace{-0.3em}
-\begin{sql}[fontsize=\tiny]
-ANALYZE t;                               -- 40 times, the data never change
-EXPLAIN SELECT * FROM t WHERE x = 77;    -- actual: 10000 rows every time
+\begin{sql}[fontsize=\scriptsize]
+\kw{ANALYZE} t;                               \sqlcmt{-- 40 times, the data never change}
+\kw{EXPLAIN} \kw{SELECT} * \kw{FROM} t \kw{WHERE} x = \sqlnum{77};    \sqlcmt{-- actual: 10000 rows every time}
 \end{sql}
 \vspace{0.6em}
 \begin{columns}[T,onlytextwidth]
@@ -619,17 +623,6 @@ EXPLAIN SELECT * FROM t WHERE x = 77;    -- actual: 10000 rows every time
 \end{columns}
 
 \vfill
-\begin{tcolorbox}[enhanced, arc=3pt, colback=ptoaccent, colframe=ptoaccent,
-  boxrule=0pt, left=8pt, right=8pt, top=4pt, bottom=4pt,
-  before skip=2pt, after skip=0pt]
-\begin{center}
-{\small\color{ptopaper}Statistics are a random sample: on unchanged data,\\
-a fresh ANALYZE moves the estimate --- and flips the plan.}
-\end{center}
-\end{tcolorbox}
-
-{\tiny\color{black!40}5\,M rows: 150 values $\times$ 10\,000 rows compete for 100 MCV slots,
- plus a long tail of rare values}
 \end{frame}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -687,6 +680,126 @@ a fresh ANALYZE moves the estimate --- and flips the plan.}
 and each one tells you how steady it is.}
 \end{center}
 \end{tcolorbox}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% The method in one picture (slide 11 of the PG Bootcamp deck, redrawn).
+% Schematic plan, numbers from the original. e and the aggregates follow
+% plan_error.c: e = |ln(act/est)|, avg = sum(e)/n, rms = sqrt(sum(e^2)/n).
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\forestset{err/.style={content+={\\{\tiny\color{planfade}$e$ = #1}}}}
+
+\begin{frame}\frametitle{Cardinality estimation error}
+\vfill
+\begin{columns}[T,onlytextwidth]
+
+\begin{column}{0.54\textwidth}
+\centering
+\begin{forest} plangraph, for tree={font=\sffamily\scriptsize, l sep=14pt, s sep=10pt}
+[Hash Join, rows={1000}{1200}
+  [Nested Loop, rows={500}{480}
+    [Index Scan, rows={50}{48}]
+    [Seq Scan, rows={10}{12800}, bad]
+  ]
+  [Seq Scan, rows={2000}{2100}]
+]
+\end{forest}
+\end{column}
+
+\begin{column}{0.44\textwidth}
+\small\color{ptoink}
+\textbf{per-node error:}\par\smallskip
+\centerline{$e = \left|\,\ln\dfrac{\textit{actual}}{\textit{estimated}}\,\right|$}\par
+
+\bigskip\bigskip
+\begin{tcolorbox}[enhanced, arc=3pt, colback=infobg, colframe=infoframe,
+  boxrule=0.4pt, left=6pt, right=6pt, top=5pt, bottom=5pt,
+  before skip=2pt, after skip=0pt]
+{\scriptsize\color{ptoink} How to average across plan nodes?}
+\end{tcolorbox}
+
+%\vspace*{\fill}
+
+\end{column}
+\end{columns}
+
+\vfill
+\end{frame}
+
+% four fact cards, 2x2: big headline + one line of explanation
+\newcommand{\factcard}[3][ptoink]{%
+  \begin{tcolorbox}[colframe=#1]
+  {\sffamily\huge\bfseries\color{#1}#2}\par\smallskip
+  {\sffamily\small\color{ptoink}\raggedright\hyphenpenalty=10000 #3\par}
+  \end{tcolorbox}}
+
+\begin{frame}\frametitle{How does it work in practice?}
+\vspace{-0.4em}
+{\large\sffamily\color{ptoink}Test bed: \textbf{the Join Order Benchmark}}\par
+{\scriptsize\sffamily\color{black!45}Leis et al., \emph{How Good Are Query Optimizers, Really?}, PVLDB 2015}
+\vfill
+\begin{tcbraster}[raster columns=2, raster equal height, raster column skip=0.5cm,
+  raster row skip=0.4cm, enhanced, arc=3pt, colback=paper, boxrule=0.6pt,
+  left=10pt, right=10pt, top=8pt, bottom=8pt]
+\factcard{113}{queries over real IMDb data}
+\factcard{17}{tables joined in the deepest query}
+\factcard{Scans}{many of them, including parameterised ones}
+\factcard[ptoaccent]{Room}{plenty of it, for the planner to go wrong}
+\end{tcbraster}
+\vfill
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% How the criteria work on JOB (slides 13-14 of the PG Bootcamp deck).
+% Images taken from 2026-PGBootcamp/pg_track_optimizer_presentation.pptx:
+% image23.png -> pics/job-top10-avg-twa.png, image26.png -> pics/job-28a-depesz.png
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]\frametitle{How the estimation error criteria work}
+\vspace{-0.4em}
+{\small\color{ptoink}TOP-10 by average error V/S TOP-10 by time-weighted error}
+
+\medskip
+% was: pics/job-top10-avg-twa.png (screenshot); now live text
+\begin{sql}[fontsize=\scriptsize]
+\kw{SELECT} avg.* \kw{FROM}
+  (\kw{SELECT} queryid, query, avg_avg, twa_avg \kw{FROM} pg_track_optimizer
+   \kw{ORDER BY} avg_avg \kw{DESC} \kw{LIMIT} \sqlnum{10}) \kw{AS} avg
+\kw{JOIN}
+  (\kw{SELECT} queryid \kw{FROM} pg_track_optimizer
+   \kw{ORDER BY} twa_avg \kw{DESC} \kw{LIMIT} \sqlnum{10}) \kw{AS} twa
+\kw{USING} (queryid);
+\end{sql}
+
+\begin{psql}[fontsize=\scriptsize]
+       queryid        |     query      | avg_avg | twa_avg
+----------------------+----------------+---------+---------
+\hl{ -6836119621424365027 | /* 28a.sql */  |    3.91 |    2.16}
+  3631768377448547020 | /* 29c.sql */  |    3.77 |    2.51
+ -8544699698054799639 | /* 22d.sql */  |    3.48 |    2.09
+  4682104415514032107 | /* 7c.sql */   |    3.48 |    2.18
+(4 rows)
+\end{psql}
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{A look inside 28a.sql}
+\vspace{-0.5em}
+\centering
+% rows 12-22 of the depesz view: the red cells and the yellow x94.7 node
+\includegraphics[width=\textwidth, trim=0 0 0 612, clip]{pics/job-28a-depesz.png}
+
+\raggedright
+\begin{plan}[fontsize=\tiny]
+->  Parallel Hash Join \hl{(rows=6553) (actual rows=620526)}
+      Hash Cond: (pi.info_type_id = it3.id)
+      ->  Parallel Seq Scan on person_info pi \hl{(rows=740474) (actual rows=2963664)}
+      ->  Parallel Hash (rows=1) (actual rows=1.00)
+            ->  Parallel Seq Scan on info_type it3 (rows=1) (actual rows=1)
+                  Filter: ((info)::text = 'trivia'::text)
+                  Rows Removed by Filter: 112
+\end{plan}
+\takeaway{The x4 scan error grows throughout the join tree.}
 \end{frame}
 
 \end{document}
