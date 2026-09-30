@@ -24,6 +24,7 @@
 \usepackage{graphicx}
 \usepackage{qrcode}
 \usepackage{booktabs}
+\usepackage{cancel}
 
 % --- "The Letter" cold-open slide -------------------------------
 % Single static page: the wall of text with one line in red.
@@ -132,6 +133,7 @@
 \colorlet{planrule}{mailrule}
 \colorlet{planbad}{crash}
 \colorlet{plantext}{ptoink}
+\renewcommand\planedgewidth{0.7pt}   % plan-graph edges
 % SQL highlighting inside sql/psql boxes (commandchars are on there)
 \newcommand\kw[1]{\textcolor{pgblue}{#1}}       % keyword
 \newcommand\sqlnum[1]{\textcolor{ptoaccent}{#1}} % numeric literal
@@ -447,7 +449,7 @@ shared\_blks\_read & [50\,000\,000]\\
   {is it time to rewrite the queries?}
 \lever{4}{Spilling of intermediate results}
   {should queries get more memory?}
-\lever{4}{Plan stability}
+\lever{5}{Plan stability}
   {would a generic plan be a better idea?}
 
 \vspace*{\fill}
@@ -483,7 +485,7 @@ shared\_blks\_read & [50\,000\,000]\\
 \factcard{11}{metrics per query [ID]}
 \factcard{0 restarts}{to start tracking: shared memory via the DSM registry, no preload needed}
 \factcard{QueryID}{Modified Query ID to reduce the number of different entries}
-\factcard[ptoaccent]{Persistent}{flushed to disk on backend exit, loaded back after a restart}
+\factcard{Persistent}{flushed to disk on backend exit, loaded back after a restart}
 \end{tcbraster}
 \vfill
 \end{frame}
@@ -500,13 +502,13 @@ shared\_blks\_read & [50\,000\,000]\\
 
 \begin{column}{0.60\textwidth}
 \centering{\footnotesize\bfseries\color{ptoink}Two joins over a filtered scan}\par\smallskip\smallskip
-\begin{forest} plangraph, for tree={font=\sffamily\tiny, inner xsep=2pt, l sep=7pt, s sep=4pt}
+\begin{forest} plangraph, for tree={font=\sffamily\tiny, inner xsep=2pt, l sep=16pt, s sep=4pt}
 [Hash Join, rows={20}{20000}
-  [Seq Scan, rows={100000}{100000}, flow=100000]
-  [Hash, rows={1}{1000}, flow=1000
-    [Nested Loop, detail={Removed: 4\,999\,000}, rows={1}{1000}, bad, flow=1000
-      [Seq Scan, rows={1}{1000}, flow=1000]
-      [Seq Scan, rows={5000}{5000}, loops={1000}, flow=5000000]
+  [Seq Scan, rows={100000}{100000}]
+  [Hash, rows={1}{1000}
+    [Nested Loop, detail={Removed: 4\,999\,000}, rows={1}{1000}, bad
+      [Seq Scan, rows={1}{1000}]
+      [Seq Scan, rows={5000}{5000}, loops={1000}]
     ]
   ]
 ]
@@ -517,9 +519,9 @@ shared\_blks\_read & [50\,000\,000]\\
 
 \begin{column}{0.38\textwidth}
 \centering{\footnotesize\bfseries\color{ptoink}GROUP BY over a scan}\par\smallskip\smallskip
-\begin{forest} plangraph, for tree={font=\sffamily\tiny, inner xsep=2pt, l sep=7pt}
+\begin{forest} plangraph, for tree={font=\sffamily\tiny, inner xsep=2pt, l sep=16pt}
 [HashAggregate, rows={2000}{100}, bad
-  [Seq Scan, rows={20000}{20000}, flow=20000]
+  [Seq Scan, rows={20000}{20000}]
 ]
 \end{forest}
 
@@ -528,13 +530,6 @@ shared\_blks\_read & [50\,000\,000]\\
 
 \end{columns}
 \vfill
-\begin{tcolorbox}[enhanced, arc=3pt, colback=ptoaccent, colframe=ptoaccent,
-  boxrule=0pt, left=8pt, right=8pt, top=6pt, bottom=6pt,
-  before skip=2pt, after skip=0pt]
-\begin{center}
-{\small\color{ptopaper} We should estimate optimisation potential of very different queries }
-\end{center}
-\end{tcolorbox}
 \end{frame}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -560,15 +555,15 @@ PREPARE q(int, bool) AS
 \begin{columns}[T,onlytextwidth]
 \begin{column}{0.5\textwidth}
 \centering{\scriptsize\bfseries\color{ptoink}\texttt{EXECUTE q(true)}}\par\smallskip\smallskip
-\begin{forest} plangraph, for tree={font=\sffamily\tiny, inner xsep=1.5pt, inner ysep=1.5pt, l=0pt, l sep=7pt, s sep=2pt}
+\begin{forest} plangraph, for tree={font=\sffamily\tiny, inner xsep=1.5pt, inner ysep=1.5pt, l=0pt, l sep=12pt, s sep=2pt}
 [{\nd{Result}{\$1}{20000}}, bad
-  [{\nd{Hash Join}{}{20000}}, flow=20000
-    [{\nd{Seq Scan}{payments}{100000}}, flow=100000]
-    [{\nd{Hash}{}{1000}}, flow=1000
-      [{\nd{Hash Join}{}{1000}}, flow=1000
-        [{\nd{Seq Scan}{orders}{1000}}, flow=1000]
-        [{\nd{Hash}{}{5000}}, flow=5000
-          [{\nd{Seq Scan}{customers}{5000}}, flow=5000]
+  [{\nd{Hash Join}{}{20000}}
+    [{\nd{Seq Scan}{payments}{100000}}]
+    [{\nd{Hash}{}{1000}}
+      [{\nd{Hash Join}{}{1000}}
+        [{\nd{Seq Scan}{orders}{1000}}]
+        [{\nd{Hash}{}{5000}}
+          [{\nd{Seq Scan}{customers}{5000}}]
         ]
       ]
     ]
@@ -579,7 +574,7 @@ PREPARE q(int, bool) AS
 
 \begin{column}{0.5\textwidth}
 \centering{\scriptsize\bfseries\color{ptoink}\texttt{EXECUTE q(false)}}\par\smallskip\smallskip
-\begin{forest} plangraph, for tree={font=\sffamily\tiny, inner xsep=1.5pt, inner ysep=1.5pt, l=0pt, l sep=7pt, s sep=2pt}
+\begin{forest} plangraph, for tree={font=\sffamily\tiny, inner xsep=1.5pt, inner ysep=1.5pt, l=0pt, l sep=12pt, s sep=2pt}
 [{\nd{Result}{\$1}{0}}, bad
   [{\nd{Hash Join}{}{--}}, faded
     [{\nd{Seq Scan}{payments}{--}}, faded]
@@ -658,7 +653,9 @@ PREPARE q(int, bool) AS
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % card body: fixed-size top-aligned box, so both cards match
-\newcommand{\cardbody}[1]{\parbox[t][3.25cm][t]{4.8cm}{\raggedright\hyphenpenalty=10000 #1}}
+% units that cancel in a ratio, shown struck out in grey
+\newcommand{\unitsgone}[2]{{\color{black!50}$\dfrac{\cancel{\text{#1}}}{\cancel{\text{#2}}}$}}
+\newcommand{\cardbody}[1]{\parbox[t][4.6cm][t]{4.8cm}{\raggedright\hyphenpenalty=10000 #1}}
 \tikzset{
   chip/.style={draw=mailrule, fill=paper, rounded corners=6pt, line width=0.4pt,
                inner xsep=6pt, inner ysep=3pt, text height=1.6ex, text depth=0.4ex,
@@ -668,44 +665,35 @@ PREPARE q(int, bool) AS
                font=\scriptsize\sffamily, text=ptoink},
   link/.style={-{Stealth[length=4pt]}, black!40, line width=0.6pt}}
 
-\begin{frame}\frametitle{Ratios, and how they spread}
+\begin{frame}\frametitle{Two design decisions in pg\_track\_optimizer}
+\vfill
 \centering
 \begin{tikzpicture}
-
-  % the three nuances, one per previous slide
-  \node[chip] (n1) at (-3.7, 0) {\textcolor{ptoaccent}{\bfseries 1}\enspace shapes and scales differ};
-  \node[chip] (n2) at ( 0.0, 0) {\textcolor{ptoaccent}{\bfseries 2}\enspace nodes may not run};
-  \node[chip] (n3) at ( 3.7, 0) {\textcolor{ptoaccent}{\bfseries 3}\enspace estimates drift};
-
   % the two parts of the answer
   \node[card=ptoink] (dim) at (-2.75, -0.75) {\cardbody{%
-    {\small\bfseries Dimensionless metrics}\par\medskip
-    per plan node:\par\smallskip
-    \centerline{$e = \left|\,\ln\dfrac{\textit{actual}}{\textit{estimated}}\,\right|$}\par\smallskip
-    averaged over the nodes that \emph{ran}; weights: none, square, share of time, share of cost\par\smallskip
-    {\ttfamily avg\quad rms\quad twa\quad wca}}};
+    {\center\small\bfseries Dimensionless metrics:}\par\medskip
+    per plan node, units cancel out:\par\smallskip
+    {\centering
+    \begin{itemize}
+      \item $e = \left|\,\ln\dfrac{\textit{actual rows}}{\textit{estimated rows}}\,\right|$
+      \item $r = \dfrac{\textit{node time}}{\textit{total time}}$
+      \item $f = \dfrac{\textit{filtered rows}}{\textit{actual rows}}$
+    \end{itemize}\par}\medskip
+    weighted averaging over the executed nodes: by time, cost, none.}};
 
-  \node[card=ptoaccent] (rst) at (2.75, -0.75) {\cardbody{%
-    {\small\bfseries \texttt{rstats} type}\par\medskip
+  \node[card=ptoink] (rst) at (2.75, -0.75) {\cardbody{%
+    {\center\small\bfseries Custom \texttt{RStats} type:}\par\medskip
     a distribution, not a number:\par\smallskip
     \centerline{\ttfamily (count, mean, min, max, stddev)}\par\smallskip
-    updated in place on every execution (Welford), $O(1)$ memory\par\smallskip
-    wide \texttt{min..max} or large \texttt{stddev}: the plan is unstable, not just wrong}};
-
-  \draw[link] (n1.south) -- (dim.north -| n1.south);
-  \draw[link] (n2.south) to[out=-90, in=90] ([xshift=1.6cm]dim.north);
-  \draw[link] (n3.south) -- (rst.north -| n3.south);
+    \begin{itemize}
+      \item Updated in place on every execution (Welford): the plan is unstable, not just wrong.\par
+      \item The same code path for each parameter.
+      \item Aggregate on statistic column.
+    \end{itemize}
+    }};
 \end{tikzpicture}
 
-\vfill
-\begin{tcolorbox}[enhanced, arc=3pt, colback=ptoaccent, colframe=ptoaccent,
-  boxrule=0pt, left=8pt, right=8pt, top=4pt, bottom=4pt,
-  before skip=2pt, after skip=0pt]
-\begin{center}
-{\small\color{ptopaper}Any two queries become comparable ---\\
-and each one tells you how steady it is.}
-\end{center}
-\end{tcolorbox}
+  \vfill
 \end{frame}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -722,7 +710,7 @@ and each one tells you how steady it is.}
 
 \begin{column}{0.54\textwidth}
 \centering
-\begin{forest} plangraph, for tree={font=\sffamily\scriptsize, l sep=14pt, s sep=10pt}
+\begin{forest} plangraph, for tree={font=\sffamily\scriptsize, l sep=22pt, s sep=10pt}
 [Hash Join, rows={1000}{1200}
   [Nested Loop, rows={500}{480}
     [Index Scan, rows={50}{48}]
