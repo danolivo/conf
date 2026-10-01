@@ -602,9 +602,11 @@ PREPARE q(int, bool) AS
 
 \begin{frame}[fragile]\frametitle{Nuance 3: statistics' stochastic nature}
 \vspace{-0.3em}
-\begin{sql}[fontsize=\scriptsize]
-\kw{ANALYZE} t;                               \sqlcmt{-- 40 times, the data never change}
-\kw{EXPLAIN} \kw{SELECT} * \kw{FROM} t \kw{WHERE} x = \sqlnum{77};    \sqlcmt{-- actual: 10000 rows every time}
+\begin{sql}[fontsize=\small]
+\sqlcmt{-- 40 times, the data never change}
+\kw{ANALYZE} t;
+\sqlcmt{-- actual: 10000 rows every time}
+\kw{EXPLAIN} \kw{SELECT} * \kw{FROM} t \kw{WHERE} x = \sqlnum{77};
 \end{sql}
 \vspace{0.6em}
 \begin{columns}[T,onlytextwidth]
@@ -626,7 +628,7 @@ PREPARE q(int, bool) AS
 \end{column}
 
 \begin{column}{0.48\textwidth}
-\begin{tcolorbox}[enhanced, arc=3pt, colback=paper, colframe=crash,
+\begin{tcolorbox}[enhanced, arc=3pt, colback=paper, colframe=ptoink,
   boxrule=0.6pt, left=8pt, right=8pt, top=6pt, bottom=6pt,
   before skip=0pt, after skip=0pt, equal height group=stoch]
 \small\color{ptoink}
@@ -673,13 +675,15 @@ PREPARE q(int, bool) AS
   \node[card=ptoink] (dim) at (-2.75, -0.75) {\cardbody{%
     {\center\small\bfseries Dimensionless metrics:}\par\medskip
     per plan node, units cancel out:\par\smallskip
-    {\centering
-    \begin{itemize}
-      \item $e = \left|\,\ln\dfrac{\textit{actual rows}}{\textit{estimated rows}}\,\right|$
-      \item $r = \dfrac{\textit{node time}}{\textit{total time}}$
-      \item $f = \dfrac{\textit{filtered rows}}{\textit{actual rows}}$
-    \end{itemize}\par}\medskip
-    weighted averaging over the executed nodes: by time, cost, none.}};
+     {\centering
+      \begin{itemize}
+        \item $e = \left|\,\ln\dfrac{\textit{actual rows}}{\textit{estimated rows}}\,\right|$
+        \item $r = \dfrac{\textit{node time}}{\textit{total time}}$
+        \item $f = \dfrac{\textit{filtered rows}}{\textit{actual rows}}$
+        \item $b = \dfrac{\textit{local blocks}}{\textit{total blocks}}$
+      \end{itemize}
+      }\par\bigskip
+    }};
 
   \node[card=ptoink] (rst) at (2.75, -0.75) {\cardbody{%
     {\center\small\bfseries Custom \texttt{RStats} type:}\par\medskip
@@ -967,6 +971,133 @@ Hash Join  (actual time=234.671 rows=\hlj{289} loops=1)
 
 \par\smallskip
 {\small\color{ptoink}JOB, 113 queries: plain time / time with the new indexes, best to worst\par}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Spilling of intermediate results -- the setup slide (slide 26 of the PG
+% Bootcamp deck), placed right before the live demo. Lists which plan
+% nodes can spill once they outgrow work_mem, and how pg_track_optimizer
+% detects it (local_blks). Text adapted from the Bootcamp slide; its
+% screenshot was the same ranking query shown live on the next slide, so
+% it is not repeated here.
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}\frametitle{Spilling of intermediate results}
+  \vspace*{\fill}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.5\textwidth}
+      {\large\color{ptoink}Who spills:}\medskip
+      {\small\color{ptoink}
+        \begin{itemize}\itemsep4pt
+          \item Hash Join
+          \item Hash Aggregate
+          \item Window Aggregate
+          \item Sort
+          \item Materialize
+          \item CTE /Recursive CTE
+        \end{itemize}
+      }
+  \end{column}
+    
+    \begin{column}{0.5\textwidth}
+       {\large\color{ptoink}Who doesn't spill:}\medskip
+      {\small\color{ptoink}
+        \begin{itemize}\itemsep4pt
+          \item INTERSECT/EXCEPT (Hashed)
+          \item Memoize
+          \item Hashed SubPlan
+          \item BitmapScan
+        \end{itemize}
+      }
+    \end{column}
+  \end{columns}
+  \vspace*{\fill}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Spilling of intermediate results (lever 4 of "Assessing the instance's
+% potential"), adapted from slide 27 of the PG Bootcamp deck: the ranking
+% query (screenshot on slide 26, carried over onto slide 27) plus the live
+% work_mem demo (slide 27's own text box). Both rendered as live text with
+% highlighting, by analogy with the estimation-error and filter-factor
+% criteria above -- not as a screenshot.
+% Query and numbers copied verbatim from the Bootcamp slides.
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]\frametitle{How the spilling criterion works}
+\vspace{-0.4em}
+{\small\color{ptoink}Rank queries by how much they spill, then see if memory actually matters}
+
+\medskip
+\begin{columns}[T,onlytextwidth]
+
+\begin{column}{0.54\textwidth}
+\begin{sql}[fontsize=\tiny]
+\kw{SELECT} queryid, \kw{LEFT}(query,\sqlnum{13}) \kw{AS} query,
+  \kw{ROUND}((temp_avg*\sqlnum{8192}/\sqlnum{1024}/\sqlnum{1024})
+    ::numeric,\sqlnum{0}) \kw{AS} spill_mb
+\kw{FROM} track_data
+\kw{ORDER BY} \kw{CASE WHEN} blks_avg = \sqlnum{0} \kw{THEN} \sqlnum{0}
+  \kw{ELSE} temp_avg/blks_avg \kw{END} \kw{DESC}
+\kw{LIMIT} \sqlnum{5};
+\end{sql}
+
+\begin{psql}[fontsize=\tiny]
+      queryid         |    query     | spill_mb
+----------------------+--------------+----------
+\hl{ -4733402157366146115 | /* 8c.sql */  |      598}
+ -3437698612165670854 | /* 8d.sql */  |      381
+  4682104415514032107 | /* 7c.sql */  |     2678
+  1798119524484989875 | /* 10c.sql */ |      179
+ -3013169471333993680 | /* 16c.sql */ |       91
+(5 rows)
+\end{psql}
+\end{column}
+
+\begin{column}{0.42\textwidth}
+\centering{\scriptsize\bfseries\color{ptoink}Same query, only work\_mem changes}\par\smallskip
+\begin{psql}[fontsize=\scriptsize]
+\kw{SET} work_mem = '1MB';
+Execution Time: \hl{1841} ms
+
+\kw{SET} work_mem = '4MB';
+Execution Time: \hl{1405} ms
+
+\kw{SET} work_mem = '64MB';
+Execution Time: \hl{950} ms
+\end{psql}
+\end{column}
+
+\end{columns}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% What raising work_mem changes in the plan (slide 28 of the PG Bootcamp
+% deck), closing the setup -> demo -> consequences arc for the spilling
+% criterion. Eight plan-shape swaps the planner makes once memory stops
+% being the limiting factor, plus the closing remark about plans growing
+% more aggressive and more error-sensitive. Node names spelled out in full
+% (Nested Loop, Group Aggregate, ...) to match this deck's own convention,
+% rather than the Bootcamp slide's abbreviations (NestLoop, GroupAgg).
+% Bold items match the Bootcamp deck's own emphasis.
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}\frametitle{What a bigger \texttt{work\_mem} changes}
+\vspace*{\fill}
+
+{\small\color{ptoink}
+\begin{itemize}\itemsep6pt
+  \item \textbf{Hash Join $\rightarrow$ Nested Loop + Memoize}
+  \item Incremental Sort + Merge Append $\rightarrow$ Sort + Append
+  \item Merge Append + Sort $\rightarrow$ Sort + Append
+  \item \textbf{Group Aggregate + Sort $\rightarrow$ Hash Aggregate}
+  \item Index Scan $\rightarrow$ Sort + Seq Scan
+  \item Index Scan $\rightarrow$ Incremental Sort + Index Scan
+  \item \textbf{Hash Join $\rightarrow$ Merge Join}
+  \item $\rightarrow$ Materialize
+\end{itemize}}
+
+\vspace*{\fill}
 \end{frame}
 
 \end{document}
