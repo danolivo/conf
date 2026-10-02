@@ -18,7 +18,8 @@
 \usepackage{listings}
 
 \usepackage{tikz}
-\usetikzlibrary{positioning,shapes.geometric,arrows.meta}
+\usetikzlibrary{positioning,shapes.geometric,arrows.meta,backgrounds,fadings}
+\usepackage{varwidth}  % shrink-to-fit text box for the chapter halo
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 \usepackage{graphicx}
@@ -104,8 +105,15 @@
 
 %Information to be included in the title page:
 % short form for the footer: the full title plus "10 / 10" no longer fits
-\title[When Misestimation Inflates Your Cloud Bill]{When the Planner's Misestimation Inflates Your Cloud Bill}
-\subtitle{Finding the Costly Queries \texttt{pg\_stat\_statements} Can't See}
+% Title as published in the PGConf.EU 2026 schedule (session 7926),
+% split at the colon into title + subtitle.
+% Sentence case, as in the schedule and as the pgEdge Brand Book asks;
+% line breaks are placed by hand for the cover (\texorpdfstring keeps
+% them out of the PDF metadata).
+\title[Finding the invisible]{Finding the\texorpdfstring{\\}{ }invisible}
+\subtitle{Spotting query planner issues\texorpdfstring{\\}{ }before they appear}
+% eyebrow above the title on the cover
+\newcommand{\eventname}{PGConf.EU 2026 \textperiodcentered{} Valencia}
 % Easter egg: a tiny flag of the Community of Madrid (crimson, seven white
 % stars 4 + 3, 2:3) left of the name in the footline only. Muted crimson so
 % it sits quietly in the dark author box; \texorpdfstring keeps it out of
@@ -119,7 +127,7 @@
     minimum size=1.15pt,inner sep=0pt,fill=white] at (\x,1.35) {};}}
 \author[\texorpdfstring{\madridflag\hspace{3pt}}{}Andrei Lepikhov]{Andrei Lepikhov}
 \institute{pgEdge}
-\date{PGDay Israel, 25.10.2026}
+\date{22 October 2026}
 
 % Add page numbers in the footnote
 \expandafter\def\expandafter\insertshorttitle\expandafter{%
@@ -139,27 +147,62 @@
 % ----------------------------------------------------------------
 
 % --- pgEdge-style section divider (pgEdge Brand Book) -------------
-% Full-bleed navy, light ASCII elephant at partial opacity on the right,
-% no negative tracking: brand values are tuned for Metro Sans, not Roboto.
-% small uppercase "eyebrow" above a two-line SemiBold title.
+% Brand book, section 4: dividers are a light tint (Sky / Mist / Teal 1)
+% with ASCII clouds as a full-bleed backdrop and one title at left-middle
+% in Night. Navy is kept for the cover and the closing page only, so the
+% deck opens and ends dark and every chapter break reads as a pause.
+% Tints cycle sky -> mist -> teal, as in the pgedge Beamer theme.
+% No negative tracking: brand values are tuned for Metro Sans, not Roboto.
 \definecolor{pgeNavy}{HTML}{003E63}
+\definecolor{pgeNight}{HTML}{002B44}
 \definecolor{pgeSkyMid}{HTML}{A4D7FF}
+\definecolor{pgeBlue}{HTML}{1385C7}
+\definecolor{pgePath}{HTML}{56716E}  % secondary text on tints
+\definecolor{pgeSky}{HTML}{ECF7FF}
+\definecolor{pgeMist}{HTML}{F1F4F4}
+\definecolor{pgeTeal}{HTML}{CEE9E8}
+\newcounter{pgechap}
 % \pgechapter{eyebrow}{title, break lines with \\}
 \newcommand{\pgechapter}[2]{{%
+  \stepcounter{pgechap}%
+  \pgfmathtruncatemacro\pgek{mod(\value{pgechap}-1,3)}%
+  % One canvas for every chapter: the deck's aged-paper yellow instead of
+  % the brand's Sky / Mist / Teal cycle (author's choice, keeps the
+  % dividers in the same paper world as the content slides). Only the
+  % cloud pattern still varies from chapter to chapter.
+  \def\pgebg{aged}%
+  \ifcase\pgek\relax
+    \def\pgeart{ascii-clouds-a-dark}\def\pgeop{0.35}%
+  \or\def\pgeart{ascii-clouds-c-dark}\def\pgeop{0.35}%
+  \or\def\pgeart{ascii-clouds-b-dark}\def\pgeop{0.35}%
+  \fi
   \setbeamertemplate{background}{%
     \begin{tikzpicture}[x=1pt,y=1pt]
       \useasboundingbox (0,0) rectangle (\paperwidth,\paperheight);
-      \fill[pgeNavy] (0,0) rectangle (\paperwidth,\paperheight);
-      % shifted past the right edge: the elephant is cropped, the title sits on calm space
-      \node[anchor=east,inner sep=0,opacity=0.3] at ([xshift=18mm]\paperwidth,0.5\paperheight)
-        {\includegraphics[height=\paperheight]{pgedge-assets/ascii-elephant-head-light}};
-      \node[anchor=west,inner sep=0,text width=0.66\paperwidth,align=left]
-        at (7mm,0.5\paperheight) {%
-        {\sffamily\bfseries\fontsize{8}{10}\selectfont\color{pgeSkyMid}%
+      \clip (0,0) rectangle (\paperwidth,\paperheight);
+      \begin{scope}[on background layer]
+        \fill[\pgebg] (0,0) rectangle (\paperwidth,\paperheight);
+        % 16:9 clouds on a 4:3 page: full height, centred, sides trimmed by the page
+        \node[inner sep=0,opacity=\pgeop] at (0.5\paperwidth,0.5\paperheight)
+          {\includegraphics[height=\paperheight]{pgedge-assets/\pgeart}};
+      \end{scope}
+      \node[anchor=west,inner sep=0] (pgetxt) at (8mm,0.5\paperheight) {%
+        \begin{varwidth}{0.66\paperwidth}\raggedright
+        {\sffamily\bfseries\fontsize{8}{10}\selectfont\color{pgeBlue}%
          \addfontfeatures{LetterSpace=8}\MakeUppercase{#1}\par}%
         \vskip3.5mm
-        {\sffamily\bfseries\fontsize{32}{32}\selectfont\color{white}%
-         \spaceskip=0.32em\relax\hyphenpenalty=10000 #2\par}};
+        {\sffamily\bfseries\fontsize{32}{32}\selectfont\color{pgeNight}%
+         \spaceskip=0.32em\relax\hyphenpenalty=10000 #2\par}%
+        \end{varwidth}};
+      % Calm zone: a halo in the page's own tint, drawn above the clouds and
+      % below the text. Solid over the text, fading out at the edges, so it
+      % reads as "the clouds part here", not as a box.
+      \begin{scope}[on background layer]
+        \path let \p1 = ($(pgetxt.north east)-(pgetxt.center)$),
+                  \n1 = {1.55*\x1+14mm}, \n2 = {1.55*\y1+12mm} in
+          [fill=\pgebg, path fading=circle with fuzzy edge 20 percent]
+          ($(pgetxt.center)-(\n1,\n2)$) rectangle ($(pgetxt.center)+(\n1,\n2)$);
+      \end{scope}
     \end{tikzpicture}}%
   \begin{frame}[plain]\end{frame}}}
 % ----------------------------------------------------------------
@@ -203,13 +246,43 @@
 % Title
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{frame}
-\titlepage
-\end{frame}
+% pgEdge Brand Book "Cover" archetype (cf. \pgtitleframe in the pgedge
+% theme), redrawn for this 4:3 Copenhagen deck: full-bleed navy, ASCII
+% swirl at 35% cropped by the right edge, logo top-left, SkyMid eyebrow,
+% white SemiBold title, SkyMid subtitle, speaker block bottom-left.
+% Roboto stays: Metro Sans is not installed, and the brand's negative
+% tracking is tuned for Metro Sans only.
+{\setbeamertemplate{background}{%
+  \begin{tikzpicture}[x=1pt,y=1pt]
+    \useasboundingbox (0,0) rectangle (\paperwidth,\paperheight);
+    \fill[pgeNavy] (0,0) rectangle (\paperwidth,\paperheight);
+    \node[anchor=east,inner sep=0,opacity=0.35]
+      at ([xshift=34mm]\paperwidth,0.5\paperheight)
+      {\includegraphics[height=0.92\paperheight]{pgedge-assets/ascii-swirl-light}};
+    \node[anchor=north west,inner sep=0] at (8mm,\paperheight-8mm)
+      {\includegraphics[height=4.5mm]{pgedge-assets/logo-on-dark}};
+    \node[anchor=west,inner sep=0,text width=0.72\paperwidth,align=left]
+      at (8mm,0.53\paperheight) {\hyphenpenalty=10000\exhyphenpenalty=10000
+      {\sffamily\bfseries\fontsize{7}{9}\selectfont\color{pgeSkyMid}%
+       \addfontfeatures{LetterSpace=8}\MakeUppercase{\eventname}\par}%
+      \vskip3.5mm
+      {\sffamily\bfseries\fontsize{28}{30}\selectfont\color{white}%
+       \spaceskip=0.32em\relax\inserttitle\par}%
+      \vskip4mm
+      {\sffamily\fontsize{13}{15.5}\selectfont\color{pgeSkyMid}%
+       \insertsubtitle\par}};
+    \node[anchor=south west,inner sep=0,text width=0.6\paperwidth,align=left]
+      at (8mm,8mm) {\spaceskip=0.25em\relax
+      {\sffamily\bfseries\fontsize{9}{11.5}\selectfont\color{white}%
+       \insertauthor\par}%
+      {\sffamily\fontsize{9}{11.5}\selectfont\color{pgeSkyMid}%
+       \insertdate\par}};% institute omitted: the logo already says pgEdge
+  \end{tikzpicture}}
+\begin{frame}[plain,noframenumbering]\end{frame}}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Section divider: "Origins of the idea", pgEdge brand style (see
-% \pgechapter in the preamble): navy canvas, ASCII elephant at 30%
+% \pgechapter in the preamble): light tint, ASCII clouds at 35-40%
 % opacity, "Chapter 1" eyebrow over a two-line title. Opens the
 % cold-open pair below (the letter + the chat).
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1043,6 +1116,76 @@ Hash Join  (actual time=234.671 rows=\hlj{289} loops=1)
 \end{frame}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Join-filtered rows that vanilla EXPLAIN does not show.
+% big: 10^7 rows, 64-byte tuples; only 1000 of them (one contiguous block,
+% 12 heap pages) have x in 1..10. small: 100 rows, x = 1..100, only 10 have
+% a partner. Result: 1000 rows; 9 999 000 rows of big and 90 rows of small
+% are thrown away by the join. No indexes.
+% Right column: the same query as Hash Join (planner's choice) and as a
+% forced Nested Loop (enable_hashjoin = enable_mergejoin = off).
+%   Hash Join -- says nothing about the rows it threw away;
+%   Nested Loop -- Rows Removed by Join Filter = 10^7 x 100 - 1000 compared
+%   PAIRS, not rows without a partner.
+% Plans trimmed for the slide: Buffers, Planning, Buckets/Memory and
+% Materialize Storage lines removed; the rest verbatim from
+% plans/join-big-small-dense-noindex.raw.txt and
+% plans/join-big-small-dense-nl-noindex.raw.txt (script:
+% plans/join-big-small-dense.sql; PG 18.6, no parallel workers).
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile,t]\frametitle{Join filtering EXPLAIN can't see}
+\vfill
+\begin{columns}[T,onlytextwidth]
+
+\begin{column}{0.33\textwidth}
+\centering
+\begin{forest} plangraph
+[Join, detail={big.x = small.x}, act={1000 rows}, l sep=30pt, s sep=26pt
+  [big, act={$10^7$ rows},
+   edge label={node[midway, left, inner sep=3pt, align=right,
+     font=\sffamily\tiny\bfseries, text=planbad]{}}]
+  [small, act={100 rows},
+   edge label={node[midway, right, inner sep=3pt, align=left,
+     font=\sffamily\tiny\bfseries, text=planbad]{}}]]
+\end{forest}
+
+\vspace{5mm}
+\begin{sql}[fontsize=\tiny]
+\kw{SELECT} * \kw{FROM} big
+  \kw{JOIN} small \kw{USING} (x);
+\end{sql}
+
+\end{column}
+
+\begin{column}{0.65\textwidth}
+{\sffamily\scriptsize\bfseries\color{ptoink}Hash Join\par}
+\begin{plan}[fontsize=\tiny]
+Hash Join (actual rows=1000.00 loops=1)
+  Hash Cond: (big.x = small.x)
+  ->  Seq Scan on big (actual rows=10000000.00 loops=1)
+  ->  Hash (actual rows=100.00 loops=1)
+        ->  Seq Scan on small (actual rows=100.00 loops=1)
+Execution Time: 332.203 ms
+\end{plan}
+
+\bigskip\bigskip
+{\sffamily\scriptsize\bfseries\color{ptoink}Nested Loop\par}
+\begin{plan}[fontsize=\tiny]
+Nested Loop (actual rows=1000.00 loops=1)
+  Join Filter: (big.x = small.x)
+  \hl{Rows Removed by Join Filter: 999999000}
+  ->  Seq Scan on big (actual rows=10000000.00 loops=1)
+  ->  Materialize (actual rows=100.00 loops=10000000)
+        ->  Seq Scan on small (actual rows=100.00 loops=1)
+Execution Time: 20799.413 ms
+\end{plan}
+\end{column}
+
+\end{columns}
+\vfill
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Spilling of intermediate results -- the setup slide (slide 26 of the PG
 % Bootcamp deck), placed right before the live demo. Lists which plan
 % nodes can spill once they outgrow work_mem, and how pg_track_optimizer
@@ -1175,7 +1318,7 @@ Execution Time: \hl{950} ms
 % as an aside, not as part of the title.
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\pgechapter{Chapter 5}{Outcomes\\[3mm]{\fontsize{16}{19}\selectfont\mdseries\spaceskip=0pt\color{pgeSkyMid}(the shortest one)}}
+\pgechapter{Chapter 5}{Outcomes\\[3mm]{\fontsize{16}{19}\selectfont\mdseries\spaceskip=0pt\color{pgePath}(the shortest one)}}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % What to monitor (slide 36 of the PG Bootcamp deck, translated). Same
@@ -1204,7 +1347,7 @@ Execution Time: \hl{950} ms
 % and go straight to the source. E-mail is personal by convention.
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% pgEdge-style closing: same navy canvas as the chapter dividers, contacts
+% pgEdge-style closing: navy canvas, matching the cover (bookends), contacts
 % as plain lines (not bullets), QR on a white card so phones still scan it.
 {\setbeamertemplate{background}{%
   \begin{tikzpicture}[x=1pt,y=1pt]
