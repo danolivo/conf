@@ -1,0 +1,11 @@
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Nested Loop (actual rows=100000.00 loops=1)
+   ->  Seq Scan on small (actual rows=100.00 loops=1)
+   ->  Index Scan using big_x_idx on big (actual rows=1000.00 loops=100)
+         Index Cond: (x = small.x)
+         Index Searches: 100
+ Planning Time: 0.252 ms
+ Execution Time: 83.994 ms
+(7 rows)
+

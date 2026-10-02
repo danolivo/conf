@@ -1,0 +1,20 @@
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
+ Merge Join (actual rows=1000.00 loops=1)
+   Merge Cond: (big.x = small.x)
+   Buffers: shared hit=125
+   ->  Index Scan using big_x_idx on big (actual rows=1001.00 loops=1)
+         Index Searches: 1
+         Buffers: shared hit=124
+   ->  Sort (actual rows=1090.00 loops=1)
+         Sort Key: small.x
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=1
+         ->  Seq Scan on small (actual rows=100.00 loops=1)
+               Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=197
+ Planning Time: 0.232 ms
+ Execution Time: 0.139 ms
+(16 rows)
+

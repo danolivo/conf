@@ -1,0 +1,47 @@
+PostgreSQL 18.6 on aarch64-apple-darwin25.6.0, compiled by Homebrew clang version 23.1.1, 64-bit
+SET
+SET
+SELECT 1000000
+SELECT 5000
+SELECT 100000
+ANALYZE
+PREPARE
+                                                        QUERY PLAN                                                         
+---------------------------------------------------------------------------------------------------------------------------
+ Result  (cost=18110.75..20133.75 rows=20000 width=8) (actual rows=20000.00 loops=1)
+   One-Time Filter: $2
+   ->  Hash Join  (cost=18110.75..20133.75 rows=20000 width=8) (actual rows=20000.00 loops=1)
+         Hash Cond: (p.cust = c.id)
+         ->  Seq Scan on payments p  (cost=0.00..1448.00 rows=100000 width=8) (actual rows=100000.00 loops=1)
+         ->  Hash  (cost=18098.25..18098.25 rows=1000 width=12) (actual rows=1000.00 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 51kB
+               ->  Hash Join  (cost=144.50..18098.25 rows=1000 width=12) (actual rows=1000.00 loops=1)
+                     Hash Cond: (o.cust = c.id)
+                     ->  Seq Scan on orders o  (cost=0.00..17940.00 rows=1000 width=8) (actual rows=1000.00 loops=1)
+                           Filter: (city = $1)
+                           Rows Removed by Filter: 999000
+                     ->  Hash  (cost=82.00..82.00 rows=5000 width=4) (actual rows=5000.00 loops=1)
+                           Buckets: 8192  Batches: 1  Memory Usage: 240kB
+                           ->  Seq Scan on customers c  (cost=0.00..82.00 rows=5000 width=4) (actual rows=5000.00 loops=1)
+ Planning Time: 0.444 ms
+ Execution Time: 147.409 ms
+(17 rows)
+
+                                                  QUERY PLAN                                                  
+--------------------------------------------------------------------------------------------------------------
+ Result  (cost=18110.75..20133.75 rows=20000 width=8) (actual rows=0.00 loops=1)
+   One-Time Filter: $2
+   ->  Hash Join  (cost=18110.75..20133.75 rows=20000 width=8) (never executed)
+         Hash Cond: (p.cust = c.id)
+         ->  Seq Scan on payments p  (cost=0.00..1448.00 rows=100000 width=8) (never executed)
+         ->  Hash  (cost=18098.25..18098.25 rows=1000 width=12) (never executed)
+               ->  Hash Join  (cost=144.50..18098.25 rows=1000 width=12) (never executed)
+                     Hash Cond: (o.cust = c.id)
+                     ->  Seq Scan on orders o  (cost=0.00..17940.00 rows=1000 width=8) (never executed)
+                           Filter: (city = $1)
+                     ->  Hash  (cost=82.00..82.00 rows=5000 width=4) (never executed)
+                           ->  Seq Scan on customers c  (cost=0.00..82.00 rows=5000 width=4) (never executed)
+ Planning Time: 0.011 ms
+ Execution Time: 0.026 ms
+(14 rows)
+

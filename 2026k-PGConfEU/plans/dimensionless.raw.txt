@@ -1,0 +1,35 @@
+PostgreSQL 18.6 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit
+SET
+SELECT 1000000
+SELECT 5000
+SELECT 100000
+SELECT 20000
+ANALYZE
+                                                             QUERY PLAN                                                             
+------------------------------------------------------------------------------------------------------------------------------------
+ Hash Join  (cost=20584.51..22407.71 rows=20 width=8) (actual time=220.639..225.562 rows=20000.00 loops=1)
+   Hash Cond: (p.cust = c.id)
+   ->  Seq Scan on payments p  (cost=0.00..1448.00 rows=100000 width=8) (actual time=0.002..2.381 rows=100000.00 loops=1)
+   ->  Hash  (cost=20584.50..20584.50 rows=1 width=12) (actual time=220.614..220.614 rows=1000.00 loops=1)
+         Buckets: 1024  Batches: 1  Memory Usage: 51kB
+         ->  Nested Loop  (cost=0.00..20584.50 rows=1 width=12) (actual time=0.019..220.515 rows=1000.00 loops=1)
+               Join Filter: (o.cust = c.id)
+               Rows Removed by Join Filter: 4999000
+               ->  Seq Scan on orders o  (cost=0.00..20440.00 rows=1 width=8) (actual time=0.015..27.229 rows=1000.00 loops=1)
+                     Filter: ((city = 42) AND (zip = 42))
+                     Rows Removed by Filter: 999000
+               ->  Seq Scan on customers c  (cost=0.00..82.00 rows=5000 width=4) (actual time=0.001..0.101 rows=5000.00 loops=1000)
+ Planning Time: 0.146 ms
+ Execution Time: 225.874 ms
+(14 rows)
+
+                                                    QUERY PLAN                                                     
+-------------------------------------------------------------------------------------------------------------------
+ HashAggregate  (cost=478.00..498.00 rows=2000 width=16) (actual time=1.367..1.379 rows=100.00 loops=1)
+   Group Key: page, referrer
+   Batches: 1  Memory Usage: 97kB
+   ->  Seq Scan on visits  (cost=0.00..328.00 rows=20000 width=8) (actual time=0.010..0.494 rows=20000.00 loops=1)
+ Planning Time: 0.068 ms
+ Execution Time: 1.391 ms
+(6 rows)
+
