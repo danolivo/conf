@@ -215,6 +215,14 @@
 \colorlet{planbad}{crash}
 \colorlet{plantext}{ptoink}
 \renewcommand\planedgewidth{0.7pt}   % plan-graph edges
+% plan box that stands out from its neighbours: red frame, warm tint inside
+\makeatletter
+\newenvironment{planhot}
+  {\VerbatimEnvironment
+   \begin{plan@frame}[colframe=crash, boxrule=0.8pt, colback=ptotint]%
+   \plan@fv\begin{Verbatim}}
+  {\end{Verbatim}\end{plan@frame}}
+\makeatother
 % SQL highlighting inside sql/psql boxes (commandchars are on there)
 \newcommand\kw[1]{\textcolor{pgblue}{#1}}       % keyword
 \newcommand\sqlnum[1]{\textcolor{ptoaccent}{#1}} % numeric literal
@@ -473,8 +481,8 @@ WHERE ((1=1 OR 1=0) AND (T8._Q_001_F_001RRef =
 \par\vspace{2pt}
 {\scriptsize
 \begin{itemize}\itemsep2pt
- \item ~49500 distinct \texttt{queryid}s
- \item ~560 queries longer than 1s.
+ \item $\sim49500$ distinct \texttt{queryid}s
+ \item $\sim560$ queries longer than 1s.
  \item query text: 33 -- 126\,000 chars
  \item execution time: 1\,ms -- 26\,s
  \item calls: 1 -- 5\,075
@@ -548,7 +556,8 @@ shared\_blks\_read & [50\,000\,000]\\
     \end{tcolorbox}
   \end{column}
 \end{columns}
-
+\vfill
+pg\_qualstats, online\_advisor, pg\_stat\_advisor, pganalyze ...
 \vfill
 \end{frame}
 
@@ -1179,6 +1188,70 @@ Nested Loop (actual rows=1000.00 loops=1)
         ->  Seq Scan on small (actual rows=100.00 loops=1)
 Execution Time: 20799.413 ms
 \end{plan}
+\end{column}
+
+\end{columns}
+\vfill
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Same slide, second step: the Nested Loop box is replaced by the plan
+% with an index on big(x) (forced Nested Loop, CREATE INDEX big_x_idx),
+% framed in red. rows=10.00 loops=100 is an average: 90 probes return
+% nothing, 10 return 100 rows each -- EXPLAIN can't tell them apart.
+% Trimmed like the previous slide (Buffers, Planning removed); source:
+% plans/join-big-small-dense-nl-index.raw.txt.
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile,t]\frametitle{Join filtering EXPLAIN can't see}
+\vfill
+\begin{columns}[T,onlytextwidth]
+
+\begin{column}{0.33\textwidth}
+\centering
+\begin{forest} plangraph
+[Join, detail={big.x = small.x}, act={1000 rows}, l sep=30pt, s sep=26pt
+  [big, act={$10^7$ rows},
+   edge label={node[midway, left, inner sep=3pt, align=right,
+     font=\sffamily\tiny\bfseries, text=planbad]{}}]
+  [small, act={100 rows},
+   edge label={node[midway, right, inner sep=3pt, align=left,
+     font=\sffamily\tiny\bfseries, text=planbad]{}}]]
+\end{forest}
+
+\vspace{5mm}
+\begin{sql}[fontsize=\tiny]
+\kw{SELECT} * \kw{FROM} big
+  \kw{JOIN} small \kw{USING} (x);
+\end{sql}
+\begin{planhot}[fontsize=\tiny]
+\kw{CREATE INDEX} idx \kw{ON} big (x);
+\end{planhot}
+
+\end{column}
+
+\begin{column}{0.65\textwidth}
+{\sffamily\scriptsize\bfseries\color{ptoink}Hash Join\par}
+\begin{plan}[fontsize=\tiny]
+Hash Join (actual rows=1000.00 loops=1)
+  Hash Cond: (big.x = small.x)
+  ->  Seq Scan on big (actual rows=10000000.00 loops=1)
+  ->  Hash (actual rows=100.00 loops=1)
+        ->  Seq Scan on small (actual rows=100.00 loops=1)
+Execution Time: 332.203 ms
+\end{plan}
+
+\bigskip\bigskip
+{\sffamily\scriptsize\bfseries\color{ptoink}Nested Loop\par}
+\begin{planhot}[fontsize=\tiny]
+Nested Loop (actual rows=1000.00 loops=1)
+  ->  Seq Scan on small (actual rows=100.00 loops=1)
+  ->  Index Scan using idx on big
+        (actual rows=\hl{10.00 loops=100})
+        Index Cond: (x = small.x)
+        Index Searches: 100
+Execution Time: 0.187 ms
+\end{planhot}
 \end{column}
 
 \end{columns}
