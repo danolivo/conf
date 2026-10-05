@@ -56,3 +56,19 @@ One of the practical issues - uniqueness of QueryID - sometimes not enough, some
 
 Also, extension might add to each query instrumentation before the query starts, according to the level requested. Analysis has been made at the end of execution, as usual.
 
+# Slide 11. "Domain Specifics"
+
+This extension implements quite unusual features that visible in the UI and might strike new user. So, let's talk about specifics of the Domain and why extension looks a little unconventional.
+
+# Slide 12. "Nuance No.1"
+
+The first issue that you get stuck into analysing such a horde of queries is that they are different by structure, data touched and execution time.
+Sometimes it is a bushy join tree that is quite pointedly extracts tiny set of rows from each table but executed slowly because of cartesian joins that blows up the number of rows. Sometimes it is tiny grouping that is disk intensive and calculates couple of aggregates over the whole table.
+And we need to compare such queries on a basis of an "optimisation potential".
+
+# Slide 13. "Nuance No.2"
+
+Another nuance is that 
+
+# Slide 14. "Nuance No.3"
+
