@@ -68,7 +68,42 @@ And we need to compare such queries on a basis of an "optimisation potential".
 
 # Slide 13. "Nuance No.2"
 
-Another nuance is that 
+Another nuance is that data we need to assess the quality of the optimiser's planning is not always meaningful.
+For example, plan tree might be pruned or never executed at all. Here is an example when depending on the parameter most of nodes might not read even a single tuple or process quite a bushy tree.
+Optimiser doesn't have a concept of never executed node or zero tuples produced. So, we can't just use zero tuples as 'real rows' value - the 'never executed' node doesn't formally depend on any parameter but might be executed for hours next time when parameter will be different.
+Such speedup is a **runtime optimisation** that is out of the scope and we should skip it analyzing query result. So, that means that sometimes we might have no result for some monitoring parameters. That different compare to the PGSS.
 
 # Slide 14. "Nuance No.3"
 
+And the third nuance is stochastic nature of statistics. Sometimes you may not change data at all. But executing ANALYZE again you might see the query plan flip when everything changes.
+It might happen because ndistinct statistic is not stable in theory. But most probably it happens due to changes in MCV list: some value might be pushed out of the list and estimations in multiple places shifts, especially related to scan filters as you can see here.
+
+That's why concrete estimation numbers frequently aren't 100% reproducible. And we should rely on something stochastic like average value or standard deviation.
+
+# Slide 15. "Two design decisions"
+
+So, after a series of attempts we came to these two design decisions. First of all, make our metrics dimensionless.
+This way instead of using execution time for specific node, we divide it by total execution time of the query, filtered rows we normalize on the number of actual rows returned. That's all looks like to use terms of fractions instead of absolute numbers.
+It might be the first attempt to do so in databases, but in physics such an approach serves well for decades - let's try to adopt it.
+
+# Slide 16. "How it works"
+
+Now, let me turn to practice, explain the most important parameters and show how it actually works.
+
+# Slide 17, "JOB"
+
+To show how it works I used the Join Order Benchmark - it is simple to use, contains  a hundred of different queries, uses full scans as well as index scans and on 16-join query tree leaves a room for wrong planner estimates.
+
+# Slide 18. "Cardinality estimation error"
+
+The first key parameter is the most natural one - cardinality estimation error. It is based on the comparison of planned and actual rows number at each plan node.
+On the execution end it walks through the plan state tree and gathers number of actual rows. Afterwards, it calculates relative error, normalising it with an algorithm and summarises these values based on some weighting factor.
+Weighting factor is quite an important parameter. Plan nodes aren't the same: 2x error in estimation if scan operator maybe less harmful that 2x estimation error of join output. So, to combine it we can use weighting bassed on execution time of specific node, cost of the node, blocks read, etc. Each weighting factor represents different point of view on the query error and I usually combine them in my analysis.
+
+# Slide 19. "How to use it"
+
+This slide represents an example how I use this sort metrics. Here you can see I intersected TOP-10 on two types of estimation error coefficient: time weighed and without weighting factor at all. Over all 113 queries we have four entries at intersection. Numbers itself, are dimensionless and provide you with not much meaning - you can just pick the highest ones or combine them with other metrics. Here I pick the query with highest estimation error and looked into the heatmap.
+
+# Slide 20. "A look inside .."
+
+Red color means bad estimations on this heatmap. As you can visually see, an error has been raised once and spread upper by the tree. Look into the specific segment where the problem has been found you can see that the reasin is x4 misestimation on a plain table scan. And error quickly transformed to 10x underestimation error on the immediate upper HashJoin. I wonder if such a quick grow of underestimation error will turn the following JOINs to NestLoops.
