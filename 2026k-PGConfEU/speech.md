@@ -107,3 +107,32 @@ This slide represents an example how I use this sort metrics. Here you can see I
 # Slide 20. "A look inside .."
 
 Red color means bad estimations on this heatmap. As you can visually see, an error has been raised once and spread upper by the tree. Look into the specific segment where the problem has been found you can see that the reasin is x4 misestimation on a plain table scan. And error quickly transformed to 10x underestimation error on the immediate upper HashJoin. I wonder if such a quick grow of underestimation error will turn the following JOINs to NestLoops.
+
+# Slide 21. "Filtering activities"
+
+It was like a general purpose metrics that let us identify planner mishaps (slips). This one much more practical. We want to know how actively our queries filter rows. Because if significant part of the work is filtering - maybe it makes sense to restructure physical layer of the database and pick it more precisely by an index.
+
+There are two ways to detect filtering that postgres provides to us: the number of tuples removed by scan and join filter.
+
+We take this parameter and save maximum number throughout the plan. We might average it on the number of nodes as we did with planning error, but the idea here is just to highlight the painful place. Indexes don't allow us to get rid of all filterings, so, no reason to reduce the signal.
+
+As you can see, we make it dimensionless and show a fraction of filtered tuples in the whole set of rows taken and weight it on a fraction of total execution time that this node consumed.
+
+# Slide 22. "How filtering works"
+
+Here is an example - we usually take filtering metrics with planner error to see if this plan planned badly in general. Take upper query of the JOB benchmark according to scan factor. Heatmap of this query shows no significant planning errors. So - no negative signal in general.
+But, let's dive into the filters to understand what's caused such a big value of the metric.
+
+# Slide 23. "Reveal the issue"
+
+And now you can see that SeqScan removed almost 3mln rows to perform the JOIN. Nothing is wrong with estimations. With proper index we would scan it much faster.
+
+Such cases quite important - they directly show us where we can add an index if OK with DML overhead. The same technique enables us to detect candidate scan and for JOIN nodes. Adding an index on filters and join clauses we switch SCAN node to optimal index scan, and JOIN node  to parameterised NestLoop.
+
+To understand how much this approach might add to this benchmark I made quite a formal thing: added indexes to satisfy SCAN filters. After the  benchmark passed, I added indexes to satisfy intensively filtering join  clauses. And performed benchmark one more time.
+
+# Slide 24. "Effect of indexes"
+
+And here you can see speedup of this benchmark - sorted from maximum speedup on the left side to the minimum speedup on the right one.
+
+You can see that join indexes much more effective than just scan indexes. Sometimes we reduced execution time 100 times. But at the other end of this graph you can see degraded queries - it is consequence of aggressive query plans: with NestLoops misestimations cost more than before.
