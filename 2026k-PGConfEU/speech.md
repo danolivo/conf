@@ -1,138 +1,180 @@
 # Slide 1. Title
 
-Name myself, My primary interest - planner tuning for OLAP, HTAP and ERP-specific loads.
+Introduce myself. My primary interest is planner tuning for OLAP, HTAP and ERP-specific workloads.
 
-Typically, the main problem in query tuning is not a specific query and its problem - how to **generalize** the problem to invent a common solution - that's the exact problem. That's why we need a method to detect and group problematic queries.
+Typically, the main difficulty in query tuning is not a specific query and its particular issue. The real problem is how to **generalise** the issue and come up with a common solution. That's why we need a method to detect and group problematic queries.
 
-# Slide 2.
+# Slide 2. Chapter 1: Origins of the idea
 
-How I have come to this idea? It wasn't trivial.
+How did I come to this idea? It wasn't trivial.
 
-# Slide 3. 
+# Slide 3. 31 December 2023
 
-On the eve of new year 2024, I've got a message from unknown user of the AQO extension. He complained about segfault. ... AQO ...
-We resolved it quickly enoough, but at the end I was curious about why they took this open-source extension at all. And we had an interesting talk.
+On New Year's Eve 2024, I got a message from an unknown user of the AQO extension. He complained about a segfault. ... AQO ...
+We resolved it quickly enough, but in the end I was curious why they had picked up this open-source extension at all. And we had an interesting conversation.
 
-# Slide 4.
+# Slide 4. 12 January 2024
 
-They said that they use PostgresT REST API and have issues with performance of auto-generated queries. My extension sped it up two or more times and they installed it across their multiple servers.
-At first, it was actually nice to know that someone uses product to design which I spend a lot of nights. But after the second thought I realised that here is might be a turning point: DBs aren't quite effective on real load. That means being in the Cloud people spend a lot of resources and consequently money for nothing.
-Let me show you the exact formula I came to.
+They said they used the PostgREST API and had performance issues with its auto-generated queries. My extension sped them up by a factor of two or more, and they rolled it out across their many servers.
+At first, it was simply nice to know that someone was using a product I had spent so many nights designing. But on second thought, I realised there might be a turning point here: databases aren't that efficient under real workloads. That means that in the cloud, people spend a lot of resources — and consequently money — for nothing.
+Let me show you the exact formula I arrived at.
 
-# Slide 5.
+# Slide 5. The query plan is a great source of savings
 
-we actually need only our mind and curiosity to save massive amount of money. May be it is not much for a server, but multiply it to 5000 servers like a person from previous dialogue said, and you'll have a great source of economy.
-Yes - the main stopper for optimisation is complexity. So, this is the gist of current efforts and code - make query optimisation more **transparent and simple**.
+We need nothing but our minds and curiosity to save a massive amount of money. It may not be much per server, but multiply it by 5,000 servers, as the person from that chat said, and you get a great source of savings.
+Yes, the main blocker for optimisation is complexity. So this is the gist of my current efforts and code: make query optimisation more **transparent and simple**.
 
-Add into this idea an AI sauce and we come to the solution - automatise problem detection - the generalisation - then resolving by a handy machinery.
+Add a bit of AI sauce to this idea and we arrive at the solution: automate problem detection, then generalisation, then resolution by some handy machinery.
 
-# Slide 6. "Blind spot"
+# Slide 6. Chapter 2: Blind spot
 
-Ok, now, let's turn to the scope of the problem. Why do I think it is hard at all? Maybe we already have enough tools to solve it? Maybe we can find issues manually?
+OK, now let's turn to the scope of the problem. Why do I think it is hard at all? Maybe we already have enough tools to solve it? Maybe we can find the issues manually?
 
-# Slide 7. "One database statistics"
+# Slide 7. Is it easy to spot an optimisation problem?
 
-Here I tried to show the scope of the research you'll need to do if you decide to research on the query optimisation. This is a typical ERP system numbers - about 50 thousands different queryIds, quite unobservable scope of long queries; calls & execution times vary significantly, long query texts and bushy join trees and plans that sometimes only partially executed due to executor runtime optimisations.
-Query text is also rarely readable - you can understand how it works, of course, but you should have specific candidate in advance. So, we need tooling - what is the current scope then?
+Here I tried to show the amount of work you'd face if you decided to investigate query optimisation on a real system. These are the numbers of a typical ERP system: about 50 thousand distinct query IDs; an unmanageable number of long queries; calls and execution times vary wildly; long query texts, bushy join trees, and plans that are sometimes executed only partially because of executor runtime optimisations.
+The query text is also rarely readable. You can work out what it does, of course, but you need a specific candidate in advance. So we need tooling. What do we have at the moment, then?
 
-# Slide 8. "Closing the blind spot in query statistics"
+# Slide 8. Closing the blind spot in query statistics
 
-The main tool and de-facto standard is PGSS. Contains lots of parameters and pretty stable. Unfortunately, it monitors totally different stuff when we need to - it shows queries that spend more resources.
-It is nice logic, but big queries might be legitimally bad. Also, on the scope of thousands queries one query (or even TOP-100) adds not much into the overall score.
-Of course, we have other extensions, like qualstats, online advisor, pganalyze and others. But it always designed to solve some specific issue, usually find out what is wrong with the query executing EXPLAIN ANALYZE in a separate session. Our purpose - to detect and track problems on the fly, on life system - provide your AI monitor with sensors.
+The main tool and de facto standard is pg_stat_statements. It has lots of parameters and is pretty stable. Unfortunately, it monitors something quite different from what we need: it shows the queries that consume the most resources.
+That's sound logic, but a big query may legitimately be expensive. Also, with thousands of queries, a single query (or even the top 100) doesn't add much to the overall picture.
+Of course, we have other extensions: pg_qualstats, online_advisor, pganalyze and others. But each is designed to solve a specific issue, usually to find out what is wrong with one query by running EXPLAIN ANALYZE in a separate session. Our purpose is to detect and track problems on the fly, on a live system — to provide your AI monitor with sensors.
 
-# Slide 9. "Assessing the instance’s potential"
+# Slide 9. Assessing the instance's potential
 
-What exactly are these "sensors" ...
+What exactly are these "sensors"? ...
 
-So, we implemented all these sensors in a separate extension and called it track optimiser.
+*(The slide lists five levers: estimation error, selectivity of scans and joins, SubPlans' share of execution time, spilling, plan stability. Only the first sentence is in the notes so far.)*
 
-# Slide 10. "Postgres extension pg_track_optimizer"
+So, we implemented all these sensors in a separate extension and called it pg_track_optimizer.
 
-It contains 11 metrics at the moment - and we think it might be extended in the future when more practice gained.
-It is lightweight loadable extension - you can operate connection pooler's settings to introduce/remove it in the system dynamically.
-It flushes gathered data to the disk to survive crash.
-One of the practical issues - uniqueness of QueryID - sometimes not enough, sometimes too much unique. Both cases strike analysis. Here is a module that attempts to stabilise queryid and make it more semantic-depended than syntax-dependent.
+# Slide 10. Postgres extension pg_track_optimizer
 
-Also, extension might add to each query instrumentation before the query starts, according to the level requested. Analysis has been made at the end of execution, as usual.
+It contains 11 metrics at the moment, and we think it may be extended in the future as we gain more practical experience.
+It is a lightweight loadable extension: you can use your connection pooler's settings to add it to or remove it from the system dynamically.
+It flushes the gathered data to disk so that it survives a restart.
+One of the practical issues is the uniqueness of the query ID: sometimes it is not unique enough, sometimes too unique. Both cases hurt the analysis. So there is a module that attempts to stabilise the query ID and make it depend on the semantics rather than the syntax of the query.
 
-# Slide 11. "Domain Specifics"
+Also, the extension can add instrumentation to each query before it starts, according to the requested level. The analysis is done at the end of execution, as usual.
 
-This extension implements quite unusual features that visible in the UI and might strike new user. So, let's talk about specifics of the Domain and why extension looks a little unconventional.
+# Slide 11. Chapter 3: Domain specifics
 
-# Slide 12. "Nuance No.1"
+This extension has some rather unusual features that are visible in its interface and may puzzle a new user. So let's talk about the specifics of the domain and why the extension looks a little unconventional.
 
-The first issue that you get stuck into analysing such a horde of queries is that they are different by structure, data touched and execution time.
-Sometimes it is a bushy join tree that is quite pointedly extracts tiny set of rows from each table but executed slowly because of cartesian joins that blows up the number of rows. Sometimes it is tiny grouping that is disk intensive and calculates couple of aggregates over the whole table.
-And we need to compare such queries on a basis of an "optimisation potential".
+# Slide 12. Nuance 1: Queries are different
 
-# Slide 13. "Nuance No.2"
+The first issue you run into when analysing such a horde of queries is that they differ in structure, in the data they touch and in execution time.
+Sometimes it is a bushy join tree that precisely extracts a tiny set of rows from each table but runs slowly because of Cartesian joins that blow up the number of rows. Sometimes it is a tiny grouping query that is disk-intensive and calculates a couple of aggregates over the whole table.
+And we need to compare such queries on the basis of their "optimisation potential".
 
-Another nuance is that data we need to assess the quality of the optimiser's planning is not always meaningful.
-For example, plan tree might be pruned or never executed at all. Here is an example when depending on the parameter most of nodes might not read even a single tuple or process quite a bushy tree.
-Optimiser doesn't have a concept of never executed node or zero tuples produced. So, we can't just use zero tuples as 'real rows' value - the 'never executed' node doesn't formally depend on any parameter but might be executed for hours next time when parameter will be different.
-Such speedup is a **runtime optimisation** that is out of the scope and we should skip it analyzing query result. So, that means that sometimes we might have no result for some monitoring parameters. That different compare to the PGSS.
+# Slide 13. Nuance 2: Parameter might be in undefined state
 
-# Slide 14. "Nuance No.3"
+Another nuance is that the data we need to assess the quality of the optimiser's planning is not always meaningful.
+For example, a plan subtree may be pruned or never executed at all. Here is an example where, depending on the parameter, most of the nodes either don't read a single tuple or process quite a bushy tree.
+The optimiser has no concept of a never-executed node or of zero tuples produced. So we can't just use zero tuples as the "actual rows" value: the "never executed" node formally doesn't depend on any parameter, but it may run for hours next time, when the parameter is different.
+Such a speedup is a **runtime optimisation**; it is out of scope, and we should skip it when analysing the query result. That means we may sometimes have no value at all for some monitoring parameters. That's different from pg_stat_statements.
 
-And the third nuance is stochastic nature of statistics. Sometimes you may not change data at all. But executing ANALYZE again you might see the query plan flip when everything changes.
-It might happen because ndistinct statistic is not stable in theory. But most probably it happens due to changes in MCV list: some value might be pushed out of the list and estimations in multiple places shifts, especially related to scan filters as you can see here.
+# Slide 14. Nuance 3: statistics' stochastic nature
 
-That's why concrete estimation numbers frequently aren't 100% reproducible. And we should rely on something stochastic like average value or standard deviation.
+And the third nuance is the stochastic nature of statistics. You may not change the data at all, but after running ANALYZE again you may see the query plan flip, and everything changes.
+It may happen because the ndistinct statistic is not stable even in theory. But most probably it happens because of changes in the MCV list: a value may be pushed out of the list, and estimates shift in multiple places, especially in scan filters, as you can see here.
 
-# Slide 15. "Two design decisions"
+That's why specific estimation numbers are frequently not 100% reproducible, and we should rely on statistical values like the mean or the standard deviation.
 
-So, after a series of attempts we came to these two design decisions. First of all, make our metrics dimensionless.
-This way instead of using execution time for specific node, we divide it by total execution time of the query, filtered rows we normalize on the number of actual rows returned. That's all looks like to use terms of fractions instead of absolute numbers.
-It might be the first attempt to do so in databases, but in physics such an approach serves well for decades - let's try to adopt it.
+# Slide 15. Two design decisions in pg_track_optimizer
 
-# Slide 16. "How it works"
+So, after a series of attempts, we came to these two design decisions. First, make our metrics dimensionless.
+Instead of using the execution time of a specific node, we divide it by the total execution time of the query; filtered rows we normalise by the number of actual rows returned. In short, we think in fractions instead of absolute numbers.
+It may be the first attempt to do so in databases, but in physics this approach has served well for decades — let's try to adopt it.
 
-Now, let me turn to practice, explain the most important parameters and show how it actually works.
+*(The second decision — the custom `RStats` type: (count, mean, min, max, stddev), updated in place on every execution, so you see the plan is unstable, not just wrong — isn't covered in the notes.)*
 
-# Slide 17, "JOB"
+# Slide 16. Chapter 4: How it works
 
-To show how it works I used the Join Order Benchmark - it is simple to use, contains  a hundred of different queries, uses full scans as well as index scans and on 16-join query tree leaves a room for wrong planner estimates.
+Now let me turn to practice, explain the most important parameters and show how it actually works.
 
-# Slide 18. "Cardinality estimation error"
+# Slide 17. How does it work in practice? (JOB)
 
-The first key parameter is the most natural one - cardinality estimation error. It is based on the comparison of planned and actual rows number at each plan node.
-On the execution end it walks through the plan state tree and gathers number of actual rows. Afterwards, it calculates relative error, normalising it with an algorithm and summarises these values based on some weighting factor.
-Weighting factor is quite an important parameter. Plan nodes aren't the same: 2x error in estimation if scan operator maybe less harmful that 2x estimation error of join output. So, to combine it we can use weighting bassed on execution time of specific node, cost of the node, blocks read, etc. Each weighting factor represents different point of view on the query error and I usually combine them in my analysis.
+To show how it works, I used the Join Order Benchmark. It is simple to use, contains over a hundred different queries, uses full scans as well as index scans, and with join trees of up to 16 joins it leaves plenty of room for wrong planner estimates.
 
-# Slide 19. "How to use it"
+# Slide 18. Cardinality estimation error
 
-This slide represents an example how I use this sort metrics. Here you can see I intersected TOP-10 on two types of estimation error coefficient: time weighed and without weighting factor at all. Over all 113 queries we have four entries at intersection. Numbers itself, are dimensionless and provide you with not much meaning - you can just pick the highest ones or combine them with other metrics. Here I pick the query with highest estimation error and looked into the heatmap.
+The first key parameter is the most natural one: the cardinality estimation error. It is based on comparing the planned and the actual number of rows at each plan node.
+At the end of execution, the extension walks the PlanState tree and gathers the actual row counts. Then it calculates the relative error at each node, normalises it and sums these values up using a weighting factor.
+The weighting factor is quite an important parameter. Plan nodes aren't all equal: a 2x estimation error in a scan may be less harmful than a 2x error in the output of a join. So, to combine them, we can weight by the execution time of the node, its cost, blocks read, and so on. Each weighting factor represents a different point of view on the query error, and I usually combine them in my analysis.
 
-# Slide 20. "A look inside .."
+# Slide 19. How the estimation error criteria work
 
-Red color means bad estimations on this heatmap. As you can visually see, an error has been raised once and spread upper by the tree. Look into the specific segment where the problem has been found you can see that the reasin is x4 misestimation on a plain table scan. And error quickly transformed to 10x underestimation error on the immediate upper HashJoin. I wonder if such a quick grow of underestimation error will turn the following JOINs to NestLoops.
+This slide shows an example of how I use this kind of metric. Here I intersected the top 10 by two kinds of estimation error coefficient: time-weighted and with no weighting at all. Out of all 113 queries, four end up in the intersection. The numbers themselves are dimensionless and don't mean much on their own; you just pick the highest ones or combine them with other metrics. Here I picked the query with the highest estimation error and looked into its heatmap.
 
-# Slide 21. "Filtering activities"
+# Slide 20. A look inside 28a.sql
 
-It was like a general purpose metrics that let us identify planner mishaps (slips). This one much more practical. We want to know how actively our queries filter rows. Because if significant part of the work is filtering - maybe it makes sense to restructure physical layer of the database and pick it more precisely by an index.
+On this heatmap, red means bad estimates. As you can see, the error arose once and then spread up the tree. If you look at the specific segment where the problem was found, you can see that the cause is a 4x misestimate on a plain table scan. And that error quickly turned into an almost 100x underestimate on the Hash Join right above it. I wouldn't be surprised if such a rapid growth of underestimation turned the joins further up into Nested Loops.
 
-There are two ways to detect filtering that postgres provides to us: the number of tuples removed by scan and join filter.
+# Slide 21. Filter factors: scans and joins
 
-We take this parameter and save maximum number throughout the plan. We might average it on the number of nodes as we did with planning error, but the idea here is just to highlight the painful place. Indexes don't allow us to get rid of all filterings, so, no reason to reduce the signal.
+That was a general-purpose metric that lets us identify planner slips. This one is much more practical. We want to know how actively our queries filter rows, because if a significant part of the work is filtering, it may make sense to restructure the physical layer of the database and pick the rows more precisely with an index.
 
-As you can see, we make it dimensionless and show a fraction of filtered tuples in the whole set of rows taken and weight it on a fraction of total execution time that this node consumed.
+Postgres gives us two ways to detect filtering: the number of tuples removed by a scan filter and by a join filter.
 
-# Slide 22. "How filtering works"
+We take this parameter and keep the maximum across the plan. We could average it over the number of nodes, as we did with the planning error, but the idea here is just to highlight the painful spot. Indexes don't let us get rid of all filtering, so there is no reason to dilute the signal.
 
-Here is an example - we usually take filtering metrics with planner error to see if this plan planned badly in general. Take upper query of the JOB benchmark according to scan factor. Heatmap of this query shows no significant planning errors. So - no negative signal in general.
-But, let's dive into the filters to understand what's caused such a big value of the metric.
+As you can see, we make it dimensionless: the fraction of filtered tuples relative to the rows returned, weighted by the fraction of the total execution time this node consumed.
 
-# Slide 23. "Reveal the issue"
+# Slide 22. How the filter criteria work (step 1)
 
-And now you can see that SeqScan removed almost 3mln rows to perform the JOIN. Nothing is wrong with estimations. With proper index we would scan it much faster.
+Here is an example. We usually take the filter metric together with the planner error to see whether the plan was badly planned in general. Take the top JOB query by scan factor. Its heatmap shows no significant planning errors, so there's no negative signal in general.
+But let's dive into the filters to understand what caused such a big value of the metric.
 
-Such cases quite important - they directly show us where we can add an index if OK with DML overhead. The same technique enables us to detect candidate scan and for JOIN nodes. Adding an index on filters and join clauses we switch SCAN node to optimal index scan, and JOIN node  to parameterised NestLoop.
+# Slide 23. How the filter criteria work (step 2: the zoomed-in scan)
 
-To understand how much this approach might add to this benchmark I made quite a formal thing: added indexes to satisfy SCAN filters. After the  benchmark passed, I added indexes to satisfy intensively filtering join  clauses. And performed benchmark one more time.
+And now you can see that the Seq Scan removed almost 3 million rows to feed the join. Nothing is wrong with the estimates. With a proper index, we would scan it much faster.
 
-# Slide 24. "Effect of indexes"
+Such cases are quite important: they show us directly where we can add an index, if we are OK with the DML overhead. The same technique lets us detect candidates among JOIN nodes as well. By adding indexes on filters and join clauses, we switch a SCAN node to an optimal Index Scan, and a JOIN node to a parameterised Nested Loop.
 
-And here you can see speedup of this benchmark - sorted from maximum speedup on the left side to the minimum speedup on the right one.
+To understand how much this approach could add to the benchmark, I did something quite mechanical: I added indexes to satisfy the SCAN filters. After the benchmark had run, I added indexes to satisfy the most intensively filtering join clauses and ran the benchmark once more.
 
-You can see that join indexes much more effective than just scan indexes. Sometimes we reduced execution time 100 times. But at the other end of this graph you can see degraded queries - it is consequence of aggressive query plans: with NestLoops misestimations cost more than before.
+# Slide 24. Effect of the indexes found
+
+And here you can see the speedup of the benchmark, sorted from the maximum speedup on the left to the minimum on the right.
+
+You can see that join indexes are much more effective than scan indexes alone. Sometimes we cut the execution time a hundredfold. But at the other end of the graph you can see degraded queries. That's a consequence of aggressive plans: with Nested Loops, misestimates cost more than before.
+
+# Slide 25. Join filtering EXPLAIN can't see (step 1)
+
+*(Not covered in the notes. The slide: `big` (10^7 rows) ⋈ `small` (100 rows), result 1000 rows, no indexes. The Hash Join says nothing about the 9 999 000 rows of `big` it threw away; the forced Nested Loop reports "Rows Removed by Join Filter: 999 999 000" — compared pairs, not rows without a partner. 332 ms vs 20.8 s.)*
+
+# Slide 26. Join filtering EXPLAIN can't see (step 2)
+
+*(Not covered in the notes. The slide: same query after `CREATE INDEX idx ON big (x)`. Nested Loop with Index Scan: "rows=10.00 loops=100" — an average that hides that 90 probes returned nothing and 10 returned 100 rows each. 0.187 ms.)*
+
+# Slide 27. Spilling of intermediate results
+
+There is a general problem with work_mem. I have heard of some tricks and magic ratios, but generally, when you know that join trees in your database range from 1 to 50 joins, it is hard to predict how many nodes may need extra memory, and therefore what a safe limit should be.
+
+That's why spilling to disk is inevitable: you just keep your instance safe.
+Lots of nodes spill to disk: hashing, sorting, materialisation, even CTEs. Some nodes allocate memory but don't spill: Memoize, hashed INTERSECT, Bitmap Scan — they use other tricks to keep memory consumption bounded.
+So we added a metric that lets you see whether a query spills a massive part of the data it processes to disk.
+
+# Slide 28. How the spilling criterion works
+
+Here is an example. The extension tracks the number of blocks each query spills to disk. Here we select the average number of blocks spilled per query, sorted by the ratio of spilled blocks to total blocks read.
+This is less than pg_stat_statements provides, but by combining the two you can extract whatever detail you need: pg_stat_statements only shows you the total accumulated value, without the distribution.
+By adjusting work_mem we can speed queries up — twofold in this example.
+
+# Slide 29. What a bigger work_mem changes
+
+But such an adjustment may have negative consequences: plans get more aggressive and more sensitive to optimiser mistakes. So this is not a blanket recommendation to make work_mem as big as possible.
+
+# Slide 30. Chapter 5: Outcomes (the shortest one)
+
+*(Not covered in the notes. Section divider.)*
+
+# Slide 31. The useful bits
+
+*(Not covered in the notes. The slide: 1) track the accumulated average error — on a tuned system, growth or a spike means losing efficiency; 2) watch the SCAN and JOIN filter factors — the metrics that expose missing indexes; 3) combine these metrics with pg_stat_statements — it may highlight queries that deserve a GENERIC/CUSTOM plan changeover. See also takeways.md for the intended takeaways.)*
+
+# Slide 32. Questions?
+
+*(Not covered in the notes. Contact card + QR code to the pg_track_optimizer repo.)*
