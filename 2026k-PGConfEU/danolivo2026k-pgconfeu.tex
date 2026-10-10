@@ -821,10 +821,10 @@ PREPARE q(int, bool) AS
     per plan node, units cancel out:\par\smallskip
      {\centering
       \begin{itemize}
-        \item $e = \left|\,\ln\dfrac{\textit{actual rows}}{\textit{estimated rows}}\,\right|$
         \item $r = \dfrac{\textit{node time}}{\textit{total time}}$
         \item $f = \dfrac{\textit{filtered rows}}{\textit{actual rows}}$
         \item $b = \dfrac{\textit{local blocks}}{\textit{total blocks}}$
+        \item $e = \left|\,\ln\dfrac{\textit{actual rows}}{\textit{estimated rows}}\,\right|$
       \end{itemize}
       }\par\bigskip
     }};
@@ -901,7 +901,13 @@ PREPARE q(int, bool) AS
 \begin{tcolorbox}[enhanced, arc=3pt, colback=infobg, colframe=infoframe,
   boxrule=0.4pt, left=6pt, right=6pt, top=5pt, bottom=5pt,
   before skip=2pt, after skip=0pt]
-{\scriptsize\color{ptoink} How to average across plan nodes?}
+{\scriptsize\color{ptoink} How to average across plan nodes:
+  \begin{itemize}
+    \item execution time-based
+    \item cost-based
+    \item no weighting	
+  \end{itemize}
+}
 \end{tcolorbox}
 
 %\vspace*{\fill}
@@ -920,12 +926,13 @@ PREPARE q(int, bool) AS
 
 \begin{frame}[fragile]\frametitle{How the estimation error criteria work}
 \vspace{-0.4em}
-{\small\color{ptoink}TOP-10 by average error V/S TOP-10 by time-weighted error}
+{\small\color{ptoink}TOP-10 by average error \textbf{V/S} TOP-10 by time-weighted error}
 
 \medskip
 % was: pics/job-top10-avg-twa.png (screenshot); now live text
 \begin{sql}[fontsize=\scriptsize]
-\kw{SELECT} avg.* \kw{FROM}
+\kw{SELECT} queryid, query, avg_avg AS avg_err, twa_avg AS twa_err
+\kw{FROM}
   (\kw{SELECT} queryid, query, avg_avg, twa_avg \kw{FROM} pg_track_optimizer
    \kw{ORDER BY} avg_avg \kw{DESC} \kw{LIMIT} \sqlnum{10}) \kw{AS} avg
 \kw{JOIN}
@@ -935,7 +942,7 @@ PREPARE q(int, bool) AS
 \end{sql}
 
 \begin{psql}[fontsize=\scriptsize]
-       queryid        |     query      | avg_avg | twa_avg
+       queryid        |     query      | avg_err | twa_err
 ----------------------+----------------+---------+---------
 \hl{ -6836119621424365027 | /* 28a.sql */  |    3.91 |    2.16}
   3631768377448547020 | /* 29c.sql */  |    3.77 |    2.51
@@ -1042,13 +1049,13 @@ Hash Join  (actual time=234.671 rows=\hlj{289} loops=1)
 \begin{columns}[T,onlytextwidth]
 \begin{column}{0.62\textwidth}
 \begin{sql}[fontsize=\tiny]
-\kw{SELECT} queryid, query, avg_avg, lf_avg
+\kw{SELECT} queryid, query, avg_avg AS avg_err, sf_avg
 \kw{FROM} pg_track_optimizer
-\kw{ORDER BY} lf_avg \kw{DESC} \kw{LIMIT} \sqlnum{5};
+\kw{ORDER BY} sf_avg \kw{DESC} \kw{LIMIT} \sqlnum{5};
 \end{sql}
 
 \begin{psql}[fontsize=\tiny]
-       queryid        |     query     | avg_avg | lf_avg
+       queryid        |     query     | avg_err | sf_avg
 ----------------------+---------------+---------+---------
 \hl{  7987931480126446697 | /* 15b.sql */ |    1.60 | 1459.35}
  -4244378222084090458 | /* 23a.sql */ |    1.75 | 1424.58
