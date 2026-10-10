@@ -1,12 +1,16 @@
 # Slide 1. Title
 
-Introduce myself. My primary interest is planner tuning for OLAP, HTAP and ERP-specific workloads.
+Introduce myself.
 
-Typically, the main difficulty in query tuning is not a specific query and its particular issue. The real problem is how to **generalise** the issue and come up with a common solution. That's why we need a method to detect and group problematic queries.
+* My primary interest is optimisation and query execution or how to make DBMS faster without extra hardware resources.
+* Today I'm gonna talk about how to identify your database system potential to be optimised.
+* Typically there are not a big problem to optimise a single query. But the real challenge is to identify the origin of the issue that causes underperformant query plans, solve it and spread it out to the each query on the instance.
+* Hence we invented query potential metrics and poor plan sensors. And wrapped it up into a postgres extension.
 
 # Slide 2. Chapter 1: Origins of the idea
 
-How did I come to this idea? It wasn't trivial.
+Just to make the idea of query optimisation potential more clear let me explain how I came to this.
+It wasn't trivial.
 
 # Slide 3. 31 December 2023
 
