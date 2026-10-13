@@ -811,7 +811,7 @@ PREPARE q(int, bool) AS
                font=\scriptsize\sffamily, text=ptoink},
   link/.style={-{Stealth[length=4pt]}, black!40, line width=0.6pt}}
 
-\begin{frame}\frametitle{Two design decisions in pg\_track\_optimizer}
+\begin{frame}[fragile]\frametitle{Two design decisions in pg\_track\_optimizer}
 \vfill
 \centering
 \begin{tikzpicture}
@@ -840,7 +840,21 @@ PREPARE q(int, bool) AS
     \end{itemize}
     }};
 \end{tikzpicture}
+  \vfill
 
+\begin{tcolorbox}[enhanced, sharp corners=downhill, arc=1pt,
+  colback=paper, colframe=mailrule, boxrule=0.4pt,
+  left=4pt, right=4pt, top=3pt, bottom=2pt,
+  before skip=0pt, after skip=0pt]
+  
+\begin{lstlisting}[language=SQL, breaklines=true, columns=fullflexible,
+  basicstyle=\ttfamily\scriptsize, keywordstyle=\bfseries\color{green!40!black},
+  morekeywords={OUT}, emph={rstats,Oid}, emphstyle=\color{ptoaccent}]
+CREATE FUNCTION pg_track_optimizer(OUT dboid Oid,
+                                   OUT avg_error rstats, ...);
+CREATE VIEW pg_track_optimizer(avg_min, avg_cnt, ...);
+\end{lstlisting}
+\end{tcolorbox}
   \vfill
 \end{frame}
 
@@ -929,7 +943,6 @@ PREPARE q(int, bool) AS
 {\small\color{ptoink}TOP-10 by average error \textbf{V/S} TOP-10 by time-weighted error}
 
 \medskip
-% was: pics/job-top10-avg-twa.png (screenshot); now live text
 \begin{sql}[fontsize=\scriptsize]
 \kw{SELECT} queryid, query, avg_avg AS avg_err, twa_avg AS twa_err
 \kw{FROM}
