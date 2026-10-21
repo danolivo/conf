@@ -1,0 +1,24 @@
+PostgreSQL 18.6 on aarch64-apple-darwin25.6.0, compiled by Homebrew clang version 23.1.1, 64-bit
+100
+SET
+ setseed 
+---------
+ 
+(1 row)
+
+SELECT 5000000
+CREATE INDEX
+CREATE TABLE
+DO
+ actual 
+--------
+  10000
+(1 row)
+
+       node       | in_mcv | count | min  |  max  
+------------------+--------+-------+------+-------
+ Bitmap Heap Scan |      1 |    21 | 9500 | 12500
+ Index Scan       |      0 |    19 |   59 |    61
+(2 rows)
+
+COPY 40

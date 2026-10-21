@@ -1,0 +1,21 @@
+SET
+SET
+                         QUERY PLAN                         
+------------------------------------------------------------
+ Nested Loop (actual rows=1000.00 loops=1)
+   Join Filter: (big.x = small.x)
+   Rows Removed by Join Filter: 999999000
+   Buffers: shared hit=13 read=113625
+   ->  Seq Scan on big (actual rows=10000000.00 loops=1)
+         Buffers: shared hit=12 read=113625
+   ->  Materialize (actual rows=100.00 loops=10000000)
+         Storage: Memory  Maximum Storage: 20kB
+         Buffers: shared hit=1
+         ->  Seq Scan on small (actual rows=100.00 loops=1)
+               Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=154 dirtied=1
+ Planning Time: 0.184 ms
+ Execution Time: 20799.413 ms
+(15 rows)
+

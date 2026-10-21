@@ -1,0 +1,14 @@
+                                 QUERY PLAN                                  
+-----------------------------------------------------------------------------
+ Merge Join (actual rows=1000000.00 loops=1)
+   Merge Cond: (t1.x = t2.x)
+   ->  Index Only Scan using t1_x_idx on t1 (actual rows=11.00 loops=1)
+         Heap Fetches: 0
+         Index Searches: 1
+   ->  Index Only Scan using t2_x_idx on t2 (actual rows=1000000.00 loops=1)
+         Heap Fetches: 0
+         Index Searches: 1
+ Planning Time: 0.425 ms
+ Execution Time: 28.699 ms
+(10 rows)
+

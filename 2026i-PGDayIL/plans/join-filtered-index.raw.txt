@@ -1,0 +1,16 @@
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Nested Loop (actual rows=1000000.00 loops=1)
+   ->  Seq Scan on t2 (actual rows=1000000.00 loops=1)
+   ->  Memoize (actual rows=1.00 loops=1000000)
+         Cache Key: t2.x
+         Cache Mode: logical
+         Hits: 999990  Misses: 10  Evictions: 0  Overflows: 0  Memory Usage: 2kB
+         ->  Index Only Scan using t1_x_idx on t1 (actual rows=1.00 loops=10)
+               Index Cond: (x = t2.x)
+               Heap Fetches: 0
+               Index Searches: 10
+ Planning Time: 0.328 ms
+ Execution Time: 93.087 ms
+(12 rows)
+

@@ -1,0 +1,12 @@
+                         QUERY PLAN                         
+------------------------------------------------------------
+ Hash Join (actual rows=100000.00 loops=1)
+   Hash Cond: (big.x = small.x)
+   ->  Seq Scan on big (actual rows=10000000.00 loops=1)
+   ->  Hash (actual rows=100.00 loops=1)
+         Buckets: 1024  Batches: 1  Memory Usage: 12kB
+         ->  Seq Scan on small (actual rows=100.00 loops=1)
+ Planning Time: 0.206 ms
+ Execution Time: 299.439 ms
+(8 rows)
+

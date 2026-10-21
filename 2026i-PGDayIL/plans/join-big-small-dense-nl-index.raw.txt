@@ -1,0 +1,18 @@
+SET
+SET
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
+ Nested Loop (actual rows=1000.00 loops=1)
+   Buffers: shared hit=421
+   ->  Seq Scan on small (actual rows=100.00 loops=1)
+         Buffers: shared hit=1
+   ->  Index Scan using big_x_idx on big (actual rows=10.00 loops=100)
+         Index Cond: (x = small.x)
+         Index Searches: 100
+         Buffers: shared hit=420
+ Planning:
+   Buffers: shared hit=173
+ Planning Time: 0.249 ms
+ Execution Time: 0.187 ms
+(12 rows)
+

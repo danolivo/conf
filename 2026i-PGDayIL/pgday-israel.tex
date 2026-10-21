@@ -1,9 +1,10 @@
 % Use xelatex to generate a pdf file of this presentation
 %
-% OPENING SLIDES ONLY — title + motivation, built with the Funnel Approach:
-% wide industry problem -> Postgres-specific mechanism -> one hidden, concrete
-% query. The rest of the deck (The Problem / pg_track_optimizer / results)
-% continues after the final divider frame below.
+% PGDay Israel 2026 (Tel Aviv, 25 October 2026) variant of the PGConf.EU
+% talk: talk.tex plus the "Origins of the idea" chapter restored from
+% danolivo2026k-pgconfeu.tex. The speaker appears as a PostgreSQL
+% contributor: no company name, logo or site on the cover and the closing
+% slide. The decorative ASCII art and the colour palette are kept as is.
 
 \documentclass{beamer}
 \usepackage{roboto}
@@ -18,7 +19,8 @@
 \usepackage{listings}
 
 \usepackage{tikz}
-\usetikzlibrary{positioning,shapes.geometric,arrows.meta}
+\usetikzlibrary{positioning,shapes.geometric,arrows.meta,backgrounds,fadings}
+\usepackage{varwidth}  % shrink-to-fit text box for the chapter halo
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 \usepackage{graphicx}
@@ -104,8 +106,15 @@
 
 %Information to be included in the title page:
 % short form for the footer: the full title plus "10 / 10" no longer fits
-\title[When Misestimation Inflates Your Cloud Bill]{When the Planner's Misestimation Inflates Your Cloud Bill}
-\subtitle{Finding the Costly Queries \texttt{pg\_stat\_statements} Can't See}
+% PGDay Israel 2026 variant of the PGConf.EU 2026 talk (talk.tex).
+% Same title, split at the colon into title + subtitle.
+% Sentence case, as in the PGConf.EU schedule;
+% line breaks are placed by hand for the cover (\texorpdfstring keeps
+% them out of the PDF metadata).
+\title[Finding the invisible]{Finding the\texorpdfstring{\\}{ }invisible}
+\subtitle{Spotting query planner issues\texorpdfstring{\\}{ }before they appear}
+% eyebrow above the title on the cover
+\newcommand{\eventname}{PGDay Israel 2026 \textperiodcentered{} Tel Aviv}
 % Easter egg: a tiny flag of the Community of Madrid (crimson, seven white
 % stars 4 + 3, 2:3) left of the name in the footline only. Muted crimson so
 % it sits quietly in the dark author box; \texorpdfstring keeps it out of
@@ -118,8 +127,9 @@
   \foreach \x in {1.95,3.45,4.95} \node[star,star points=5,star point ratio=2.4,
     minimum size=1.15pt,inner sep=0pt,fill=white] at (\x,1.35) {};}}
 \author[\texorpdfstring{\madridflag\hspace{3pt}}{}Andrei Lepikhov]{Andrei Lepikhov}
-\institute{pgEdge}
-\date{PGDay Israel, 25.10.2026}
+% no institute: speaking as a PostgreSQL contributor, not on behalf of a company
+\institute{PostgreSQL contributor}
+\date{25 October 2026}
 
 % Add page numbers in the footnote
 \expandafter\def\expandafter\insertshorttitle\expandafter{%
@@ -139,27 +149,62 @@
 % ----------------------------------------------------------------
 
 % --- pgEdge-style section divider (pgEdge Brand Book) -------------
-% Full-bleed navy, light ASCII elephant at partial opacity on the right,
-% no negative tracking: brand values are tuned for Metro Sans, not Roboto.
-% small uppercase "eyebrow" above a two-line SemiBold title.
+% Brand book, section 4: dividers are a light tint (Sky / Mist / Teal 1)
+% with ASCII clouds as a full-bleed backdrop and one title at left-middle
+% in Night. Navy is kept for the cover and the closing page only, so the
+% deck opens and ends dark and every chapter break reads as a pause.
+% Tints cycle sky -> mist -> teal, as in the pgedge Beamer theme.
+% No negative tracking: brand values are tuned for Metro Sans, not Roboto.
 \definecolor{pgeNavy}{HTML}{003E63}
+\definecolor{pgeNight}{HTML}{002B44}
 \definecolor{pgeSkyMid}{HTML}{A4D7FF}
+\definecolor{pgeBlue}{HTML}{1385C7}
+\definecolor{pgePath}{HTML}{56716E}  % secondary text on tints
+\definecolor{pgeSky}{HTML}{ECF7FF}
+\definecolor{pgeMist}{HTML}{F1F4F4}
+\definecolor{pgeTeal}{HTML}{CEE9E8}
+\newcounter{pgechap}
 % \pgechapter{eyebrow}{title, break lines with \\}
 \newcommand{\pgechapter}[2]{{%
+  \stepcounter{pgechap}%
+  \pgfmathtruncatemacro\pgek{mod(\value{pgechap}-1,3)}%
+  % One canvas for every chapter: the deck's aged-paper yellow instead of
+  % the brand's Sky / Mist / Teal cycle (author's choice, keeps the
+  % dividers in the same paper world as the content slides). Only the
+  % cloud pattern still varies from chapter to chapter.
+  \def\pgebg{aged}%
+  \ifcase\pgek\relax
+    \def\pgeart{ascii-clouds-a-dark}\def\pgeop{0.35}%
+  \or\def\pgeart{ascii-clouds-c-dark}\def\pgeop{0.35}%
+  \or\def\pgeart{ascii-clouds-b-dark}\def\pgeop{0.35}%
+  \fi
   \setbeamertemplate{background}{%
     \begin{tikzpicture}[x=1pt,y=1pt]
       \useasboundingbox (0,0) rectangle (\paperwidth,\paperheight);
-      \fill[pgeNavy] (0,0) rectangle (\paperwidth,\paperheight);
-      % shifted past the right edge: the elephant is cropped, the title sits on calm space
-      \node[anchor=east,inner sep=0,opacity=0.3] at ([xshift=18mm]\paperwidth,0.5\paperheight)
-        {\includegraphics[height=\paperheight]{pgedge-assets/ascii-elephant-head-light}};
-      \node[anchor=west,inner sep=0,text width=0.66\paperwidth,align=left]
-        at (7mm,0.5\paperheight) {%
-        {\sffamily\bfseries\fontsize{8}{10}\selectfont\color{pgeSkyMid}%
+      \clip (0,0) rectangle (\paperwidth,\paperheight);
+      \begin{scope}[on background layer]
+        \fill[\pgebg] (0,0) rectangle (\paperwidth,\paperheight);
+        % 16:9 clouds on a 4:3 page: full height, centred, sides trimmed by the page
+        \node[inner sep=0,opacity=\pgeop] at (0.5\paperwidth,0.5\paperheight)
+          {\includegraphics[height=\paperheight]{pgedge-assets/\pgeart}};
+      \end{scope}
+      \node[anchor=west,inner sep=0] (pgetxt) at (8mm,0.5\paperheight) {%
+        \begin{varwidth}{0.66\paperwidth}\raggedright
+        {\sffamily\bfseries\fontsize{8}{10}\selectfont\color{pgeBlue}%
          \addfontfeatures{LetterSpace=8}\MakeUppercase{#1}\par}%
         \vskip3.5mm
-        {\sffamily\bfseries\fontsize{32}{32}\selectfont\color{white}%
-         \spaceskip=0.32em\relax\hyphenpenalty=10000 #2\par}};
+        {\sffamily\bfseries\fontsize{32}{32}\selectfont\color{pgeNight}%
+         \spaceskip=0.32em\relax\hyphenpenalty=10000 #2\par}%
+        \end{varwidth}};
+      % Calm zone: a halo in the page's own tint, drawn above the clouds and
+      % below the text. Solid over the text, fading out at the edges, so it
+      % reads as "the clouds part here", not as a box.
+      \begin{scope}[on background layer]
+        \path let \p1 = ($(pgetxt.north east)-(pgetxt.center)$),
+                  \n1 = {1.55*\x1+14mm}, \n2 = {1.55*\y1+12mm} in
+          [fill=\pgebg, path fading=circle with fuzzy edge 20 percent]
+          ($(pgetxt.center)-(\n1,\n2)$) rectangle ($(pgetxt.center)+(\n1,\n2)$);
+      \end{scope}
     \end{tikzpicture}}%
   \begin{frame}[plain]\end{frame}}}
 % ----------------------------------------------------------------
@@ -172,6 +217,14 @@
 \colorlet{planbad}{crash}
 \colorlet{plantext}{ptoink}
 \renewcommand\planedgewidth{0.7pt}   % plan-graph edges
+% plan box that stands out from its neighbours: red frame, warm tint inside
+\makeatletter
+\newenvironment{planhot}
+  {\VerbatimEnvironment
+   \begin{plan@frame}[colframe=crash, boxrule=0.8pt, colback=ptotint]%
+   \plan@fv\begin{Verbatim}}
+  {\end{Verbatim}\end{plan@frame}}
+\makeatother
 % SQL highlighting inside sql/psql boxes (commandchars are on there)
 \newcommand\kw[1]{\textcolor{pgblue}{#1}}       % keyword
 \newcommand\sqlnum[1]{\textcolor{ptoaccent}{#1}} % numeric literal
@@ -203,13 +256,42 @@
 % Title
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{frame}
-\titlepage
-\end{frame}
+% pgEdge Brand Book "Cover" archetype (cf. \pgtitleframe in the pgedge
+% theme), redrawn for this 4:3 Copenhagen deck: full-bleed navy, ASCII
+% swirl at 35% cropped by the right edge, logo top-left, SkyMid eyebrow,
+% white SemiBold title, SkyMid subtitle, speaker block bottom-left.
+% Roboto stays: Metro Sans is not installed, and the brand's negative
+% tracking is tuned for Metro Sans only.
+{\setbeamertemplate{background}{%
+  \begin{tikzpicture}[x=1pt,y=1pt]
+    \useasboundingbox (0,0) rectangle (\paperwidth,\paperheight);
+    \fill[pgeNavy] (0,0) rectangle (\paperwidth,\paperheight);
+    \node[anchor=east,inner sep=0,opacity=0.35]
+      at ([xshift=34mm]\paperwidth,0.5\paperheight)
+      {\includegraphics[height=0.92\paperheight]{pgedge-assets/ascii-swirl-light}};
+    % no company logo in this variant (speaking as a contributor)
+    \node[anchor=west,inner sep=0,text width=0.72\paperwidth,align=left]
+      at (8mm,0.53\paperheight) {\hyphenpenalty=10000\exhyphenpenalty=10000
+      {\sffamily\bfseries\fontsize{7}{9}\selectfont\color{pgeSkyMid}%
+       \addfontfeatures{LetterSpace=8}\MakeUppercase{\eventname}\par}%
+      \vskip3.5mm
+      {\sffamily\bfseries\fontsize{28}{30}\selectfont\color{white}%
+       \spaceskip=0.32em\relax\inserttitle\par}%
+      \vskip4mm
+      {\sffamily\fontsize{13}{15.5}\selectfont\color{pgeSkyMid}%
+       \insertsubtitle\par}};
+    \node[anchor=south west,inner sep=0,text width=0.6\paperwidth,align=left]
+      at (8mm,8mm) {\spaceskip=0.25em\relax
+      {\sffamily\bfseries\fontsize{9}{11.5}\selectfont\color{white}%
+       \insertauthor\par}%
+      {\sffamily\fontsize{9}{11.5}\selectfont\color{pgeSkyMid}%
+       \insertinstitute\ \textperiodcentered{} \insertdate\par}};
+  \end{tikzpicture}}
+\begin{frame}[plain,noframenumbering]\end{frame}}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Section divider: "Origins of the idea", pgEdge brand style (see
-% \pgechapter in the preamble): navy canvas, ASCII elephant at 30%
+% \pgechapter in the preamble): light tint, ASCII clouds at 35-40%
 % opacity, "Chapter 1" eyebrow over a two-line title. Opens the
 % cold-open pair below (the letter + the chat).
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -320,11 +402,6 @@
 \vspace*{\fill}
 \end{frame}
 
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Section divider: "Blind spot" -- same pgEdge style as Chapter 1.
-% Opens the part on why misestimation is hard to see in the statistics.
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 \pgechapter{Chapter 2}{Blind spot}
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -400,8 +477,8 @@ WHERE ((1=1 OR 1=0) AND (T8._Q_001_F_001RRef =
 \par\vspace{2pt}
 {\scriptsize
 \begin{itemize}\itemsep2pt
- \item ~49500 distinct \texttt{queryid}s
- \item ~560 queries longer than 1s.
+ \item $\sim49500$ distinct \texttt{queryid}s
+ \item $\sim560$ queries longer than 1s.
  \item query text: 33 -- 126\,000 chars
  \item execution time: 1\,ms -- 26\,s
  \item calls: 1 -- 5\,075
@@ -475,7 +552,8 @@ shared\_blks\_read & [50\,000\,000]\\
     \end{tcolorbox}
   \end{column}
 \end{columns}
-
+\vfill
+pg\_qualstats, online\_advisor, pg\_stat\_advisor, pganalyze ...
 \vfill
 \end{frame}
 
@@ -498,7 +576,7 @@ shared\_blks\_read & [50\,000\,000]\\
 
 \lever{1}{Estimation error (rows estimated / rows actual)}
   {is it worth manipulating table statistics?}
-\lever{2}{Selectivity of scans and joins (rows removed by filter)}
+\lever{2}{Scan and join filter activity}
   {do we have enough indexes?}
 \lever{3}{SubPlans' share of the execution time}
   {is it time to rewrite the queries?}
@@ -544,11 +622,6 @@ shared\_blks\_read & [50\,000\,000]\\
 \end{tcbraster}
 \vfill
 \end{frame}
-
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Section divider: "Domain specifics" -- same pgEdge style as Chapters 1-2.
-% Opens Nuances 1-3 and the design decisions they force.
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \pgechapter{Chapter 3}{Domain specifics}
 
@@ -729,7 +802,7 @@ PREPARE q(int, bool) AS
                font=\scriptsize\sffamily, text=ptoink},
   link/.style={-{Stealth[length=4pt]}, black!40, line width=0.6pt}}
 
-\begin{frame}\frametitle{Two design decisions in pg\_track\_optimizer}
+\begin{frame}[fragile]\frametitle{Two design decisions in pg\_track\_optimizer}
 \vfill
 \centering
 \begin{tikzpicture}
@@ -739,10 +812,10 @@ PREPARE q(int, bool) AS
     per plan node, units cancel out:\par\smallskip
      {\centering
       \begin{itemize}
-        \item $e = \left|\,\ln\dfrac{\textit{actual rows}}{\textit{estimated rows}}\,\right|$
         \item $r = \dfrac{\textit{node time}}{\textit{total time}}$
         \item $f = \dfrac{\textit{filtered rows}}{\textit{actual rows}}$
         \item $b = \dfrac{\textit{local blocks}}{\textit{total blocks}}$
+        \item $e = \left|\,\ln\dfrac{\textit{actual rows}}{\textit{estimated rows}}\,\right|$
       \end{itemize}
       }\par\bigskip
     }};
@@ -758,14 +831,23 @@ PREPARE q(int, bool) AS
     \end{itemize}
     }};
 \end{tikzpicture}
+  \vfill
 
+\begin{tcolorbox}[enhanced, sharp corners=downhill, arc=1pt,
+  colback=paper, colframe=mailrule, boxrule=0.4pt,
+  left=4pt, right=4pt, top=3pt, bottom=2pt,
+  before skip=0pt, after skip=0pt]
+  
+\begin{lstlisting}[language=SQL, breaklines=true, columns=fullflexible,
+  basicstyle=\ttfamily\scriptsize, keywordstyle=\bfseries\color{green!40!black},
+  morekeywords={OUT}, emph={rstats,Oid}, emphstyle=\color{ptoaccent}]
+CREATE FUNCTION pg_track_optimizer(OUT dboid Oid,
+                                   OUT avg_error rstats, ...);
+CREATE VIEW pg_track_optimizer(avg_min, avg_cnt, ...);
+\end{lstlisting}
+\end{tcolorbox}
   \vfill
 \end{frame}
-
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Section divider: "How it works" -- same pgEdge style as Chapters 1-3.
-% Opens the estimation-error method and the JOB walkthrough.
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \pgechapter{Chapter 4}{How it works}
 
@@ -819,7 +901,13 @@ PREPARE q(int, bool) AS
 \begin{tcolorbox}[enhanced, arc=3pt, colback=infobg, colframe=infoframe,
   boxrule=0.4pt, left=6pt, right=6pt, top=5pt, bottom=5pt,
   before skip=2pt, after skip=0pt]
-{\scriptsize\color{ptoink} How to average across plan nodes?}
+{\scriptsize\color{ptoink} How to average across plan nodes:
+  \begin{itemize}
+    \item execution time-based
+    \item cost-based
+    \item no weighting	
+  \end{itemize}
+}
 \end{tcolorbox}
 
 %\vspace*{\fill}
@@ -838,12 +926,12 @@ PREPARE q(int, bool) AS
 
 \begin{frame}[fragile]\frametitle{How the estimation error criteria work}
 \vspace{-0.4em}
-{\small\color{ptoink}TOP-10 by average error V/S TOP-10 by time-weighted error}
+{\small\color{ptoink}TOP-10 by average error \textbf{V/S} TOP-10 by time-weighted error}
 
 \medskip
-% was: pics/job-top10-avg-twa.png (screenshot); now live text
 \begin{sql}[fontsize=\scriptsize]
-\kw{SELECT} avg.* \kw{FROM}
+\kw{SELECT} queryid, query, avg_avg AS avg_err, twa_avg AS twa_err
+\kw{FROM}
   (\kw{SELECT} queryid, query, avg_avg, twa_avg \kw{FROM} pg_track_optimizer
    \kw{ORDER BY} avg_avg \kw{DESC} \kw{LIMIT} \sqlnum{10}) \kw{AS} avg
 \kw{JOIN}
@@ -853,7 +941,7 @@ PREPARE q(int, bool) AS
 \end{sql}
 
 \begin{psql}[fontsize=\scriptsize]
-       queryid        |     query      | avg_avg | twa_avg
+       queryid        |     query      | avg_err | twa_err
 ----------------------+----------------+---------+---------
 \hl{ -6836119621424365027 | /* 28a.sql */  |    3.91 |    2.16}
   3631768377448547020 | /* 29c.sql */  |    3.77 |    2.51
@@ -960,13 +1048,13 @@ Hash Join  (actual time=234.671 rows=\hlj{289} loops=1)
 \begin{columns}[T,onlytextwidth]
 \begin{column}{0.62\textwidth}
 \begin{sql}[fontsize=\tiny]
-\kw{SELECT} queryid, query, avg_avg, lf_avg
+\kw{SELECT} queryid, query, avg_avg AS avg_err, sf_avg
 \kw{FROM} pg_track_optimizer
-\kw{ORDER BY} lf_avg \kw{DESC} \kw{LIMIT} \sqlnum{5};
+\kw{ORDER BY} sf_avg \kw{DESC} \kw{LIMIT} \sqlnum{5};
 \end{sql}
 
 \begin{psql}[fontsize=\tiny]
-       queryid        |     query     | avg_avg | lf_avg
+       queryid        |     query     | avg_err | sf_avg
 ----------------------+---------------+---------+---------
 \hl{  7987931480126446697 | /* 15b.sql */ |    1.60 | 1459.35}
  -4244378222084090458 | /* 23a.sql */ |    1.75 | 1424.58
@@ -1041,6 +1129,196 @@ Hash Join  (actual time=234.671 rows=\hlj{289} loops=1)
 \par\smallskip
 {\small\color{ptoink}JOB, 113 queries: plain time / time with the new indexes, best to worst\par}
 \end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Join-filtered rows that vanilla EXPLAIN does not show.
+% big: 10^7 rows, 64-byte tuples; only 1000 of them (one contiguous block,
+% 12 heap pages) have x in 1..10. small: 100 rows, x = 1..100, only 10 have
+% a partner. Result: 1000 rows; 9 999 000 rows of big and 90 rows of small
+% are thrown away by the join. No indexes.
+% Right column: the same query as Hash Join (planner's choice) and as a
+% forced Nested Loop (enable_hashjoin = enable_mergejoin = off).
+%   Hash Join -- says nothing about the rows it threw away;
+%   Nested Loop -- Rows Removed by Join Filter = 10^7 x 100 - 1000 compared
+%   PAIRS, not rows without a partner.
+% Plans trimmed for the slide: Buffers, Planning, Buckets/Memory and
+% Materialize Storage lines removed; the rest verbatim from
+% plans/join-big-small-dense-noindex.raw.txt and
+% plans/join-big-small-dense-nl-noindex.raw.txt (script:
+% plans/join-big-small-dense.sql; PG 18.6, no parallel workers).
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile,t]\frametitle{Join filtering EXPLAIN can't see}
+\vfill
+\begin{columns}[T,onlytextwidth]
+
+\begin{column}{0.33\textwidth}
+\centering
+\begin{forest} plangraph
+[Join, detail={big.x = small.x}, act={1000 rows}, l sep=30pt, s sep=26pt
+  [big, act={$10^7$ rows},
+   edge label={node[midway, left, inner sep=3pt, align=right,
+     font=\sffamily\tiny\bfseries, text=planbad]{}}]
+  [small, act={100 rows},
+   edge label={node[midway, right, inner sep=3pt, align=left,
+     font=\sffamily\tiny\bfseries, text=planbad]{}}]]
+\end{forest}
+
+\vspace{5mm}
+\begin{sql}[fontsize=\tiny]
+\kw{SELECT} * \kw{FROM} big
+  \kw{JOIN} small \kw{USING} (x);
+\end{sql}
+
+\end{column}
+
+\begin{column}{0.65\textwidth}
+{\sffamily\scriptsize\bfseries\color{ptoink}Hash Join\par}
+\begin{plan}[fontsize=\tiny]
+Hash Join (actual rows=1000.00 loops=1)
+  Hash Cond: (big.x = small.x)
+  ->  Seq Scan on big (actual rows=10000000.00 loops=1)
+  ->  Hash (actual rows=100.00 loops=1)
+        ->  Seq Scan on small (actual rows=100.00 loops=1)
+Execution Time: 332.203 ms
+\end{plan}
+
+\bigskip\bigskip
+{\sffamily\scriptsize\bfseries\color{ptoink}Nested Loop\par}
+\begin{plan}[fontsize=\tiny]
+Nested Loop (actual rows=1000.00 loops=1)
+  Join Filter: (big.x = small.x)
+  \hl{Rows Removed by Join Filter: 999999000}
+  ->  Seq Scan on big (actual rows=10000000.00 loops=1)
+  ->  Materialize (actual rows=100.00 loops=10000000)
+        ->  Seq Scan on small (actual rows=100.00 loops=1)
+Execution Time: 20799.413 ms
+\end{plan}
+\end{column}
+
+\end{columns}
+\vfill
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Same slide, second step: the Nested Loop box is replaced by the plan
+% with an index on big(x) (forced Nested Loop, CREATE INDEX big_x_idx),
+% framed in red. rows=10.00 loops=100 is an average: 90 probes return
+% nothing, 10 return 100 rows each -- EXPLAIN can't tell them apart.
+% Trimmed like the previous slide (Buffers, Planning removed); source:
+% plans/join-big-small-dense-nl-index.raw.txt.
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile,t]\frametitle{Join filtering EXPLAIN can't see}
+\vfill
+\begin{columns}[T,onlytextwidth]
+
+\begin{column}{0.33\textwidth}
+\centering
+\begin{forest} plangraph
+[Join, detail={big.x = small.x}, act={1000 rows}, l sep=30pt, s sep=26pt
+  [big, act={$10^7$ rows},
+   edge label={node[midway, left, inner sep=3pt, align=right,
+     font=\sffamily\tiny\bfseries, text=planbad]{}}]
+  [small, act={100 rows},
+   edge label={node[midway, right, inner sep=3pt, align=left,
+     font=\sffamily\tiny\bfseries, text=planbad]{}}]]
+\end{forest}
+
+\vspace{5mm}
+\begin{sql}[fontsize=\tiny]
+\kw{SELECT} * \kw{FROM} big
+  \kw{JOIN} small \kw{USING} (x);
+\end{sql}
+\begin{planhot}[fontsize=\tiny]
+\kw{CREATE INDEX} idx \kw{ON} big (x);
+\end{planhot}
+
+\end{column}
+
+\begin{column}{0.65\textwidth}
+{\sffamily\scriptsize\bfseries\color{ptoink}Hash Join\par}
+\begin{plan}[fontsize=\tiny]
+Hash Join (actual rows=1000.00 loops=1)
+  Hash Cond: (big.x = small.x)
+  ->  Seq Scan on big (actual rows=10000000.00 loops=1)
+  ->  Hash (actual rows=100.00 loops=1)
+        ->  Seq Scan on small (actual rows=100.00 loops=1)
+Execution Time: 332.203 ms
+\end{plan}
+
+\bigskip\bigskip
+{\sffamily\scriptsize\bfseries\color{ptoink}Nested Loop\par}
+\begin{planhot}[fontsize=\tiny]
+Nested Loop (actual rows=1000.00 loops=1)
+  ->  Seq Scan on small (actual rows=100.00 loops=1)
+  ->  Index Scan using idx on big
+        (actual rows=\hl{10.00 loops=100})
+        Index Cond: (x = small.x)
+        Index Searches: 100
+Execution Time: 0.187 ms
+\end{planhot}
+\end{column}
+
+\end{columns}
+\vfill
+\end{frame}
+
+\pgechapter{Chapter 5}{Outcomes\\[3mm]{\fontsize{16}{19}\selectfont\mdseries\spaceskip=0pt\color{pgePath}(the shortest one)}}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% What to monitor (slide 36 of the PG Bootcamp deck, translated). Same
+% \lever layout as "Assessing the instance's potential": metric, then what
+% a change in it may mean. Items 1-3 follow the original; the original had
+% no explanation for item 4, its second line is new.
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}\frametitle{The useful bits}
+\vspace*{\fill}
+
+\lever{1}{Track accumulated average error}
+  {On tuned system growth or spike in average error means loosing efficiency}
+\lever{2}{Watch SCAN and JOIN Filter factors}
+  {The most critical metrics that expose missed indexes}
+\lever{3}{Combine these metrics with \texttt{pg\_stat\_statements}}
+  {It might highlight queries that deserve GENERIC/CUSTOM plan changeover}
+
+\vspace*{\fill}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Closing slide. Short on purpose -- a contact card, not a "thank you"
+% slide. QR code is rendered live by the qrcode package rather than pasted
+% in as an image. Points at the pg_track_optimizer repo so people can scan
+% and go straight to the source. E-mail is personal by convention.
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% pgEdge-style closing: navy canvas, matching the cover (bookends), contacts
+% as plain lines (not bullets), QR on a white card so phones still scan it.
+{\setbeamertemplate{background}{%
+  \begin{tikzpicture}[x=1pt,y=1pt]
+    \useasboundingbox (0,0) rectangle (\paperwidth,\paperheight);
+    \fill[pgeNavy] (0,0) rectangle (\paperwidth,\paperheight);
+    \node[anchor=east,inner sep=0,opacity=0.3] at ([xshift=18mm]\paperwidth,0.5\paperheight)
+      {\includegraphics[height=\paperheight]{pgedge-assets/ascii-elephant-head-light}};
+    \node[anchor=west,inner sep=0,text width=0.58\paperwidth,align=left]
+      at (7mm,0.5\paperheight) {%
+      {\sffamily\bfseries\fontsize{32}{32}\selectfont\color{white}%
+       \spaceskip=0.32em\relax Questions?\par}%
+      \vskip9mm
+      {\sffamily\bfseries\fontsize{12}{14}\selectfont\color{white}Andrei Lepikhov\par}%
+      \vskip1mm
+      {\sffamily\fontsize{10}{12}\selectfont\color{pgeSkyMid}PostgreSQL contributor\par}%
+      \vskip5mm
+      {\sffamily\fontsize{8.5}{12}\selectfont\color{pgeSkyMid}%
+       lepihov@gmail.com\par github.com/danolivo\par}};
+    \node[anchor=east,inner sep=3.2mm,fill=white,rounded corners=1.2mm,align=center]
+      at ([xshift=-9mm]\paperwidth,0.5\paperheight) {%
+      \qrcode[height=2.8cm]{https://github.com/danolivo/pg_track_optimizer}\\[2mm]
+      {\sffamily\fontsize{6.5}{8}\selectfont\color{pgeNavy}pg\_track\_optimizer on GitHub}};
+  \end{tikzpicture}}%
+\begin{frame}[plain]\end{frame}}
+
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Spilling of intermediate results -- the setup slide (slide 26 of the PG
@@ -1168,66 +1446,5 @@ Execution Time: \hl{950} ms
 
 \vspace*{\fill}
 \end{frame}
-
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Section divider: "Outcomes" -- same pgEdge style as Chapters 1-4.
-% The parenthetical is a smaller, lighter second line so the joke reads
-% as an aside, not as part of the title.
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\pgechapter{Chapter 5}{Outcomes\\[3mm]{\fontsize{16}{19}\selectfont\mdseries\spaceskip=0pt\color{pgeSkyMid}(the shortest one)}}
-
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% What to monitor (slide 36 of the PG Bootcamp deck, translated). Same
-% \lever layout as "Assessing the instance's potential": metric, then what
-% a change in it may mean. Items 1-3 follow the original; the original had
-% no explanation for item 4, its second line is new.
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\begin{frame}\frametitle{The useful bits}
-\vspace*{\fill}
-
-\lever{1}{Track accumulated average error}
-  {On tuned system growth or spike in average error means loosing efficiency}
-\lever{2}{Watch SCAN and JOIN Filter factors}
-  {The most critical metrics that expose missed indexes}
-\lever{3}{Combine these metrics with \texttt{pg\_stat\_statements}}
-  {It might highlight queries that deserve GENERIC/CUSTOM plan changeover}
-
-\vspace*{\fill}
-\end{frame}
-
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Closing slide. Short on purpose -- a contact card, not a "thank you"
-% slide. QR code is rendered live by the qrcode package rather than pasted
-% in as an image. Points at the pg_track_optimizer repo so people can scan
-% and go straight to the source. E-mail is personal by convention.
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% pgEdge-style closing: same navy canvas as the chapter dividers, contacts
-% as plain lines (not bullets), QR on a white card so phones still scan it.
-{\setbeamertemplate{background}{%
-  \begin{tikzpicture}[x=1pt,y=1pt]
-    \useasboundingbox (0,0) rectangle (\paperwidth,\paperheight);
-    \fill[pgeNavy] (0,0) rectangle (\paperwidth,\paperheight);
-    \node[anchor=east,inner sep=0,opacity=0.3] at ([xshift=18mm]\paperwidth,0.5\paperheight)
-      {\includegraphics[height=\paperheight]{pgedge-assets/ascii-elephant-head-light}};
-    \node[anchor=west,inner sep=0,text width=0.58\paperwidth,align=left]
-      at (7mm,0.5\paperheight) {%
-      {\sffamily\bfseries\fontsize{32}{32}\selectfont\color{white}%
-       \spaceskip=0.32em\relax Questions?\par}%
-      \vskip9mm
-      {\sffamily\bfseries\fontsize{12}{14}\selectfont\color{white}Andrei Lepikhov\par}%
-      \vskip1mm
-      {\sffamily\fontsize{10}{12}\selectfont\color{pgeSkyMid}pgEdge\par}%
-      \vskip5mm
-      {\sffamily\fontsize{8.5}{12}\selectfont\color{pgeSkyMid}%
-       lepihov@gmail.com\par github.com/danolivo\par pgedge.com\par}};
-    \node[anchor=east,inner sep=3.2mm,fill=white,rounded corners=1.2mm,align=center]
-      at ([xshift=-9mm]\paperwidth,0.5\paperheight) {%
-      \qrcode[height=2.8cm]{https://github.com/danolivo/pg_track_optimizer}\\[2mm]
-      {\sffamily\fontsize{6.5}{8}\selectfont\color{pgeNavy}pg\_track\_optimizer on GitHub}};
-  \end{tikzpicture}}%
-\begin{frame}[plain]\end{frame}}
 
 \end{document}

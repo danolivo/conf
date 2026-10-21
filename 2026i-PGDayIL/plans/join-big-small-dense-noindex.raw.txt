@@ -1,0 +1,18 @@
+                         QUERY PLAN                         
+------------------------------------------------------------
+ Hash Join (actual rows=1000.00 loops=1)
+   Hash Cond: (big.x = small.x)
+   Buffers: shared hit=113638
+   ->  Seq Scan on big (actual rows=10000000.00 loops=1)
+         Buffers: shared hit=113637
+   ->  Hash (actual rows=100.00 loops=1)
+         Buckets: 1024  Batches: 1  Memory Usage: 12kB
+         Buffers: shared hit=1
+         ->  Seq Scan on small (actual rows=100.00 loops=1)
+               Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=158
+ Planning Time: 0.198 ms
+ Execution Time: 332.203 ms
+(14 rows)
+

@@ -1,0 +1,176 @@
+% planslides.sty -- query plans on Beamer slides, plain and readable.
+% XeLaTeX / LuaLaTeX. Usage: \usepackage{planslides}; frames with plans need [fragile].
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{planslides}[2026/09/24 v0.1 EXPLAIN plans on slides]
+
+\RequirePackage{fontspec}
+\RequirePackage{xcolor}
+\RequirePackage{fancyvrb}
+\RequirePackage{fvextra}          % highlightlines=...
+\RequirePackage{tcolorbox}
+\RequirePackage{forest}           % plan-shape sketches and graphs
+\RequirePackage{amsmath}
+
+% ---------------------------------------------------------------- options
+\newif\ifplan@setmono \plan@setmonotrue
+\DeclareOption{nomonofont}{\plan@setmonofalse}
+\ProcessOptions\relax
+
+% Monospace font: first one installed wins. Scaled to match the sans x-height.
+\ifplan@setmono
+  \IfFontExistsTF{JetBrains Mono}{\setmonofont{JetBrains Mono}[Scale=MatchLowercase]}{%
+  \IfFontExistsTF{Fira Mono}{\setmonofont{Fira Mono}[Scale=MatchLowercase]}{%
+  \IfFontExistsTF{PT Mono}{\setmonofont{PT Mono}[Scale=MatchLowercase]}{%
+  \IfFontExistsTF{DejaVu Sans Mono}{\setmonofont{DejaVu Sans Mono}[Scale=MatchLowercase]}{}}}}
+\fi
+
+% ---------------------------------------------------------------- colours
+% One neutral box, one marker, one "bad" colour. Redefine in the preamble if needed.
+\definecolor{planbg}{HTML}{F5F5F2}     % box fill
+\definecolor{planrule}{HTML}{D6D6D0}   % box border
+\definecolor{plantext}{HTML}{1F1F1F}   % plan text
+\definecolor{planfade}{HTML}{9B9B96}   % de-emphasised lines, elisions
+\definecolor{planhl}{HTML}{FFE36E}     % marker (same yellow as the 2026 deck)
+\definecolor{planbad}{HTML}{B3261E}    % the number that is wrong
+\definecolor{plancmt}{HTML}{2F5D8A}    % margin comments, takeaway
+
+% ---------------------------------------------------------------- inline marks
+% Inside plan/sql/psql bodies the escape chars are \ { } .
+\newcommand\hl[1]{{\setlength\fboxsep{0pt}\colorbox{planhl}{\strut#1}}}
+\newcommand\fade[1]{\textcolor{planfade}{#1}}
+\newcommand\bad[1]{\textcolor{planbad}{\bfseries#1}}
+\newcommand\cmt[1]{\textcolor{plancmt}{\normalfont\sffamily\itshape#1}}
+\newcommand\elide{\textcolor{planfade}{\ldots}}
+% highlight on given overlays only, no layout shift: \hlat{2}{...}, \hlat{2-}{...}, \badat{3}{...}
+% (inside Verbatim '<' is active, so the overlay spec is a plain argument)
+\newcommand\hlat[2]{\alt<#1>{\hl{#2}}{{\setlength\fboxsep{0pt}\colorbox{planbg}{\strut#2}}}}
+\newcommand\badat[2]{\alt<#1>{\bad{#2}}{#2}}
+% literal characters that are escape chars inside the bodies
+\newcommand\LB{\char`\{}
+\newcommand\RB{\char`\}}
+\newcommand\BS{\char`\\}
+
+% ---------------------------------------------------------------- box
+\tcbset{
+  planbox/.style={
+    colback=planbg, colframe=planrule, boxrule=0.4pt, arc=1pt,
+    left=5pt, right=5pt, top=3pt, bottom=3pt, boxsep=0pt,
+    before skip=4pt, after skip=4pt},
+}
+\newtcolorbox{plan@frame}[1][]{planbox,#1}
+
+\fvset{}
+\newcommand\plan@fv{%
+  \fvset{fontsize=\footnotesize, commandchars=\\\{\}, formatcom=\color{plantext},
+         highlightcolor=planhl!45, baselinestretch=1.0,
+         breaklines=false}}
+
+% plan  -- EXPLAIN output.        \begin{plan}[fancyvrb opts] ... \end{plan}
+% sql   -- the query (same look, slightly lighter box).
+% psql  -- tabular output of a view / function.
+% Options go straight to fancyvrb/fvextra, e.g. [fontsize=\scriptsize, highlightlines={3,5-6}]
+\newenvironment{plan}
+  {\VerbatimEnvironment\begin{plan@frame}\plan@fv\begin{Verbatim}}
+  {\end{Verbatim}\end{plan@frame}}
+\newenvironment{sql}
+  {\VerbatimEnvironment\begin{plan@frame}[colback=white]\plan@fv\begin{Verbatim}}
+  {\end{Verbatim}\end{plan@frame}}
+\newenvironment{psql}
+  {\VerbatimEnvironment\begin{plan@frame}\plan@fv\begin{Verbatim}}
+  {\end{Verbatim}\end{plan@frame}}
+
+% ---------------------------------------------------------------- text around plans
+% One line under the plan: what the audience must take away.
+\newcommand\takeaway[1]{\par\smallskip{\sffamily\small\color{plancmt}$\Rightarrow$~#1\par}}
+% Where the plan came from: version, options, dataset. Goes bottom-left, small, grey.
+\newcommand\plansource[1]{\par\vfill{\sffamily\tiny\color{planfade}#1\par}}
+
+% Misestimate shorthand: \misest{6553}{620526} -> "rows 6553 -> 620526 (x94.7)"
+\ExplSyntaxOn
+\NewDocumentCommand\misest{mm}{%
+  \mbox{\sffamily rows~#1~$\to$~#2~%
+  (\bad{\ensuremath{\times}\fp_eval:n{round(max(#1,#2)/max(min(#1,#2),1),1)}})}}
+\ExplSyntaxOff
+
+% ---------------------------------------------------------------- plan-shape sketch
+% \begin{forest} plantree [Hash Join, bad, est=6553, act=620526 [Seq Scan\\person\_info] [Hash [...]]] \end{forest}
+\forestset{
+  plantree/.style={
+    for tree={font=\sffamily\scriptsize, align=center, inner sep=2pt,
+              draw=planrule, fill=planbg, rounded corners=1pt,
+              l sep=8pt, s sep=6pt, edge={planfade, thin}, parent anchor=south, child anchor=north}},
+  bad/.style={draw=planbad, fill=planhl, line width=0.8pt},
+  faded/.style={text=planfade, draw=planrule!60, fill=white},
+  est/.style={label={[font=\sffamily\tiny, text=planfade]right:#1}},
+  estact/.style n args={2}{label={[font=\sffamily\tiny, yshift=1pt, text=plantext]below:#1\,/\,\textcolor{planbad}{#2}}},
+}
+
+% ================================================================ plan as a graph
+% Root on top, children below: the same order as EXPLAIN.  Edge width = log10 of the
+% actual rows flowing into the parent.  Node = operator / detail / rows.
+%
+% \begin{forest} plangraph
+% [Hash Join, detail={pi.info\_type\_id = it3.id}, rows={6553}{620526}, bad
+%   [Seq Scan, detail={person\_info pi}, rows={740474}{2963664}, flow=2963664]
+%   [Hash, rows={1}{1}, flow=1 [...]]]
+% \end{forest}
+%
+% keys:  detail={..}      grey second line (relation, condition)
+%        rows={est}{act}  "est -> act  xN"; xN red when N >= 10, dark when 2 <= N < 10
+%        act={N}          actual rows only
+%        loops={N}        appended "loops=N"
+%        flow={N}         edge width by N (use rows*loops for inner sides)
+%        flowlabel={..}   small text on the edge
+%        bad, faded       problem node / context node
+%        lr               whole tree left-to-right (deep plans on 16:9)
+%        algebra          textbook style: no boxes, math operators, cardinalities at the side
+%        card={est}{act}  (algebra) cardinality label, cardl on the left;  hot = red operator
+\ExplSyntaxOn
+\cs_new:Npn \plan@lw #1 { \fp_eval:n { round(0.4 + 0.45 * ln(max(#1,1)) / ln(10), 2) } pt }
+\NewDocumentCommand\plan@rows{mm}{%
+  #1\,$\to$\,#2
+  \fp_compare:nNnTF { max(#1,#2) / max(min(#1,#2),1) } < { 2 } { }
+  { ~\fp_compare:nNnTF { max(#1,#2) / max(min(#1,#2),1) } < { 10 }
+      { \textcolor{plantext}{\bfseries\ensuremath{\times}\fp_eval:n{round(max(#1,#2)/max(min(#1,#2),1),0)}} }
+      { \textcolor{planbad}{\bfseries\ensuremath{\times}\fp_eval:n{round(max(#1,#2)/max(min(#1,#2),1),0)}} } }
+}
+\ExplSyntaxOff
+% multi-line detail: a tabular keeps "\\" legal inside the group
+\newcommand\plan@sub[1]{{\color{planfade}\tiny\renewcommand\arraystretch{0.85}%
+  \begin{tabular}{@{}c@{}}#1\end{tabular}}}
+
+% edge width of plan graphs; redefine in the preamble: \renewcommand\planedgewidth{0.7pt}
+\newcommand\planedgewidth{0.4pt}
+\forestset{
+  plangraph/.style={
+    for tree={font=\sffamily\scriptsize, align=center, draw=planrule, fill=planbg,
+              rounded corners=1.5pt, inner xsep=4pt, inner ysep=2.5pt,
+              l sep=12pt, s sep=8pt, parent anchor=south, child anchor=north,
+              edge={draw=planfade!80, line width=\planedgewidth}}},
+  detail/.style={content+={\\\plan@sub{#1}}},
+  rows/.style n args={2}{content+={\\{\tiny\plan@rows{#1}{#2}}}},
+  act/.style={content+={\\{\tiny#1}}},
+  loops/.style={content+={\,{\tiny loops=#1}}},
+  flow/.style={edge+={line width=\plan@lw{#1}}},
+  flowlabel/.style={edge label={node[midway, right, inner sep=1pt, font=\sffamily\tiny, text=planfade]{#1}}},
+  lr/.style={for tree={grow'=east, parent anchor=east, child anchor=west,
+                       l sep=10pt, s sep=4pt, calign=first}},
+  algebra/.style={
+    for tree={font=\normalsize, draw=none, fill=none, inner sep=1.5pt, l sep=16pt, s sep=34pt,
+              parent anchor=south, child anchor=north, edge={draw=plantext, line width=0.4pt}}},
+  hot/.style={text=planbad},
+  card/.style n args={2}{label={[font=\sffamily\tiny, inner sep=1pt]right:{\plan@rows{#1}{#2}}}},
+  cardl/.style n args={2}{label={[font=\sffamily\tiny, inner sep=1pt]left:{\plan@rows{#1}{#2}}}},
+}
+% textbook operators for the algebra style
+\newcommand\opHJ{$\bowtie^{\mathrm{H}}$}
+\newcommand\opNL{$\bowtie^{\mathrm{NL}}$}
+\newcommand\opMJ{$\bowtie^{\mathrm{M}}$}
+\newcommand\opSel[1]{$\sigma_{\text{#1}}$}
+\newcommand\opAgg[1]{$\gamma_{\text{#1}}$}
+\newcommand\rel[1]{\textit{#1}}
+% one-line legend for graph slides
+\newcommand\plangraphlegend{{\sffamily\tiny\color{planfade}%
+  узел: оператор / детали / оценка $\to$ факт; \textcolor{planbad}{\bfseries×N}: ошибка оценки ≥\,10; толщина ребра: $\log_{10}$ фактических строк\par}}
+
+\endinput
