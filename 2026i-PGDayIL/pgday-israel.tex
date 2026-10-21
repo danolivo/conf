@@ -107,11 +107,14 @@
 %Information to be included in the title page:
 % short form for the footer: the full title plus "10 / 10" no longer fits
 % PGDay Israel 2026 variant of the PGConf.EU 2026 talk (talk.tex).
-% Same title, split at the colon into title + subtitle.
-% Sentence case, as in the PGConf.EU schedule;
+% Title as published in the PGDay Israel 2026 programme (pgday.org.il/2026,
+% 13:00 slot): "When the Planner's Misestimation Inflates Your Cloud Bill".
+% The programme has no subtitle; the PGConf.EU tagline is kept as one.
+% Sentence case, as everywhere else in this deck;
 % line breaks are placed by hand for the cover (\texorpdfstring keeps
-% them out of the PDF metadata).
-\title[Finding the invisible]{Finding the\texorpdfstring{\\}{ }invisible}
+% them out of the PDF metadata). Four lines: the title is twice as long
+% as the PGConf.EU one, so the cover sets it at 24pt instead of 28pt.
+\title[Misestimation inflates your cloud bill]{When the planner's\texorpdfstring{\\}{ }misestimation\texorpdfstring{\\}{ }inflates your\texorpdfstring{\\}{ }cloud bill}
 \subtitle{Spotting query planner issues\texorpdfstring{\\}{ }before they appear}
 % eyebrow above the title on the cover
 \newcommand{\eventname}{PGDay Israel 2026 \textperiodcentered{} Tel Aviv}
@@ -275,10 +278,10 @@
       {\sffamily\bfseries\fontsize{7}{9}\selectfont\color{pgeSkyMid}%
        \addfontfeatures{LetterSpace=8}\MakeUppercase{\eventname}\par}%
       \vskip3.5mm
-      {\sffamily\bfseries\fontsize{28}{30}\selectfont\color{white}%
+      {\sffamily\bfseries\fontsize{24}{26}\selectfont\color{white}%
        \spaceskip=0.32em\relax\inserttitle\par}%
       \vskip4mm
-      {\sffamily\fontsize{13}{15.5}\selectfont\color{pgeSkyMid}%
+      {\sffamily\fontsize{12}{14.5}\selectfont\color{pgeSkyMid}%
        \insertsubtitle\par}};
     \node[anchor=south west,inner sep=0,text width=0.6\paperwidth,align=left]
       at (8mm,8mm) {\spaceskip=0.25em\relax
