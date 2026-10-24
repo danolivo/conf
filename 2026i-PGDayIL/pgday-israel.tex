@@ -1267,70 +1267,6 @@ Execution Time: 0.187 ms
 \vfill
 \end{frame}
 
-\pgechapter{Chapter 5}{Outcomes\\[3mm]{\fontsize{16}{19}\selectfont\mdseries\spaceskip=0pt\color{pgePath}(the shortest one)}}
-
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% What to monitor (slide 36 of the PG Bootcamp deck, translated). Same
-% \lever layout as "Assessing the instance's potential": metric, then what
-% a change in it may mean. Items 1-3 follow the original; the original had
-% no explanation for item 4, its second line is new.
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\begin{frame}\frametitle{The useful bits}
-\vspace*{\fill}
-
-\lever{1}{Track accumulated average error}
-  {On tuned system growth or spike in average error means loosing efficiency}
-\lever{2}{Watch SCAN and JOIN Filter factors}
-  {The most critical metrics that expose missed indexes}
-\lever{3}{Combine these metrics with \texttt{pg\_stat\_statements}}
-  {It might highlight queries that deserve GENERIC/CUSTOM plan changeover}
-
-\vspace*{\fill}
-\end{frame}
-
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Closing slide. Short on purpose -- a contact card, not a "thank you"
-% slide. QR code is rendered live by the qrcode package rather than pasted
-% in as an image. Points at the pg_track_optimizer repo so people can scan
-% and go straight to the source. E-mail is personal by convention.
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% pgEdge-style closing: navy canvas, matching the cover (bookends), contacts
-% as plain lines (not bullets), QR on a white card so phones still scan it.
-{\setbeamertemplate{background}{%
-  \begin{tikzpicture}[x=1pt,y=1pt]
-    \useasboundingbox (0,0) rectangle (\paperwidth,\paperheight);
-    \fill[pgeNavy] (0,0) rectangle (\paperwidth,\paperheight);
-    \node[anchor=east,inner sep=0,opacity=0.3] at ([xshift=18mm]\paperwidth,0.5\paperheight)
-      {\includegraphics[height=\paperheight]{pgedge-assets/ascii-elephant-head-light}};
-    \node[anchor=west,inner sep=0,text width=0.58\paperwidth,align=left]
-      at (7mm,0.5\paperheight) {%
-      {\sffamily\bfseries\fontsize{32}{32}\selectfont\color{white}%
-       \spaceskip=0.32em\relax Questions?\par}%
-      \vskip9mm
-      {\sffamily\bfseries\fontsize{12}{14}\selectfont\color{white}Andrei Lepikhov\par}%
-      \vskip1mm
-      {\sffamily\fontsize{10}{12}\selectfont\color{pgeSkyMid}PostgreSQL contributor\par}%
-      \vskip5mm
-      {\sffamily\fontsize{8.5}{12}\selectfont\color{pgeSkyMid}%
-       lepihov@gmail.com\par github.com/danolivo\par}};
-    \node[anchor=east,inner sep=3.2mm,fill=white,rounded corners=1.2mm,align=center]
-      at ([xshift=-9mm]\paperwidth,0.5\paperheight) {%
-      \qrcode[height=2.8cm]{https://github.com/danolivo/pg_track_optimizer}\\[2mm]
-      {\sffamily\fontsize{6.5}{8}\selectfont\color{pgeNavy}pg\_track\_optimizer on GitHub}};
-  \end{tikzpicture}}%
-\begin{frame}[plain]\end{frame}}
-
-
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Spilling of intermediate results -- the setup slide (slide 26 of the PG
-% Bootcamp deck), placed right before the live demo. Lists which plan
-% nodes can spill once they outgrow work_mem, and how pg_track_optimizer
-% detects it (local_blks). Text adapted from the Bootcamp slide; its
-% screenshot was the same ranking query shown live on the next slide, so
-% it is not repeated here.
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}\frametitle{Spilling of intermediate results}
   \vspace*{\fill}
@@ -1449,5 +1385,60 @@ Execution Time: \hl{950} ms
 
 \vspace*{\fill}
 \end{frame}
+
+\pgechapter{Chapter 5}{Outcomes\\[3mm]{\fontsize{16}{19}\selectfont\mdseries\spaceskip=0pt\color{pgePath}(the shortest one)}}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% What to monitor (slide 36 of the PG Bootcamp deck, translated). Same
+% \lever layout as "Assessing the instance's potential": metric, then what
+% a change in it may mean. Items 1-3 follow the original; the original had
+% no explanation for item 4, its second line is new.
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}\frametitle{The useful bits}
+\vspace*{\fill}
+
+\lever{1}{Track accumulated average error}
+  {On tuned system growth or spike in average error means loosing efficiency}
+\lever{2}{Watch SCAN and JOIN Filter factors}
+  {The most critical metrics that expose missed indexes}
+\lever{3}{Combine these metrics with \texttt{pg\_stat\_statements}}
+  {It might highlight queries that deserve GENERIC/CUSTOM plan changeover}
+
+\vspace*{\fill}
+\end{frame}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Closing slide. Short on purpose -- a contact card, not a "thank you"
+% slide. QR code is rendered live by the qrcode package rather than pasted
+% in as an image. Points at the pg_track_optimizer repo so people can scan
+% and go straight to the source. E-mail is personal by convention.
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% pgEdge-style closing: navy canvas, matching the cover (bookends), contacts
+% as plain lines (not bullets), QR on a white card so phones still scan it.
+{\setbeamertemplate{background}{%
+  \begin{tikzpicture}[x=1pt,y=1pt]
+    \useasboundingbox (0,0) rectangle (\paperwidth,\paperheight);
+    \fill[pgeNavy] (0,0) rectangle (\paperwidth,\paperheight);
+    \node[anchor=east,inner sep=0,opacity=0.3] at ([xshift=18mm]\paperwidth,0.5\paperheight)
+      {\includegraphics[height=\paperheight]{pgedge-assets/ascii-elephant-head-light}};
+    \node[anchor=west,inner sep=0,text width=0.58\paperwidth,align=left]
+      at (7mm,0.5\paperheight) {%
+      {\sffamily\bfseries\fontsize{32}{32}\selectfont\color{white}%
+       \spaceskip=0.32em\relax Questions?\par}%
+      \vskip9mm
+      {\sffamily\bfseries\fontsize{12}{14}\selectfont\color{white}Andrei Lepikhov\par}%
+      \vskip1mm
+      {\sffamily\fontsize{10}{12}\selectfont\color{pgeSkyMid}PostgreSQL contributor\par}%
+      \vskip5mm
+      {\sffamily\fontsize{8.5}{12}\selectfont\color{pgeSkyMid}%
+       lepihov@gmail.com\par github.com/danolivo\par}};
+    \node[anchor=east,inner sep=3.2mm,fill=white,rounded corners=1.2mm,align=center]
+      at ([xshift=-9mm]\paperwidth,0.5\paperheight) {%
+      \qrcode[height=2.8cm]{https://github.com/danolivo/pg_track_optimizer}\\[2mm]
+      {\sffamily\fontsize{6.5}{8}\selectfont\color{pgeNavy}pg\_track\_optimizer on GitHub}};
+  \end{tikzpicture}}%
+\begin{frame}[plain]\end{frame}}
 
 \end{document}
