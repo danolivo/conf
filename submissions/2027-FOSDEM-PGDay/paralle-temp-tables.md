@@ -1,0 +1,7 @@
+# Teaching PostgreSQL to scan temporary tables in parallel
+
+Ever since PostgreSQL gained parallel query in 9.6, it has unconditionally refused to parallelise any part of a plan that touches a temporary table. The reason is structural: temporary-table pages live in the leader's local buffers, which parallel workers cannot see, so the planner simply marks such scans parallel-restricted.
+As parallel execution has matured — partial aggregation, parallel append, and friends — that restriction increasingly leaves performance on the table, particularly for workloads built around temporary tables. ORMs and reporting pipelines routinely stage intermediate result sets in them, and PostgreSQL still offers no in-core alternative such as session variables.
+The approach I'll present relaxes the restriction with a deceptively simple idea: have the leader flush all of its local buffers to disk before launching workers, so the workers can read a consistent on-disk image of the temporary relation. I'll walk through the design — the cost-model changes (when is the flush actually worth paying for?), the executor, and the buffer manager — and explain why a "read-only" parallel scan turns out not to be write-free at all. That last point is where it gets interesting. Drawing on roughly two years of production use among customers of two enterprise PostgreSQL fork vendors, I'll cover the problems this design has surfaced and the trade-offs that still stand between it and the PostgreSQL core.
+
+45 min, Postgres Internals.
